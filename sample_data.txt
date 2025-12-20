@@ -1,0 +1,11 @@
+[2023-10-27T10:00:00.000Z] INFO: Server started on port 3000
+[2023-10-27T10:00:01.500Z] DEBUG: Initializing database connection...
+[2023-10-27T10:00:02.100Z] INFO: Database connected successfully.
+[2023-10-27T10:00:05.200Z] WARN: Response time threshold exceeded (500ms) for /api/v1/users
+[2023-10-27T10:00:10.000Z] ERROR: Failed to process payment for user_id=12345. Reason: Connection timeout.
+[2023-10-27T10:00:15.300Z] INFO: Scheduled maintenance task 'cleanup_logs' started.
+[2023-10-27T10:00:16.800Z] DEBUG: Deleted 50 old log files.
+[2023-10-27T10:00:17.000Z] INFO: Scheduled maintenance task 'cleanup_logs' completed.
+[2023-10-27T10:00:25.000Z] INFO: User login: username='alice' ip='192.168.1.50'
+[2023-10-27T10:00:30.000Z] ERROR: Unexpected token < in JSON at position 0
+[2023-10-27T10:00:35.000Z] INFO: Server shutting down...
