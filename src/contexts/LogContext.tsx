@@ -6,10 +6,7 @@ interface LogContextType extends LogState {
     setLoading: (loading: boolean) => void;
     setFilterText: (text: string) => void;
     setSmartFilterActive: (active: boolean) => void;
-    setSipOnly: (active: boolean) => void;
     setSelectedLogId: (id: number | null) => void;
-    addLogs: (newLogs: LogEntry[]) => void;
-    clearLogs: () => void;
 }
 
 const LogContext = createContext<LogContextType | null>(null);
@@ -27,7 +24,6 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
     const [loading, setLoading] = useState(false);
     const [filterText, setFilterText] = useState('');
     const [smartFilterActive, setSmartFilterActive] = useState(false);
-    const [sipOnly, setSipOnly] = useState(false);
     const [selectedLogId, setSelectedLogId] = useState<number | null>(null);
 
     // Computed filtered logs
@@ -40,12 +36,6 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
                 if (log.level === 'DEBUG') return false;
                 if (log.message.includes('OPTIONS sip:')) return false;
                 if (log.sipMethod === 'OPTIONS') return false;
-                if (log.sipMethod === 'OPTIONS') return false;
-            }
-
-            // SIP Only Logic
-            if (sipOnly && !log.isSip) {
-                return false;
             }
 
             // Text Search Logic
@@ -61,21 +51,7 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
 
             return true;
         });
-    }, [logs, filterText, smartFilterActive, sipOnly]);
-
-    const addLogs = (newLogs: LogEntry[]) => {
-        setLogs(prevLogs => {
-            // Combine and sort by timestamp
-            const combined = [...prevLogs, ...newLogs].sort((a, b) => a.timestamp - b.timestamp);
-            return combined;
-        });
-    };
-
-    const clearLogs = () => {
-        setLogs([]);
-        setSelectedLogId(null);
-        setFilterText("");
-    };
+    }, [logs, filterText, smartFilterActive]);
 
     const value = {
         logs,
@@ -86,13 +62,9 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         setFilterText,
         smartFilterActive,
         setSmartFilterActive,
-        sipOnly,
-        setSipOnly,
         filteredLogs,
         selectedLogId,
-        setSelectedLogId,
-        addLogs,
-        clearLogs
+        setSelectedLogId
     };
 
     return (

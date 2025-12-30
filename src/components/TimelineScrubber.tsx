@@ -2,24 +2,20 @@ import { useMemo } from 'react';
 import { useLogContext } from '../contexts/LogContext';
 import type { LogEntry } from '../types';
 
-import { stc } from '../utils/colors';
-
 const TimelineScrubber = () => {
     const { logs, setSelectedLogId } = useLogContext();
 
-    const { minTime, maxTime, duration, relevantLogs } = useMemo(() => {
+    const { minTime, duration, relevantLogs } = useMemo(() => {
         if (!logs.length) return { minTime: 0, maxTime: 0, duration: 1, relevantLogs: [] };
 
         const minTime = logs[0].timestamp;
-        const maxTime = logs[logs.length - 1].timestamp;
-
+        const maxTime = logs[logs.length - 1].timestamp; // Assumed sorted
         const duration = maxTime - minTime || 1;
 
         // Filter only interesting logs for the timeline to improve performance
         const relevantLogs = logs.filter(l =>
             l.level === 'ERROR' ||
-            (l.isSip && ['INVITE', 'BYE', 'CANCEL'].includes(l.sipMethod || '')) ||
-            l.callId // Include logs with Call-ID for coloring
+            (l.isSip && ['INVITE', 'BYE', 'CANCEL'].includes(l.sipMethod || ''))
         );
 
         return { minTime, maxTime, duration, relevantLogs };
@@ -31,14 +27,10 @@ const TimelineScrubber = () => {
 
     const getColor = (log: LogEntry) => {
         if (log.level === 'ERROR') return '#ef4444'; // Red-500
-        if (log.callId) return stc(log.callId); // Use Call-ID color
-        if (log.sipMethod === 'INVITE') return '#22c55e'; // Green-500 (Fallback if no Call-ID)
+        if (log.sipMethod === 'INVITE') return '#22c55e'; // Green-500
         if (log.sipMethod === 'BYE' || log.sipMethod === 'CANCEL') return '#eab308'; // Yellow-500
         return 'gray';
     };
-
-    // Helper for time formatting
-    const formatTime = (ts: number) => new Date(ts).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 });
 
     if (!logs.length) return null;
 
@@ -60,17 +52,17 @@ const TimelineScrubber = () => {
                             borderRadius: '2px',
                             opacity: 0.8
                         }}
-                        title={`${formatTime(log.timestamp)} - ${log.level} - ${log.message}`}
+                        title={`${new Date(log.timestamp).toLocaleTimeString()} - ${log.level} - ${log.message}`}
                     ></div>
                 ))}
             </div>
 
             {/* Time Labels */}
-            <div className="absolute bottom-1 left-2 text-xs text-slate-500 font-mono">
-                {formatTime(minTime)}
+            <div className="absolute bottom-1 left-2 text-xs text-slate-500">
+                {new Date(minTime).toLocaleTimeString()}
             </div>
-            <div className="absolute bottom-1 right-2 text-xs text-slate-500 font-mono">
-                {formatTime(maxTime)}
+            <div className="absolute bottom-1 right-2 text-xs text-slate-500">
+                {new Date(minTime + duration).toLocaleTimeString()}
             </div>
         </div>
     );
