@@ -13,7 +13,6 @@ export interface LogEntry {
     isSip: boolean;
     sipMethod?: string | null;
     callId?: string;
-    fileName?: string;
 }
 
 export interface LogState {
@@ -22,6 +21,5 @@ export interface LogState {
     loading: boolean;
     filterText: string;
     smartFilterActive: boolean;
-    sipOnly: boolean;
     selectedLogId: number | null;
 }

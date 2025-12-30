@@ -22,7 +22,15 @@ interface LogRowProps {
     index?: number;
 }
 
-import { stc } from '../utils/colors';
+// Simple string-to-color function
+const stc = (str: string) => {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const c = (hash & 0x00ffffff).toString(16).toUpperCase();
+    return '#' + '00000'.substring(0, 6 - c.length) + c;
+};
 
 const LogRow: React.FC<LogRowProps> = ({ log, style, onClick, active, measureRef, index }) => {
     const [expanded, setExpanded] = useState(false);
@@ -57,7 +65,7 @@ const LogRow: React.FC<LogRowProps> = ({ log, style, onClick, active, measureRef
                     <div className="w-[18px]"></div>
                 )}
 
-                <div className="w-[160px] text-slate-500 shrink-0 truncate" title={log.fileName || 'Unknown Source'}>
+                <div className="w-[160px] text-slate-500 shrink-0 truncate">
                     {format(new Date(log.timestamp), 'MM/dd HH:mm:ss.SSS')}
                 </div>
 

@@ -4,20 +4,14 @@ import { parseLogFile } from '../utils/parser';
 import { Upload } from 'lucide-react';
 
 const FileUploader = () => {
-    const { setLogs, addLogs, logs, setLoading, setSelectedLogId } = useLogContext();
+    const { setLogs, setLoading, setSelectedLogId } = useLogContext();
 
     const handleFile = async (file: File) => {
         if (!file) return;
         setLoading(true);
         try {
-            const parsed = await parseLogFile(file, file.name);
-
-            if (logs.length > 0) {
-                addLogs(parsed);
-            } else {
-                setLogs(parsed);
-            }
-
+            const parsed = await parseLogFile(file);
+            setLogs(parsed);
             setSelectedLogId(null);
         } catch (err) {
             console.error("Failed to parse", err);
