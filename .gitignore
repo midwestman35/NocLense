@@ -9,16 +9,29 @@ lerna-debug.log*
 
 node_modules
 dist
-dist-ssr
+dist-electron
+.DS_Store
 *.local
 
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
 .idea
-.DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+
+# Electron
+out
+*.app
+*.dmg
+*.exe
+*.deb
+*.rpm
+*.pkg
+
+# Backup files
+backup/
+*.bak
