@@ -2,7 +2,7 @@ import { useLogContext } from '../contexts/LogContext';
 import { Search, Filter } from 'lucide-react';
 
 const FilterBar = () => {
-    const { filterText, setFilterText, smartFilterActive, setSmartFilterActive, logs } = useLogContext();
+    const { filterText, setFilterText, smartFilterActive, setSmartFilterActive, logs, filteredLogs } = useLogContext();
 
     return (
         <div className="flex items-center gap-4 p-4 bg-slate-800 border-b border-slate-700">
@@ -36,8 +36,13 @@ const FilterBar = () => {
             </div>
 
             {logs.length > 0 && (
-                <div className="text-xs text-slate-500 ml-auto">
-                    {logs.length.toLocaleString()} events
+                <div className="text-xs text-slate-500 ml-auto flex items-center gap-3">
+                    <span>{logs.length.toLocaleString()} event{logs.length !== 1 ? 's' : ''}</span>
+                    {filteredLogs.length !== logs.length && (
+                        <span className="text-blue-400">
+                            ({filteredLogs.length.toLocaleString()} filtered)
+                        </span>
+                    )}
                 </div>
             )}
         </div>

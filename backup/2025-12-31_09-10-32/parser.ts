@@ -8,7 +8,7 @@ import type { LogEntry, LogLevel } from '../types';
  * 2. ISO Date: [LEVEL] [YYYY-MM-DD HH:MM:SS,mmm] [component] message
  */
 
-export const parseLogFile = async (file: File, startId: number = 1): Promise<LogEntry[]> => {
+export const parseLogFile = async (file: File): Promise<LogEntry[]> => {
     const text = await file.text();
     const lines = text.split(/\r?\n/);
     const parsedLogs: LogEntry[] = [];
@@ -20,7 +20,7 @@ export const parseLogFile = async (file: File, startId: number = 1): Promise<Log
     const logRegex2 = /^\[(INFO|DEBUG|ERROR|WARN)\]\s\[(\d{4}-\d{2}-\d{2})\s(\d{2}:\d{2}:\d{2},\d+)\]\s\[(.*?)\]\s(.*)/;
 
     let currentLog: LogEntry | null = null;
-    let idCounter = startId;
+    let idCounter = 1;
 
     for (let line of lines) {
         if (!line.trim()) continue; // Skip empty lines
