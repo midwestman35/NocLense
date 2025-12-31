@@ -1,4 +1,7 @@
+# Cloudflare Pages Configuration
+# This file helps wrangler deploy static assets correctly
+# If you can remove the deploy command in Cloudflare Pages settings, you don't need this file
+
 name = "noclense"
 compatibility_date = "2024-12-31"
-pages_build_output_dir = "./dist"
 
