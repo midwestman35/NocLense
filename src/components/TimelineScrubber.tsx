@@ -1,12 +1,13 @@
 import { useMemo } from 'react';
 import { useLogContext } from '../contexts/LogContext';
 import type { LogEntry } from '../types';
+import { format } from 'date-fns';
 
 const TimelineScrubber = () => {
     const { logs, setSelectedLogId } = useLogContext();
 
     const { minTime, duration, relevantLogs } = useMemo(() => {
-        if (!logs.length) return { minTime: 0, maxTime: 0, duration: 1, relevantLogs: [] };
+        if (!logs.length) return { minTime: 0, duration: 1, relevantLogs: [] };
 
         const minTime = logs[0].timestamp;
         const maxTime = logs[logs.length - 1].timestamp; // Assumed sorted
@@ -18,7 +19,7 @@ const TimelineScrubber = () => {
             (l.isSip && ['INVITE', 'BYE', 'CANCEL'].includes(l.sipMethod || ''))
         );
 
-        return { minTime, maxTime, duration, relevantLogs };
+        return { minTime, duration, relevantLogs };
     }, [logs]);
 
     const getPosition = (ts: number) => {
@@ -52,17 +53,17 @@ const TimelineScrubber = () => {
                             borderRadius: '2px',
                             opacity: 0.8
                         }}
-                        title={`${new Date(log.timestamp).toLocaleTimeString()} - ${log.level} - ${log.message}`}
+                        title={`${format(new Date(log.timestamp), 'HH:mm:ss')} - ${log.level} - ${log.message}`}
                     ></div>
                 ))}
             </div>
 
             {/* Time Labels */}
             <div className="absolute bottom-1 left-2 text-xs text-slate-500">
-                {new Date(minTime).toLocaleTimeString()}
+                {format(new Date(minTime), 'HH:mm:ss')}
             </div>
             <div className="absolute bottom-1 right-2 text-xs text-slate-500">
-                {new Date(minTime + duration).toLocaleTimeString()}
+                {format(new Date(minTime + duration), 'HH:mm:ss')}
             </div>
         </div>
     );

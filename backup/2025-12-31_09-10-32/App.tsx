@@ -1,77 +1,33 @@
-import { useRef, useState } from 'react';
+import { useRef } from 'react';
 import { LogProvider, useLogContext } from './contexts/LogContext';
 import FileUploader from './components/FileUploader';
 import FilterBar from './components/FilterBar';
 import LogViewer from './components/LogViewer';
 import TimelineScrubber from './components/TimelineScrubber';
-import { Download, FolderOpen, X, AlertTriangle } from 'lucide-react';
+import { Download, FolderOpen, X } from 'lucide-react';
 import { parseLogFile } from './utils/parser';
-import { validateFile } from './utils/fileUtils';
 
 const MainLayout = () => {
   const { logs, setLogs, selectedLogId, filteredLogs, setSelectedLogId, setLoading, setFilterText } = useLogContext();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [fileError, setFileError] = useState<string | null>(null);
-  const [fileWarning, setFileWarning] = useState<string | null>(null);
 
   const selectedLog = selectedLogId ? filteredLogs.find(l => l.id === selectedLogId) || logs.find(l => l.id === selectedLogId) : null;
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    setFileError(null);
-    setFileWarning(null);
-
-    // Validate all files first
-    const filesArray = Array.from(files);
-    const validationResults = filesArray.map(file => ({
-      file,
-      validation: validateFile(file)
-    }));
-
-    // Check for validation errors
-    const errors = validationResults.filter(r => !r.validation.valid);
-    if (errors.length > 0) {
-      setFileError(errors[0].validation.error || 'Invalid file');
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      return;
-    }
-
-    // Collect warnings
-    const warnings = validationResults
-      .map(r => r.validation.warning)
-      .filter((w): w is string => !!w);
-    
-    if (warnings.length > 0) {
-      setFileWarning(warnings[0]); // Show first warning
-    }
+    const file = e.target.files?.[0];
+    if (!file) return;
 
     setLoading(true);
     try {
-      // Process all files
-      const allParsedLogs = [];
-      let maxId = Math.max(0, ...logs.map(l => l.id)); // Get max ID from existing logs
-
-      for (const { file } of validationResults) {
-        const parsed = await parseLogFile(file, maxId);
-        allParsedLogs.push(...parsed);
-        maxId = Math.max(maxId, ...parsed.map(l => l.id));
-      }
-
-      // Merge with existing logs (append mode)
-      setLogs([...logs, ...allParsedLogs]);
+      const parsed = await parseLogFile(file);
+      setLogs(parsed);
       setSelectedLogId(null);
     } catch (err) {
       console.error("Failed to parse", err);
-      setFileError(`Failed to parse file${files.length > 1 ? 's' : ''}: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      // alert("Failed to parse log file.");
     } finally {
       setLoading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
-      // Clear warnings after 5 seconds
-      if (fileWarning) {
-        setTimeout(() => setFileWarning(null), 5000);
-      }
     }
   };
 
@@ -99,16 +55,14 @@ const MainLayout = () => {
             ref={fileInputRef}
             className="hidden"
             accept=".log,.txt"
-            multiple
             onChange={handleFileUpload}
           />
           <button
             onClick={() => fileInputRef.current?.click()}
             className="flex items-center gap-2 text-sm bg-slate-700 px-3 py-1.5 rounded-md hover:bg-blue-600 hover:text-white transition-colors border border-slate-600"
-            title="Open one or more log files"
           >
             <FolderOpen size={16} />
-            Open File{logs.length > 0 ? '(s)' : ''}
+            Open File
           </button>
           {logs.length > 0 && (
             <button
@@ -122,36 +76,6 @@ const MainLayout = () => {
           )}
         </div>
       </header>
-
-      {/* Error/Warning Messages */}
-      {(fileError || fileWarning) && (
-        <div className="px-4 py-2 bg-slate-800 border-b border-slate-700">
-          {fileError && (
-            <div className="flex items-center gap-2 text-red-400 text-sm">
-              <AlertTriangle size={16} />
-              <span>{fileError}</span>
-              <button
-                onClick={() => setFileError(null)}
-                className="ml-auto text-red-500 hover:text-red-300"
-              >
-                <X size={14} />
-              </button>
-            </div>
-          )}
-          {fileWarning && !fileError && (
-            <div className="flex items-center gap-2 text-yellow-400 text-sm">
-              <AlertTriangle size={16} />
-              <span>{fileWarning}</span>
-              <button
-                onClick={() => setFileWarning(null)}
-                className="ml-auto text-yellow-500 hover:text-yellow-300"
-              >
-                <X size={14} />
-              </button>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Content */}
       {logs.length === 0 ? (
