@@ -3,19 +3,41 @@ import { LogProvider, useLogContext } from './contexts/LogContext';
 import FileUploader from './components/FileUploader';
 import FilterBar from './components/FilterBar';
 import LogViewer from './components/LogViewer';
+import CallFlowViewer from './components/CallFlowViewer';
 import TimelineScrubber from './components/TimelineScrubber';
-import { Download, FolderOpen, X, AlertTriangle } from 'lucide-react';
+import CorrelationSidebar from './components/CorrelationSidebar';
+import { Download, FolderOpen, X, AlertTriangle, Filter } from 'lucide-react';
 import { parseLogFile } from './utils/parser';
 import { validateFile } from './utils/fileUtils';
 
 const MainLayout = () => {
-  const { logs, setLogs, selectedLogId, filteredLogs, setSelectedLogId, setLoading, setFilterText } = useLogContext();
+  const {
+    logs,
+    setLogs,
+    selectedLogId,
+    filteredLogs,
+    setSelectedLogId,
+    setLoading,
+    setFilterText,
+    activeCallFlowId,
+    setActiveCallFlowId,
+    toggleCorrelation, // New
+    isSidebarOpen, // New
+    setIsSidebarOpen // New
+  } = useLogContext();
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [fileWarning, setFileWarning] = useState<string | null>(null);
 
+  // Panel Sizes
+  const [detailsHeight, setDetailsHeight] = useState(256);
+  const [timelineHeight, setTimelineHeight] = useState(64);
+
+
   const selectedLog = selectedLogId ? filteredLogs.find(l => l.id === selectedLogId) || logs.find(l => l.id === selectedLogId) : null;
 
+  // ... (handleFileUpload and handleClearLogs remain same) ...
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -42,7 +64,7 @@ const MainLayout = () => {
     const warnings = validationResults
       .map(r => r.validation.warning)
       .filter((w): w is string => !!w);
-    
+
     if (warnings.length > 0) {
       setFileWarning(warnings[0]); // Show first warning
     }
@@ -53,8 +75,22 @@ const MainLayout = () => {
       const allParsedLogs = [];
       let maxId = Math.max(0, ...logs.map(l => l.id)); // Get max ID from existing logs
 
-      for (const { file } of validationResults) {
-        const parsed = await parseLogFile(file, maxId);
+      // File colors (Tailwind-ish palette)
+      const FILE_COLORS = [
+        '#3b82f6', // blue-500
+        '#eab308', // yellow-500
+        '#a855f7', // purple-500
+        '#ec4899', // pink-500
+        '#22c55e', // green-500
+        '#f97316', // orange-500
+        '#06b6d4', // cyan-500
+        '#64748b', // slate-500
+      ];
+
+      for (let i = 0; i < validationResults.length; i++) {
+        const { file } = validationResults[i];
+        const color = FILE_COLORS[i % FILE_COLORS.length];
+        const parsed = await parseLogFile(file, color, maxId);
         allParsedLogs.push(...parsed);
         maxId = Math.max(maxId, ...parsed.map(l => l.id));
       }
@@ -87,6 +123,15 @@ const MainLayout = () => {
       {/* Header */}
       <header className="h-14 flex items-center px-4 bg-slate-800 border-b border-slate-700 justify-between shrink-0 z-10">
         <div className="flex items-center gap-2">
+          {/* Sidebar Toggle */}
+          <button
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            className={`p-1.5 rounded-md transition-colors ${isSidebarOpen ? 'bg-blue-600/20 text-blue-400' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}
+            title={isSidebarOpen ? "Hide Sidebar" : "Show Sidebar"}
+          >
+            <Filter size={20} />
+          </button>
+
           <div className="p-1.5 bg-blue-500 rounded-md">
             <Download size={20} className="text-white" />
           </div>
@@ -162,41 +207,123 @@ const MainLayout = () => {
         <>
           <FilterBar />
 
-          <div className="flex-grow flex flex-col overflow-hidden relative">
-            <div className="flex-grow relative min-h-0">
-              <LogViewer />
-            </div>
-
-            {/* Details Panel */}
-            {selectedLog && (
-              <div className="h-64 bg-slate-800 border-t border-slate-700 flex flex-col shrink-0 overflow-hidden shadow-2xl z-20 transition-all">
-                <div className="flex items-center justify-between px-4 py-2 bg-black/20 border-b border-slate-700">
-                  <span className="font-semibold text-sm text-slate-300">Details: Log #{selectedLog.id}</span>
-                  <button
-                    onClick={() => setSelectedLogId(null)}
-                    className="text-xs text-slate-500 hover:text-white px-2 py-1 rounded hover:bg-white/10"
-                  >
-                    Close
-                  </button>
-                </div>
-                <div className="p-4 overflow-auto font-mono text-xs text-slate-300">
-                  <div className="mb-2"><span className="text-slate-500">Time:</span> {selectedLog.rawTimestamp}</div>
-                  <div className="mb-2"><span className="text-slate-500">Component:</span> {selectedLog.component}</div>
-                  <div className="mb-2"><span className="text-slate-500">Message:</span> {selectedLog.message}</div>
-                  <div className="bg-black/30 p-2 rounded border border-slate-700">
-                    {selectedLog.type === 'JSON' ? (
-                      <pre>{JSON.stringify(selectedLog.json, null, 2)}</pre>
-                    ) : (
-                      <pre className="whitespace-pre-wrap">{selectedLog.payload}</pre>
-                    )}
-                  </div>
-                </div>
+          <div className="flex-grow flex overflow-hidden relative">
+            {isSidebarOpen && <CorrelationSidebar />}
+            <div className="flex-grow flex flex-col overflow-hidden relative min-w-0">
+              <div className="flex-grow relative min-h-0">
+                <LogViewer />
               </div>
-            )}
 
-            <TimelineScrubber />
+              {/* Details Panel */}
+              {selectedLog && (
+                <>
+                  <div
+                    className="h-1 bg-slate-700 hover:bg-blue-500 cursor-row-resize z-30 transition-colors"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      const startY = e.clientY;
+                      const startH = detailsHeight;
+                      const onMove = (mv: MouseEvent) => {
+                        setDetailsHeight(Math.max(100, startH + (startY - mv.clientY)));
+                      };
+                      const onUp = () => {
+                        document.removeEventListener('mousemove', onMove);
+                        document.removeEventListener('mouseup', onUp);
+                      };
+                      document.addEventListener('mousemove', onMove);
+                      document.addEventListener('mouseup', onUp);
+                    }}
+                  />
+                  <div style={{ height: detailsHeight }} className="bg-slate-800 flex flex-col shrink-0 overflow-hidden shadow-2xl z-20 transition-all">
+                    <div className="flex items-center justify-between px-4 py-2 bg-black/20 border-b border-slate-700">
+                      <span className="font-semibold text-sm text-slate-300">Details: Log #{selectedLog.id}</span>
+                      <div className="flex items-center gap-2">
+                        {selectedLog.callId && (
+                          <>
+                            <button
+                              onClick={() => {
+                                console.log("Setting activeCallFlowId to:", selectedLog.callId);
+                                setActiveCallFlowId(selectedLog.callId!);
+                              }}
+                              className="flex items-center gap-1 text-xs bg-blue-600/20 text-blue-400 px-2 py-1 rounded hover:bg-blue-600/40 transition-colors border border-blue-500/30"
+                              title="View Call Flow Diagram"
+                            >
+                              <Download size={12} className="rotate-180" />
+                              Flow
+                            </button>
+                            <button
+                              onClick={() => {
+                                toggleCorrelation({ type: 'callId', value: selectedLog.callId! });
+                                setIsSidebarOpen(true); // Ensure sidebar is visible to see the selection works
+                              }}
+                              className="flex items-center gap-1 text-xs bg-slate-700 text-slate-300 px-2 py-1 rounded hover:bg-slate-600 transition-colors border border-slate-600"
+                              title="Add Call ID to Filter"
+                            >
+                              <Filter size={12} />
+                              Filter
+                            </button>
+                          </>
+                        )}
+                        <button
+                          onClick={() => setSelectedLogId(null)}
+                          className="text-xs text-slate-500 hover:text-white px-2 py-1 rounded hover:bg-white/10"
+                        >
+                          Close
+                        </button>
+                      </div>
+                    </div>
+                    <div className="p-4 overflow-auto font-mono text-xs text-slate-300 h-full">
+                      <div className="mb-2"><span className="text-slate-500">Time:</span> {selectedLog.rawTimestamp}</div>
+                      <div className="mb-2"><span className="text-slate-500">Component:</span> {selectedLog.component}</div>
+                      <div className="mb-2 flex items-center gap-2">
+                        <span className="text-slate-500">Message:</span>
+                        {selectedLog.message}
+                      </div>
+                      {selectedLog.reportId && <div className="mb-1"><span className="text-slate-500">Report ID:</span> <span className="text-blue-400">{selectedLog.reportId}</span></div>}
+                      {selectedLog.operatorId && <div className="mb-1"><span className="text-slate-500">Operator ID:</span> <span className="text-purple-400">{selectedLog.operatorId}</span></div>}
+                      {selectedLog.extensionId && <div className="mb-1"><span className="text-slate-500">Extension:</span> <span className="text-green-400">{selectedLog.extensionId}</span></div>}
+                      {selectedLog.callId && <div className="mb-1"><span className="text-slate-500">Call ID:</span> <span className="text-yellow-400">{selectedLog.callId}</span></div>}
+
+                      <div className="bg-black/30 p-2 rounded border border-slate-700 mt-2">
+                        {selectedLog.type === 'JSON' ? (
+                          <pre>{JSON.stringify(selectedLog.json, null, 2)}</pre>
+                        ) : (
+                          <pre className="whitespace-pre-wrap">{selectedLog.payload}</pre>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Timeline Resize Handle */}
+              <div
+                className="h-1 bg-slate-700 hover:bg-blue-500 cursor-row-resize z-30 transition-colors"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  const startY = e.clientY;
+                  const startH = timelineHeight;
+                  const onMove = (mv: MouseEvent) => {
+                    setTimelineHeight(Math.max(40, startH + (startY - mv.clientY)));
+                  };
+                  const onUp = () => {
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('mouseup', onUp);
+                  };
+                  document.addEventListener('mousemove', onMove);
+                  document.addEventListener('mouseup', onUp);
+                }}
+              />
+              <TimelineScrubber height={timelineHeight} />
+            </div>
           </div>
         </>
+      )}
+      {activeCallFlowId && (
+        <CallFlowViewer
+          callId={activeCallFlowId}
+          onClose={() => setActiveCallFlowId(null)}
+        />
       )}
     </div>
   );

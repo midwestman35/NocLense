@@ -1,4 +1,5 @@
 import type { LogEntry, LogLevel } from '../types';
+import { cleanupLogEntry } from './messageCleanup';
 
 /**
  * Log Parser for LogScrub
@@ -8,14 +9,14 @@ import type { LogEntry, LogLevel } from '../types';
  * 2. ISO Date: [LEVEL] [YYYY-MM-DD HH:MM:SS,mmm] [component] message
  */
 
-export const parseLogFile = async (file: File, startId: number = 1): Promise<LogEntry[]> => {
+export const parseLogFile = async (file: File, fileColor: string = '#3b82f6', startId: number = 1): Promise<LogEntry[]> => {
     const text = await file.text();
     const lines = text.split(/\r?\n/);
     const parsedLogs: LogEntry[] = [];
 
     // Original format: [INFO] [12/17/2024, 09:18:05] [component]: message
     const logRegex1 = /^\[(INFO|DEBUG|ERROR|WARN)\]\s\[(\d{1,2}\/\d{1,2}\/\d{4}),\s(.*?)\]\s\[(.*?)\]:\s(.*)/;
-    
+
     // ISO format: [INFO] [2025-12-17 09:18:05,686] [component] message
     const logRegex2 = /^\[(INFO|DEBUG|ERROR|WARN)\]\s\[(\d{4}-\d{2}-\d{2})\s(\d{2}:\d{2}:\d{2},\d+)\]\s\[(.*?)\]\s(.*)/;
 
@@ -27,7 +28,7 @@ export const parseLogFile = async (file: File, startId: number = 1): Promise<Log
 
         let match = line.match(logRegex1);
         let dateFormat = 'original';
-        
+
         // Try ISO format if original doesn't match
         if (!match) {
             match = line.match(logRegex2);
@@ -58,17 +59,23 @@ export const parseLogFile = async (file: File, startId: number = 1): Promise<Log
                 timestamp = new Date(timestampStr).getTime();
             }
 
+            const cleaned = cleanupLogEntry(component, message.trim());
+
             currentLog = {
                 id: idCounter++,
                 timestamp: isNaN(timestamp) ? Date.now() : timestamp,
                 rawTimestamp: timestampStr,
                 level: level as LogLevel,
                 component,
+                displayComponent: cleaned.displayComponent,
                 message: message.trim(),
+                displayMessage: cleaned.displayMessage,
                 payload: "",
                 type: "LOG", // Default
                 isSip: false,
                 sipMethod: null,
+                fileName: file.name,
+                fileColor: fileColor
             };
         } else {
             // Line does not match start of log. 
@@ -99,12 +106,40 @@ function processLogPayload(log: LogEntry) {
         try {
             log.json = JSON.parse(trimmedPayload);
             log.type = "JSON";
+
+            // Extract IDs from JSON
+            if (log.json.reportNLPConversation?.reportID) log.reportId = String(log.json.reportNLPConversation.reportID);
+            if (log.json.recipientsClientIDs && Array.isArray(log.json.recipientsClientIDs) && log.json.recipientsClientIDs.length > 0) {
+                log.operatorId = log.json.recipientsClientIDs[0];
+            }
+            if (log.json.operatorID) log.operatorId = log.json.operatorID; // Some logs might have it here
+            if (log.json.extensionID) {
+                log.extensionId = String(log.json.extensionID);
+                // Derive Station ID (e.g. 1017 -> 17)
+                if (log.extensionId.length > 2) log.stationId = log.extensionId.substring(2);
+            }
+
         } catch (e) {
             // Not valid JSON, ignore
         }
     }
 
-    // 2. Check for SIP
+    // 2. Extract IDs from Message/Payload via Regex (Fallback or Primary if not JSON)
+
+    // Report ID: "report id: 8622628"
+    const reportIdMatch = (log.message + " " + log.payload).match(/report id:\s*(\d+)/i);
+    if (reportIdMatch && !log.reportId) {
+        log.reportId = reportIdMatch[1];
+    }
+
+    // Extension ID: "extensionID: Optional[1017]"
+    const extIdMatch = (log.message + " " + log.payload).match(/extensionID: Optional\[(\d+)\]/i);
+    if (extIdMatch && !log.extensionId) {
+        log.extensionId = extIdMatch[1];
+        if (log.extensionId.length > 2) log.stationId = log.extensionId.substring(2);
+    }
+
+    // 3. Check for SIP
     if (log.payload.includes("SIP/2.0") || log.message.toLowerCase().includes("sip")) {
         log.isSip = true;
 
@@ -121,8 +156,21 @@ function processLogPayload(log: LogEntry) {
 
         // Extract Call-ID
         const callIdMatch = log.payload.match(/Call-ID:\s*(.+)/i);
-        if (callIdMatch) {
-            log.callId = callIdMatch[1].trim();
+        if (callIdMatch) log.callId = callIdMatch[1].trim();
+
+        // Extract From
+        const fromMatch = log.payload.match(/From:\s*(.+)/i);
+        if (fromMatch) log.sipFrom = fromMatch[1].trim();
+
+        // Extract To
+        const toMatch = log.payload.match(/To:\s*(.+)/i);
+        if (toMatch) log.sipTo = toMatch[1].trim();
+
+        // Extract Agent/Operator ID from Contact or From header
+        // "Contact: <sip:...;agentid=414b837f-aa1e-42f4-b149-e78f55989c8f;...>"
+        const agentIdMatch = log.payload.match(/agentid=([a-f0-9\-]+)/i);
+        if (agentIdMatch && !log.operatorId) {
+            log.operatorId = agentIdMatch[1];
         }
     }
 }
