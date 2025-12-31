@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useLogContext, type CorrelationItem } from '../contexts/LogContext';
-import { Hash, User, Phone, Monitor, ChevronRight, ChevronDown, Filter, X, ArrowUpAZ, ArrowDown, Settings2 } from 'lucide-react';
+import { Hash, User, Phone, Monitor, ChevronRight, ChevronDown, Filter, X, ArrowUpAZ, ArrowDown } from 'lucide-react';
 import clsx from 'clsx';
 
 type SortMode = 'alpha' | 'count';
@@ -73,7 +73,7 @@ const CorrelationSidebar = () => {
         </button>
     );
 
-    const ItemList = ({ items, type, icon: Icon }: { items: string[], type: CorrelationItem['type'], icon: any }) => {
+    const ItemList = ({ items, type }: { items: string[], type: CorrelationItem['type'] }) => {
         if (!expandedSections[type]) return null;
 
         // Sorting Logic
@@ -207,16 +207,16 @@ const CorrelationSidebar = () => {
 
             <div className="flex-grow overflow-y-auto py-2">
                 <SectionHeader title="Call IDs" icon={Phone} sectionKey="callId" />
-                <ItemList items={correlationData.callIds} type="callId" icon={Phone} />
+                <ItemList items={correlationData.callIds} type="callId" />
 
                 <SectionHeader title="Reports" icon={Hash} sectionKey="report" />
-                <ItemList items={correlationData.reportIds} type="report" icon={Hash} />
+                <ItemList items={correlationData.reportIds} type="report" />
 
                 <SectionHeader title="Stations" icon={Monitor} sectionKey="station" />
-                <ItemList items={correlationData.stationIds} type="station" icon={Monitor} />
+                <ItemList items={correlationData.stationIds} type="station" />
 
                 <SectionHeader title="Operators" icon={User} sectionKey="operator" />
-                <ItemList items={correlationData.operatorIds} type="operator" icon={User} />
+                <ItemList items={correlationData.operatorIds} type="operator" />
             </div>
         </div>
     );

@@ -44,8 +44,22 @@ const FileUploader = () => {
             const allParsedLogs = [];
             let maxId = Math.max(0, ...logs.map(l => l.id)); // Get max ID from existing logs
 
-            for (const { file } of validationResults) {
-                const parsed = await parseLogFile(file, maxId);
+            // File colors (Tailwind-ish palette)
+            const FILE_COLORS = [
+                '#3b82f6', // blue-500
+                '#eab308', // yellow-500
+                '#a855f7', // purple-500
+                '#ec4899', // pink-500
+                '#22c55e', // green-500
+                '#f97316', // orange-500
+                '#06b6d4', // cyan-500
+                '#64748b', // slate-500
+            ];
+
+            for (let i = 0; i < validationResults.length; i++) {
+                const { file } = validationResults[i];
+                const color = FILE_COLORS[i % FILE_COLORS.length];
+                const parsed = await parseLogFile(file, color, maxId);
                 allParsedLogs.push(...parsed);
                 maxId = Math.max(maxId, ...parsed.map(l => l.id));
             }
