@@ -24,7 +24,7 @@ const FilterBar = () => {
     const [selectedIndex, setSelectedIndex] = useState(-1);
     const inputRef = useRef<HTMLInputElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
-    const blurTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Handle focus
     const handleFocus = () => {
