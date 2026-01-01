@@ -49,7 +49,6 @@ const MainLayout = () => {
 
   // Panel Sizes
   const [detailsHeight, setDetailsHeight] = useState(256);
-  const [timelineHeight, setTimelineHeight] = useState(64);
 
   const selectedLog = selectedLogId ? filteredLogs.find(l => l.id === selectedLogId) || logs.find(l => l.id === selectedLogId) : null;
 
@@ -67,13 +66,13 @@ const MainLayout = () => {
       ...validateFile(file)
     }));
 
-    const invalidFiles = validationResults.filter(r => !r.isValid);
+    const invalidFiles = validationResults.filter(r => !r.valid);
     if (invalidFiles.length > 0) {
       setFileError(`Invalid file type(s): ${invalidFiles.map(r => r.file.name).join(', ')}. Please upload text or log files.`);
       return;
     }
 
-    const largeFiles = validationResults.filter(r => r.isLarge);
+    const largeFiles = validationResults.filter(r => r.warning);
     if (largeFiles.length > 0) {
       setFileWarning(`Warning: ${largeFiles.map(r => r.file.name).join(', ')} are large (>50MB). Processing may take a moment.`);
     }
@@ -89,13 +88,12 @@ const MainLayout = () => {
     try {
       const allLogs = [];
       for (const { file } of validationResults) {
-        const text = await file.text();
-        const parsed = parseLogFile(text, file.name);
+        const parsed = await parseLogFile(file);
         allLogs.push(...parsed);
       }
 
       // Sort combined logs by timestamp
-      allLogs.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+      allLogs.sort((a, b) => a.timestamp - b.timestamp);
 
       setLogs(allLogs);
     } catch (err) {
@@ -254,7 +252,7 @@ const MainLayout = () => {
                 {/* Top: Call Flow (Conditional) OR Log List */}
                 <div className="flex-1 min-h-0 bg-[var(--card-bg)] rounded-lg shadow-[var(--shadow-lg)] border border-[var(--border-color)] overflow-hidden flex flex-col text-[var(--text-primary)]">
                   {activeCallFlowId ? (
-                    <CallFlowViewer height="100%" />
+                    <CallFlowViewer callId={activeCallFlowId} onClose={() => setActiveCallFlowId(null)} />
                   ) : (
                     <LogViewer />
                   )}
