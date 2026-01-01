@@ -1,5 +1,5 @@
 import { useLogContext } from '../contexts/LogContext';
-import { Search, Filter, Check, X } from 'lucide-react';
+import { Search, Check, X } from 'lucide-react';
 
 const FilterBar = () => {
     const {
@@ -18,9 +18,7 @@ const FilterBar = () => {
 
     // Mapping for user-friendly toggle text?
     const wrapText = isTextWrapEnabled;
-    const setWrapText = setIsTextWrapEnabled;
     const sipFilterEnabled = isSipFilterEnabled;
-    const setSipFilterEnabled = setIsSipFilterEnabled;
 
     return (
         <div className="flex items-center gap-3 w-full p-2">
@@ -69,14 +67,20 @@ const FilterBar = () => {
             {/* Toggles */}
             <div className="flex items-center gap-4 shrink-0">
                 <label className="flex items-center gap-2 text-xs text-[var(--text-secondary)] cursor-pointer hover:text-[var(--text-primary)] transition-colors select-none group">
-                    <div className={`w-8 h-4 rounded-full p-0.5 transition-colors duration-200 ease-in-out ${sipFilterEnabled ? 'bg-[var(--accent-blue)]' : 'bg-[var(--text-secondary)]/30'}`}>
+                    <div 
+                        onClick={() => setIsSipFilterEnabled(!isSipFilterEnabled)}
+                        className={`w-8 h-4 rounded-full p-0.5 transition-colors duration-200 ease-in-out ${sipFilterEnabled ? 'bg-[var(--accent-blue)]' : 'bg-[var(--text-secondary)]/30'}`}
+                    >
                         <div className={`w-3 h-3 bg-[var(--card-bg)] rounded-full shadow-sm transform transition-transform duration-200 ${sipFilterEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
                     </div>
                     <span className="font-medium group-hover:text-[var(--accent-blue)] transition-colors">SIP Filter</span>
                 </label>
 
                 <label className="flex items-center gap-2 text-xs text-[var(--text-secondary)] cursor-pointer hover:text-[var(--text-primary)] transition-colors select-none group">
-                    <div className={`w-4 h-4 border rounded transition-all duration-200 flex items-center justify-center ${wrapText ? 'bg-[var(--accent-blue)] border-[var(--accent-blue)]' : 'border-[var(--text-secondary)] bg-transparent'}`}>
+                    <div 
+                        onClick={() => setIsTextWrapEnabled(!isTextWrapEnabled)}
+                        className={`w-4 h-4 border rounded transition-all duration-200 flex items-center justify-center ${wrapText ? 'bg-[var(--accent-blue)] border-[var(--accent-blue)]' : 'border-[var(--text-secondary)] bg-transparent'}`}
+                    >
                         {wrapText && <Check size={12} className="text-white" />}
                     </div>
                     <span className="font-medium group-hover:text-[var(--accent-blue)] transition-colors">Wrap Text</span>

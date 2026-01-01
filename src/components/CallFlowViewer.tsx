@@ -97,14 +97,12 @@ const CallFlowViewer: React.FC<CallFlowViewerProps> = ({ callId, onClose }) => {
 
                         {/* Messages */}
                         <div className="space-y-4 relative z-10 pt-2 pb-12">
-                            {callLogs.map((log, i) => {
+                            {callLogs.map((log) => {
                                 const fromUser = extractUser(log.sipFrom || '');
-                                const toUser = extractUser(log.sipTo || '');
 
                                 // Determine Direction
                                 // Simplify: Left Participant is participants[0]
                                 const isLeftToRight = fromUser === participants[0];
-                                const isSelf = fromUser === toUser;
 
                                 return (
                                     <div key={log.id} className="relative flex items-center group">
