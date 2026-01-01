@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 import { ChevronRight, ChevronDown, AlertCircle, Info, Bug, AlertTriangle } from 'lucide-react';
 import clsx from 'clsx';
 import type { LogEntry } from '../types';
+import { highlightText } from '../utils/highlightUtils.tsx';
 
 const LevelIcon = ({ level }: { level: LogEntry['level'] }) => {
     switch (level) {
@@ -20,6 +21,8 @@ interface LogRowProps {
     active: boolean;
     measureRef?: (node: HTMLElement | null) => void;
     index?: number;
+    isTextWrap?: boolean;
+    filterText?: string;
 }
 
 // Simple string-to-color function
@@ -32,7 +35,7 @@ const stc = (str: string) => {
     return '#' + '00000'.substring(0, 6 - c.length) + c;
 };
 
-const LogRow: React.FC<LogRowProps> = ({ log, style, onClick, active, measureRef, index }) => {
+const LogRow: React.FC<LogRowProps> = ({ log, style, onClick, active, measureRef, index, isTextWrap, filterText }) => {
     const [expanded, setExpanded] = useState(false);
 
     const toggleExpand = (e: React.MouseEvent) => {
@@ -53,41 +56,54 @@ const LogRow: React.FC<LogRowProps> = ({ log, style, onClick, active, measureRef
             )}
             onClick={() => onClick(log)}
         >
-            <div className="flex items-center h-[35px] px-2 gap-2 whitespace-nowrap overflow-hidden">
-                {hasPayload ? (
-                    <button
-                        onClick={toggleExpand}
-                        className="p-0.5 hover:bg-white/10 rounded text-slate-400 hover:text-white"
-                    >
-                        {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                    </button>
-                ) : (
-                    <div className="w-[18px]"></div>
-                )}
+            <div className={clsx("log-grid w-full px-2", isTextWrap ? "items-start py-1" : "items-center h-[35px]")}>
+                {/* 1. Expand/Collapse (20px) */}
+                <div className="flex justify-center">
+                    {hasPayload ? (
+                        <button
+                            onClick={toggleExpand}
+                            className="p-0.5 hover:bg-white/10 rounded text-slate-400 hover:text-white"
+                        >
+                            {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                        </button>
+                    ) : null}
+                </div>
 
-                <div className="w-[160px] text-slate-500 shrink-0 truncate">
+                {/* 2. Timestamp (160px) */}
+                <div className="text-slate-500 truncate">
                     {format(new Date(log.timestamp), 'MM/dd HH:mm:ss.SSS')}
                 </div>
 
-                <div className="w-[24px] shrink-0 flex justify-center">
+                {/* 3. Level (24px) */}
+                <div className="flex justify-center">
                     <LevelIcon level={log.level} />
                 </div>
 
-                <div className="w-[120px] font-semibold shrink-0 truncate text-blue-400" title={log.component}>
-                    {log.component}
+                {/* 4. Component (130px) */}
+                <div className="font-semibold truncate text-blue-400" title={log.component}>
+                    {log.displayComponent}
                 </div>
 
-                <div className="flex-grow flex items-center gap-2 overflow-hidden">
+                {/* 5. Message (1fr) */}
+                <div className={clsx(
+                    "text-slate-200 min-w-0 flex items-center gap-2",
+                    isTextWrap ? "whitespace-pre-wrap break-all" : "truncate overflow-hidden whitespace-nowrap"
+                )} title={!isTextWrap ? log.message : undefined}>
                     {log.callId && (
-                        <div
-                            className="w-1.5 h-3.5 rounded-full shrink-0"
-                            style={{ backgroundColor: stc(log.callId) }}
-                            title={`Call-ID: ${log.callId}`}
-                        ></div>
+                        <div className="flex items-center gap-1.5 px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700 mx-1 max-w-[120px]">
+                            <div
+                                className="w-1.5 h-1.5 rounded-full shrink-0"
+                                style={{ backgroundColor: stc(log.callId) }}
+                            ></div>
+                            <span className="text-[10px] text-slate-400 truncate font-mono" title={`Call-ID: ${log.callId}`}>
+                                {log.callId}
+                            </span>
+                        </div>
                     )}
-                    <div className="truncate text-slate-200" title={log.message}>
-                        {log.message} {log.sipMethod && <span className="ml-2 px-1.5 py-0.5 bg-yellow-900/50 text-yellow-500 rounded text-xs">{log.sipMethod}</span>}
-                    </div>
+                    <span>
+                        {highlightText(log.displayMessage, filterText || '')}
+                        {log.sipMethod && <span className="ml-2 px-1.5 py-0.5 bg-yellow-900/50 text-yellow-500 rounded text-xs">{log.sipMethod}</span>}
+                    </span>
                 </div>
             </div>
 
