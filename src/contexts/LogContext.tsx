@@ -1,5 +1,6 @@
-import { createContext, useContext, useState, useMemo, type ReactNode } from 'react';
+import { createContext, useContext, useState, useMemo, useEffect, type ReactNode } from 'react';
 import type { LogEntry, LogState } from '../types';
+import { loadSearchHistory, addToSearchHistory as saveToHistory, clearSearchHistory as clearHistoryStorage } from '../store/searchHistory';
 
 interface LogContextType extends LogState {
     setLogs: (logs: LogEntry[]) => void;
@@ -7,6 +8,9 @@ interface LogContextType extends LogState {
     setFilterText: (text: string) => void;
     setSmartFilterActive: (active: boolean) => void;
     setSelectedLogId: (id: number | null) => void;
+    searchHistory: string[];
+    addToSearchHistory: (term: string) => void;
+    clearSearchHistory: () => void;
 }
 
 const LogContext = createContext<LogContextType | null>(null);
@@ -25,6 +29,12 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
     const [filterText, setFilterText] = useState('');
     const [smartFilterActive, setSmartFilterActive] = useState(false);
     const [selectedLogId, setSelectedLogId] = useState<number | null>(null);
+    const [searchHistory, setSearchHistory] = useState<string[]>([]);
+
+    // Load search history on mount
+    useEffect(() => {
+        setSearchHistory(loadSearchHistory());
+    }, []);
 
     // Computed filtered logs
     const filteredLogs = useMemo(() => {
@@ -53,6 +63,16 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         });
     }, [logs, filterText, smartFilterActive]);
 
+    const addToSearchHistory = (term: string) => {
+        saveToHistory(term);
+        setSearchHistory(loadSearchHistory());
+    };
+
+    const clearSearchHistory = () => {
+        clearHistoryStorage();
+        setSearchHistory([]);
+    };
+
     const value = {
         logs,
         setLogs,
@@ -64,7 +84,10 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         setSmartFilterActive,
         filteredLogs,
         selectedLogId,
-        setSelectedLogId
+        setSelectedLogId,
+        searchHistory,
+        addToSearchHistory,
+        clearSearchHistory
     };
 
     return (
