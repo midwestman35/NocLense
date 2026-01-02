@@ -54,13 +54,13 @@ export function getFileSizeWarning(fileSize: number): string | null {
  */
 export function validateFile(file: File): { valid: boolean; error?: string; warning?: string } {
     // Check file extension
-    const validExtensions = ['.log', '.txt'];
+    const validExtensions = ['.log', '.txt', '.csv'];
     const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
     
     if (!validExtensions.includes(fileExtension)) {
         return {
             valid: false,
-            error: `Invalid file type. Please select a .log or .txt file.`
+            error: `Invalid file type. Please select a .log, .txt, or .csv file.`
         };
     }
 

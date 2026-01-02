@@ -152,7 +152,7 @@ const MainLayout = () => {
             type="file"
             ref={fileInputRef}
             className="hidden"
-            accept=".log,.txt"
+            accept=".log,.txt,.csv"
             multiple
             onChange={handleFileUpload}
           />
