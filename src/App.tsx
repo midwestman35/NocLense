@@ -7,6 +7,7 @@ import CallFlowViewer from './components/CallFlowViewer';
 import TimelineScrubber from './components/TimelineScrubber';
 import CorrelationSidebar from './components/CorrelationSidebar';
 import ExportModal from './components/export/ExportModal';
+import ChangelogDropdown from './components/ChangelogDropdown';
 import { Download, FolderOpen, X, AlertTriangle, Filter } from 'lucide-react';
 import { parseLogFile } from './utils/parser';
 import { validateFile } from './utils/fileUtils';
@@ -133,7 +134,7 @@ const MainLayout = () => {
           >
             <Filter size={20} />
           </button>
-          <h1 className="font-bold text-lg tracking-tight">LogScrub</h1>
+          <ChangelogDropdown />
         </div>
 
         <div className="flex items-center gap-2">
