@@ -57,6 +57,11 @@ interface LogContextType extends LogState {
         stationIds: string[];
         callIds: string[];
     };
+    // Favorites
+    favoriteLogIds: Set<number>;
+    toggleFavorite: (logId: number) => void;
+    isShowFavoritesOnly: boolean;
+    setIsShowFavoritesOnly: (show: boolean) => void;
 }
 
 const LogContext = createContext<LogContextType | null>(null);
@@ -95,6 +100,10 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
     const [activeCallFlowId, setActiveCallFlowId] = useState<string | null>(null);
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
+    // Favorites State
+    const [favoriteLogIds, setFavoriteLogIds] = useState<Set<number>>(new Set());
+    const [isShowFavoritesOnly, setIsShowFavoritesOnly] = useState(false);
+
     const toggleCorrelation = (item: CorrelationItem) => {
         setActiveCorrelations(prev => {
             const exists = prev.some(i => i.type === item.type && i.value === item.value);
@@ -110,6 +119,44 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         setActiveCorrelations([item]);
     };
 
+    // Favorites Functions
+    const toggleFavorite = (logId: number) => {
+        setFavoriteLogIds(prev => {
+            const next = new Set(prev);
+            if (next.has(logId)) {
+                next.delete(logId);
+            } else {
+                next.add(logId);
+            }
+            return next;
+        });
+    };
+
+    // Load favorites from localStorage on mount
+    useEffect(() => {
+        const stored = localStorage.getItem('noclense-favorites');
+        if (stored) {
+            try {
+                const ids = JSON.parse(stored) as number[];
+                setFavoriteLogIds(new Set(ids));
+            } catch (e) {
+                console.error('Failed to load favorites:', e);
+            }
+        }
+    }, []);
+
+    // Save favorites to localStorage when they change
+    useEffect(() => {
+        localStorage.setItem('noclense-favorites', JSON.stringify(Array.from(favoriteLogIds)));
+    }, [favoriteLogIds]);
+
+    // Clear favorites when logs are cleared
+    useEffect(() => {
+        if (logs.length === 0) {
+            setFavoriteLogIds(new Set());
+        }
+    }, [logs.length]);
+
     // Filter Helper
     const clearAllFilters = () => {
         setFilterText('');
@@ -117,6 +164,7 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         setSelectedComponentFilter(null);
         setActiveCorrelations([]);
         setSelectedLogId(null);
+        setIsShowFavoritesOnly(false);
     };
 
     // Computed unique IDs and Counts for Sidebar
@@ -200,6 +248,11 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
             return true;
         });
 
+        // Favorites filter (applied last)
+        if (isShowFavoritesOnly) {
+            result = result.filter(log => favoriteLogIds.has(log.id));
+        }
+
         // Sorting
         result.sort((a, b) => {
             if (sortConfig.field === 'timestamp') {
@@ -211,7 +264,7 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         });
 
         return result;
-    }, [logs, filterText, isSipFilterEnabled, selectedComponentFilter, sortConfig, activeCorrelations]);
+    }, [logs, filterText, isSipFilterEnabled, selectedComponentFilter, sortConfig, activeCorrelations, isShowFavoritesOnly, favoriteLogIds]);
 
     const addToSearchHistory = (term: string) => {
         saveToHistory(term);
@@ -261,7 +314,11 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         setIsSidebarOpen,
         activeCallFlowId,
         setActiveCallFlowId,
-        correlationData
+        correlationData,
+        favoriteLogIds,
+        toggleFavorite,
+        isShowFavoritesOnly,
+        setIsShowFavoritesOnly
     };
 
     return (

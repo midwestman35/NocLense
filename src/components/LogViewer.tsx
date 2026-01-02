@@ -105,7 +105,7 @@ const LogHeader = () => {
 };
 
 const LogViewer = () => {
-    const { logs, filteredLogs, selectedLogId, setSelectedLogId, isTextWrapEnabled, setVisibleRange, filterText } = useLogContext();
+    const { logs, filteredLogs, selectedLogId, setSelectedLogId, isTextWrapEnabled, setVisibleRange, filterText, favoriteLogIds, toggleFavorite } = useLogContext();
     const parentRef = useRef<HTMLDivElement>(null);
 
     // Dynamic row height estimation based on text wrap setting
@@ -196,6 +196,8 @@ const LogViewer = () => {
                                     index={virtualRow.index}
                                     isTextWrap={isTextWrapEnabled}
                                     filterText={filteredLogs !== logs ? filterText : ''}
+                                    isFavorite={favoriteLogIds.has(log.id)}
+                                    onToggleFavorite={() => toggleFavorite(log.id)}
                                     style={{
                                         position: 'absolute',
                                         top: 0,

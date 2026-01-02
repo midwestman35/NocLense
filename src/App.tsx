@@ -6,6 +6,7 @@ import LogViewer from './components/LogViewer';
 import CallFlowViewer from './components/CallFlowViewer';
 import TimelineScrubber from './components/TimelineScrubber';
 import CorrelationSidebar from './components/CorrelationSidebar';
+import ExportModal from './components/export/ExportModal';
 import { Download, FolderOpen, X, AlertTriangle, Filter } from 'lucide-react';
 import { parseLogFile } from './utils/parser';
 import { validateFile } from './utils/fileUtils';
@@ -29,6 +30,7 @@ const MainLayout = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [fileWarning, setFileWarning] = useState<string | null>(null);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   // Panel Sizes
   const [detailsHeight, setDetailsHeight] = useState(256);
@@ -132,9 +134,15 @@ const MainLayout = () => {
             <Filter size={20} />
           </button>
 
-          <div className="p-1.5 bg-blue-500 rounded-md">
-            <Download size={20} className="text-white" />
-          </div>
+          {logs.length > 0 && (
+            <button
+              onClick={() => setIsExportModalOpen(true)}
+              className="p-1.5 bg-blue-500 rounded-md hover:bg-blue-600 transition-colors"
+              title="Export logs"
+            >
+              <Download size={20} className="text-white" />
+            </button>
+          )}
           <h1 className="font-bold text-lg tracking-tight">LogScrub</h1>
         </div>
 
@@ -325,6 +333,7 @@ const MainLayout = () => {
           onClose={() => setActiveCallFlowId(null)}
         />
       )}
+      <ExportModal isOpen={isExportModalOpen} onClose={() => setIsExportModalOpen(false)} />
     </div>
   );
 };
