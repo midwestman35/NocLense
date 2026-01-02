@@ -135,13 +135,13 @@ const FileUploader = () => {
                     type="file"
                     id="file-input"
                     className="hidden"
-                    accept=".log,.txt"
+                    accept=".log,.txt,.csv"
                     multiple
                     onChange={onChange}
                 />
                 <Upload size={48} className="text-blue-500 mb-4" />
                 <h3 className="text-xl font-semibold mb-2">Drop Log File{logs.length > 0 ? '(s)' : ''} Here</h3>
-                <p className="text-slate-400">or click to browse (.log, .txt)</p>
+                <p className="text-slate-400">or click to browse (.log, .txt, .csv)</p>
                 {logs.length > 0 && (
                     <p className="text-xs text-slate-500 mt-2">You can add more files to merge with existing logs</p>
                 )}
