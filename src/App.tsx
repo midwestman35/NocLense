@@ -133,20 +133,20 @@ const MainLayout = () => {
           >
             <Filter size={20} />
           </button>
-
-          {logs.length > 0 && (
-            <button
-              onClick={() => setIsExportModalOpen(true)}
-              className="p-1.5 bg-blue-500 rounded-md hover:bg-blue-600 transition-colors"
-              title="Export logs"
-            >
-              <Download size={20} className="text-white" />
-            </button>
-          )}
           <h1 className="font-bold text-lg tracking-tight">LogScrub</h1>
         </div>
 
         <div className="flex items-center gap-2">
+          {logs.length > 0 && (
+            <button
+              onClick={() => setIsExportModalOpen(true)}
+              className="flex items-center gap-2 text-sm bg-blue-600 px-3 py-1.5 rounded-md hover:bg-blue-700 transition-colors border border-blue-500"
+              title="Export logs"
+            >
+              <Download size={16} />
+              Export
+            </button>
+          )}
           <input
             type="file"
             ref={fileInputRef}
