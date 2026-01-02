@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useLogContext } from '../contexts/LogContext';
-import { Search, Filter } from 'lucide-react';
+import { Search, Filter, Star } from 'lucide-react';
 import SearchHistoryDropdown from './SearchHistoryDropdown';
 
 const FilterBar = () => {
@@ -17,7 +17,10 @@ const FilterBar = () => {
         activeCorrelations,
         searchHistory,
         addToSearchHistory,
-        clearSearchHistory
+        clearSearchHistory,
+        favoriteLogIds,
+        isShowFavoritesOnly,
+        setIsShowFavoritesOnly
     } = useLogContext();
     
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -156,7 +159,23 @@ const FilterBar = () => {
                     </span>
                 </label>
 
-                {(filterText || isSipFilterEnabled || activeCorrelations.length > 0) && (
+                <label className="flex items-center cursor-pointer select-none space-x-2">
+                    <input
+                        type="checkbox"
+                        className="w-4 h-4 bg-slate-700 border-slate-600 rounded focus:ring-blue-500 focus:ring-offset-slate-800"
+                        checked={isShowFavoritesOnly}
+                        onChange={() => setIsShowFavoritesOnly(!isShowFavoritesOnly)}
+                    />
+                    <span className="text-sm font-medium text-slate-300 flex items-center gap-1">
+                        <Star size={14} className={isShowFavoritesOnly ? "fill-yellow-500 text-yellow-500" : "text-slate-400"} />
+                        Show Favorites Only
+                        {favoriteLogIds.size > 0 && (
+                            <span className="text-xs text-slate-500">({favoriteLogIds.size})</span>
+                        )}
+                    </span>
+                </label>
+
+                {(filterText || isSipFilterEnabled || activeCorrelations.length > 0 || isShowFavoritesOnly) && (
                     <button
                         onClick={clearAllFilters}
                         className="text-xs text-red-400 hover:text-red-300 hover:bg-red-900/20 px-2 py-1.5 rounded transition-colors border border-red-500/20"

@@ -1,6 +1,6 @@
 import { useState, memo } from 'react';
 import { format } from 'date-fns';
-import { ChevronRight, ChevronDown, AlertCircle, Info, Bug, AlertTriangle } from 'lucide-react';
+import { ChevronRight, ChevronDown, AlertCircle, Info, Bug, AlertTriangle, Star } from 'lucide-react';
 import clsx from 'clsx';
 import type { LogEntry } from '../types';
 import { highlightText } from '../utils/highlightUtils.tsx';
@@ -23,6 +23,8 @@ interface LogRowProps {
     index?: number;
     isTextWrap?: boolean;
     filterText?: string;
+    isFavorite?: boolean;
+    onToggleFavorite?: () => void;
 }
 
 // Simple string-to-color function
@@ -35,12 +37,17 @@ const stc = (str: string) => {
     return '#' + '00000'.substring(0, 6 - c.length) + c;
 };
 
-const LogRow: React.FC<LogRowProps> = ({ log, style, onClick, active, measureRef, index, isTextWrap, filterText }) => {
+const LogRow: React.FC<LogRowProps> = ({ log, style, onClick, active, measureRef, index, isTextWrap, filterText, isFavorite = false, onToggleFavorite }) => {
     const [expanded, setExpanded] = useState(false);
 
     const toggleExpand = (e: React.MouseEvent) => {
         e.stopPropagation();
         setExpanded(!expanded);
+    };
+
+    const handleToggleFavorite = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        onToggleFavorite?.();
     };
 
     const hasPayload = log.payload && log.payload.length > 0;
@@ -89,6 +96,20 @@ const LogRow: React.FC<LogRowProps> = ({ log, style, onClick, active, measureRef
                     "text-slate-200 min-w-0 flex items-center gap-2",
                     isTextWrap ? "whitespace-pre-wrap break-all" : "truncate overflow-hidden whitespace-nowrap"
                 )} title={!isTextWrap ? log.message : undefined}>
+                    {/* Star icon - positioned directly to the left of message */}
+                    <button
+                        onClick={handleToggleFavorite}
+                        className="p-0.5 hover:bg-white/10 rounded text-slate-500 hover:text-yellow-400 transition-colors shrink-0"
+                        title={isFavorite ? "Remove from favorites" : "Add to favorites"}
+                    >
+                        <Star 
+                            size={14} 
+                            className={clsx(
+                                "transition-all",
+                                isFavorite ? "fill-yellow-500 text-yellow-500" : ""
+                            )} 
+                        />
+                    </button>
                     {log.callId && (
                         <div className="flex items-center gap-1.5 px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700 mx-1 max-w-[120px]">
                             <div
