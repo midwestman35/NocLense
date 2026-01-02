@@ -68,7 +68,20 @@ const FilterBar = () => {
             <div className="flex items-center gap-4 shrink-0">
                 <label className="flex items-center gap-2 text-xs text-[var(--text-secondary)] cursor-pointer hover:text-[var(--text-primary)] transition-colors select-none group">
                     <div 
-                        onClick={() => setIsSipFilterEnabled(!isSipFilterEnabled)}
+                        onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setIsSipFilterEnabled(!isSipFilterEnabled);
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setIsSipFilterEnabled(!isSipFilterEnabled);
+                            }
+                        }}
                         className={`w-8 h-4 rounded-full p-0.5 transition-colors duration-200 ease-in-out ${sipFilterEnabled ? 'bg-[var(--accent-blue)]' : 'bg-[var(--text-secondary)]/30'}`}
                     >
                         <div className={`w-3 h-3 bg-[var(--card-bg)] rounded-full shadow-sm transform transition-transform duration-200 ${sipFilterEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
@@ -78,7 +91,20 @@ const FilterBar = () => {
 
                 <label className="flex items-center gap-2 text-xs text-[var(--text-secondary)] cursor-pointer hover:text-[var(--text-primary)] transition-colors select-none group">
                     <div 
-                        onClick={() => setIsTextWrapEnabled(!isTextWrapEnabled)}
+                        onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setIsTextWrapEnabled(!isTextWrapEnabled);
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setIsTextWrapEnabled(!isTextWrapEnabled);
+                            }
+                        }}
                         className={`w-4 h-4 border rounded transition-all duration-200 flex items-center justify-center ${wrapText ? 'bg-[var(--accent-blue)] border-[var(--accent-blue)]' : 'border-[var(--text-secondary)] bg-transparent'}`}
                     >
                         {wrapText && <Check size={12} className="text-white" />}
