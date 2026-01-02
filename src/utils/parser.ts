@@ -9,8 +9,111 @@ import { cleanupLogEntry } from './messageCleanup';
  * 2. ISO Date: [LEVEL] [YYYY-MM-DD HH:MM:SS,mmm] [component] message
  */
 
+/**
+ * Parse Datadog CSV export format
+ * CSV Format: Date,Host,Service,Content
+ * Content field contains JSON with nested log data
+ */
+const parseDatadogCSV = (text: string, fileColor: string, startId: number): LogEntry[] => {
+    const lines = text.split(/\r?\n/);
+    const parsedLogs: LogEntry[] = [];
+    let idCounter = startId;
+
+    // Skip header row (Date,Host,Service,Content)
+    for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+
+        try {
+            // Parse CSV line - handle quoted fields
+            const csvMatch = line.match(/^"([^"]+)","([^"]+)","([^"]+)","(.+)"$/);
+            if (!csvMatch) continue;
+
+            const [_, isoDate, host, service, contentJson] = csvMatch;
+            
+            // Parse the JSON content (need to unescape double quotes)
+            const unescapedJson = contentJson.replace(/""/g, '"');
+            const content = JSON.parse(unescapedJson);
+            
+            if (!content.log) continue;
+
+            const log = content.log;
+            
+            // Extract log data from the nested structure
+            const timestamp = new Date(isoDate).getTime();
+            const level: LogLevel = (log.logLevel || 'INFO').toUpperCase() as LogLevel;
+            const component = log.logSource || service || 'Unknown';
+            const message = log.message || '';
+            const rawTimestamp = log.timestamp || isoDate;
+
+            // Build payload from additional data
+            let payload = '';
+            if (log.machineData) {
+                payload += `Machine: ${log.machineData.name || ''}\n`;
+                payload += `Stack: ${log.machineData.stack || ''}\n`;
+                payload += `Call Center: ${log.machineData.callCenterName || ''}\n`;
+            }
+
+            // Add thread name if available
+            if (log.threadName) {
+                payload += `Thread: ${log.threadName}\n`;
+            }
+
+            // Add exception/stack trace if available
+            if (log.optionCause) {
+                payload += `\nException:\n${log.optionCause}`;
+            }
+
+            // Clean up component and message
+            const cleanupResult = cleanupLogEntry(component, message);
+
+            const entry: LogEntry = {
+                id: idCounter++,
+                timestamp,
+                rawTimestamp,
+                level,
+                component,
+                displayComponent: cleanupResult.displayComponent,
+                message,
+                displayMessage: cleanupResult.displayMessage,
+                payload: payload.trim(),
+                type: 'LOG',
+                isSip: false,
+                fileName: `${host}-${service}`,
+                fileColor
+            };
+
+            // Extract correlation IDs from message
+            const callIdMatch = message.match(/callId[=:]([a-zA-Z0-9\-]+)/);
+            if (callIdMatch) {
+                entry.callId = callIdMatch[1];
+            }
+
+            const extensionMatch = message.match(/extensionID:\s*Optional\[(\d+)\]/);
+            if (extensionMatch) {
+                entry.extensionId = extensionMatch[1];
+            }
+
+            parsedLogs.push(entry);
+
+        } catch (error) {
+            console.warn(`Failed to parse CSV line ${i}:`, error);
+            continue;
+        }
+    }
+
+    return parsedLogs;
+};
+
 export const parseLogFile = async (file: File, fileColor: string = '#3b82f6', startId: number = 1): Promise<LogEntry[]> => {
     const text = await file.text();
+    
+    // Check if this is a CSV file
+    const isCSV = file.name.toLowerCase().endsWith('.csv');
+    if (isCSV) {
+        return parseDatadogCSV(text, fileColor, startId);
+    }
+
     const lines = text.split(/\r?\n/);
     const parsedLogs: LogEntry[] = [];
 
