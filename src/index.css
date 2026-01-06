@@ -1,14 +1,61 @@
 @import "tailwindcss";
 
+/* Ported Variables from NOC Tool */
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+  --primary-blue: #002c5f;
+  --accent-blue: #1976d2;
+  --hover-blue: #125aa2;
+  --bg-light: #f8fafc;
+  --bg-gradient-start: #f1f5f9;
+  --bg-gradient-end: #e2e8f0;
+  --card-bg: #ffffff;
+  --text-primary: #1e293b;
+  --text-secondary: #64748b;
+  --border-color: #e2e8f0;
+  --shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 25px 50px -12px rgb(0 0 0 / 0.25);
 
+  /* Status Colors */
+  --ok: #16a34a;
+  --err: #dc2626;
+
+  /* Fonts */
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  line-height: 1.5;
+  color-scheme: light;
+}
+
+/* Dark Mode overrides */
+.dark {
+  --bg-light: #1a1d23;
+  --bg-gradient-start: #242831;
+  --bg-gradient-end: #2d3142;
+  --card-bg: #2a2f3a;
+  --text-primary: #e2e8f0;
+  --text-secondary: #a1a9b8;
+  --border-color: #3f4654;
+  --primary-blue: #111827;
+  /* Darker header for dark mode */
+  --shadow: 0 10px 15px -3px rgb(0 0 0 / 0.3), 0 4px 6px -4px rgb(0 0 0 / 0.2);
+  --shadow-lg: 0 25px 50px -12px rgb(0 0 0 / 0.4);
   color-scheme: dark;
-  /* Using variables from NocStyleSystem.css */
-  background-color: var(--bg-primary, #0f172a);
-  color: var(--text-primary, #f8fafc);
+}
+
+/* Red Theme variant */
+.red-theme {
+  --primary-blue: #7f1d1d;
+  --accent-blue: #dc2626;
+  --hover-blue: #b91c1c;
+  --bg-light: #0c0a09;
+  --bg-gradient-start: #1c1917;
+  --bg-gradient-end: #292524;
+  --card-bg: #1c1917;
+  --text-primary: #fef2f2;
+  --text-secondary: #fca5a5;
+  --border-color: #451a03;
+  --shadow: 0 10px 15px -3px rgb(127 29 29 / 0.2), 0 4px 6px -4px rgb(127 29 29 / 0.1);
+  color-scheme: dark;
+
 }
 
 body {
@@ -18,11 +65,30 @@ body {
   height: 100vh;
   overflow: hidden;
   background: linear-gradient(135deg, var(--bg-gradient-start), var(--bg-gradient-end));
+  color: var(--text-primary);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 #root {
   width: 100%;
   height: 100%;
+}
+
+/* Utility classes using vars */
+.bg-theme-card {
+  background-color: var(--card-bg);
+}
+
+.text-theme-primary {
+  color: var(--text-primary);
+}
+
+.text-theme-secondary {
+  color: var(--text-secondary);
+}
+
+.border-theme {
+  border-color: var(--border-color);
 }
 
 .log-grid {

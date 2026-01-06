@@ -33,7 +33,7 @@ const FileUploader = () => {
         const warnings = validationResults
             .map(r => r.validation.warning)
             .filter((w): w is string => !!w);
-        
+
         if (warnings.length > 0) {
             setFileWarning(warnings[0]);
         }
@@ -44,17 +44,7 @@ const FileUploader = () => {
             const allParsedLogs = [];
             let maxId = Math.max(0, ...logs.map(l => l.id)); // Get max ID from existing logs
 
-            // File colors (Tailwind-ish palette)
-            const FILE_COLORS = [
-                '#3b82f6', // blue-500
-                '#eab308', // yellow-500
-                '#a855f7', // purple-500
-                '#ec4899', // pink-500
-                '#22c55e', // green-500
-                '#f97316', // orange-500
-                '#06b6d4', // cyan-500
-                '#64748b', // slate-500
-            ];
+            const FILE_COLORS = ['#3b82f6', '#eab308', '#a855f7', '#ec4899', '#22c55e', '#f97316', '#06b6d4', '#64748b'];
 
             for (let i = 0; i < validationResults.length; i++) {
                 const { file } = validationResults[i];
@@ -96,16 +86,16 @@ const FileUploader = () => {
     };
 
     return (
-        <div className="flex flex-col items-center justify-center p-8">
+        <div className="flex flex-col items-center justify-center p-8 w-full max-w-3xl mx-auto">
             {(fileError || fileWarning) && (
-                <div className="w-full max-w-md mb-4 p-3 rounded-md border">
+                <div className="w-full max-w-md mb-4 p-3 rounded-md border border-[var(--border-color)]">
                     {fileError && (
-                        <div className="flex items-center gap-2 text-red-400 text-sm bg-red-900/20 border border-red-800 rounded p-2">
+                        <div className="flex items-center gap-2 text-[var(--err)]/80 text-sm bg-[var(--err)]/10 border border-[var(--err)]/20 rounded p-2">
                             <AlertTriangle size={16} />
                             <span className="flex-grow">{fileError}</span>
                             <button
                                 onClick={() => setFileError(null)}
-                                className="text-red-500 hover:text-red-300"
+                                className="text-[var(--err)] hover:opacity-80"
                             >
                                 <X size={14} />
                             </button>
@@ -126,7 +116,7 @@ const FileUploader = () => {
                 </div>
             )}
             <div
-                className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-slate-600 rounded-lg bg-slate-800/50 hover:bg-slate-800 transition-colors cursor-pointer"
+                className="w-full flex flex-col items-center justify-center p-12 border-2 border-dashed border-[var(--border-color)] rounded-xl bg-[var(--bg-light)]/50 hover:bg-[var(--bg-light)] transition-colors cursor-pointer group hover:border-[var(--accent-blue)]/50"
                 onDrop={onDrop}
                 onDragOver={onDragOver}
                 onClick={() => document.getElementById('file-input')?.click()}
@@ -139,11 +129,18 @@ const FileUploader = () => {
                     multiple
                     onChange={onChange}
                 />
-                <Upload size={48} className="text-blue-500 mb-4" />
-                <h3 className="text-xl font-semibold mb-2">Drop Log File{logs.length > 0 ? '(s)' : ''} Here</h3>
-                <p className="text-slate-400">or click to browse (.log, .txt, .csv)</p>
+
+                <div className="p-4 rounded-full bg-[var(--card-bg)] shadow-[var(--shadow)] mb-4 group-hover:scale-110 transition-transform duration-300">
+                    <Upload size={40} className="text-[var(--accent-blue)]" />
+                </div>
+
+                <h3 className="text-xl font-bold mb-2 text-[var(--text-primary)]">Drop Log File{logs.length > 0 ? '(s)' : ''} Here</h3>
+                <p className="text-[var(--text-secondary)] text-sm mb-4">or click to browse (.log, .txt, .csv)</p>
+
                 {logs.length > 0 && (
-                    <p className="text-xs text-slate-500 mt-2">You can add more files to merge with existing logs</p>
+                    <div className="px-3 py-1 rounded-full bg-[var(--accent-blue)]/10 text-[var(--accent-blue)] text-xs font-medium">
+                        Merging with {logs.length} existing logs
+                    </div>
                 )}
             </div>
         </div>
