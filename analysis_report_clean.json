@@ -1,0 +1,36 @@
+{
+  "totalLines": 129159,
+  "topComponents": {
+    "operator-actor-system-pekko": 126022,
+    "Host Metrics": 3110,
+    "XNIO-1 I/O-1": 6,
+    "rollbar-buffered_sender": 6,
+    "XNIO-2 I/O-1": 3,
+    "XNIO-2 Accept": 3,
+    "JsonFormats-pekko": 3,
+    "XNIO-1 Accept": 3,
+    "ForkJoinPool": 3
+  },
+  "topTags": {
+    "pekko://operator-actor-system/user/controller/view-manager/call-taking": 43710,
+    "pekko://operator-actor-system/user/controller/model-manager/reports-manager-router/$a": 17651,
+    "pekko://operator-actor-system/user/controller/view-manager/fdx-websocket-api-client/fdx-websocket-client/$d": 11789,
+    "pekko://operator-actor-system/user/controller/view-manager/fdx-websocket-api-client/fdx-websocket-client/$a": 6345,
+    "pekko://operator-actor-system/user/controller/view-manager/fdx-websocket-api-client/fdx-websocket-client/$c": 5425,
+    "pekko://operator-actor-system/user/controller/view-manager/fdx-websocket-api-client/fdx-websocket-client/$y": 4962,
+    "pekko://operator-actor-system/user/controller/view-manager/fdx-websocket-api-client/fdx-websocket-client/$v": 4546,
+    "pekko://operator-actor-system/user/controller/view-manager/worker-router/$a/discovery-service-api": 4287,
+    "pekko://operator-actor-system/user/controller/view-manager/fdx-websocket-api-client/fdx-websocket-client/$A": 3674,
+    "pekko://operator-actor-system/user/controller/view-manager/fdx-websocket-api-client/fdx-websocket-client/$C": 3454,
+    "pekko://operator-actor-system/user/controller/view-manager/fdx-websocket-api-client/fdx-websocket-client/$w": 2546,
+    "std-logger": 2302,
+    "pekko://operator-actor-system/user/controller/view-manager/cnc-service-websocket-client/cnc-service-websocket-client/$a": 2284,
+    "pekko://operator-actor-system/user/controller/model-manager/records-subscription-manager": 1740,
+    "pekko://operator-actor-system/user/controller/view-manager/fdx-websocket-api-client/fdx-websocket-client/$b": 1711,
+    "pekko://operator-actor-system/user/controller/view-manager/cnc-service-api": 1472,
+    "pekko://operator-actor-system/user/controller/view-manager/worker-router/$a/call-handling-report-service-api": 1222,
+    "pekko://operator-actor-system/user/controller/view-manager/windows-service": 1190,
+    "pekko://operator-actor-system/user/controller/view-manager/fdx-websocket-api-client/fdx-websocket-client/$t": 1012,
+    "pekko://operator-actor-system/user/controller/view-manager/fdx-websocket-api-client/fdx-websocket-client/$e": 991
+  }
+}

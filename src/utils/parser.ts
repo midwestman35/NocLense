@@ -30,15 +30,15 @@ const parseDatadogCSV = (text: string, fileColor: string, startId: number): LogE
             if (!csvMatch) continue;
 
             const [_, isoDate, host, service, contentJson] = csvMatch;
-            
+
             // Parse the JSON content (need to unescape double quotes)
             const unescapedJson = contentJson.replace(/""/g, '"');
             const content = JSON.parse(unescapedJson);
-            
+
             if (!content.log) continue;
 
             const log = content.log;
-            
+
             // Extract log data from the nested structure
             const timestamp = new Date(isoDate).getTime();
             const level: LogLevel = (log.logLevel || 'INFO').toUpperCase() as LogLevel;
@@ -107,7 +107,7 @@ const parseDatadogCSV = (text: string, fileColor: string, startId: number): LogE
 
 export const parseLogFile = async (file: File, fileColor: string = '#3b82f6', startId: number = 1): Promise<LogEntry[]> => {
     const text = await file.text();
-    
+
     // Check if this is a CSV file
     const isCSV = file.name.toLowerCase().endsWith('.csv');
     if (isCSV) {
@@ -162,7 +162,24 @@ export const parseLogFile = async (file: File, fileColor: string = '#3b82f6', st
                 timestamp = new Date(timestampStr).getTime();
             }
 
-            const cleaned = cleanupLogEntry(component, message.trim());
+            let cleaned = cleanupLogEntry(component, message.trim());
+
+            // 1. std-logger Filter: promote to component if tagged
+            if (message.includes('[std-logger]')) {
+                cleaned.displayComponent = 'std-logger';
+            }
+
+            // 2. SIP Analysis: Check for specific issues requested by user
+            let specialTag = "";
+            if (message.includes('MEDIA_TIMEOUT') || line.includes('MEDIA_TIMEOUT')) {
+                specialTag += "⚠️ [MEDIA_TIMEOUT] ";
+            }
+            if (line.includes('X-Recovery: true') || message.includes('X-Recovery: true')) {
+                specialTag += "🔄 [RECOVERED] ";
+            }
+            if (specialTag) {
+                cleaned.displayMessage = specialTag + cleaned.displayMessage;
+            }
 
             currentLog = {
                 id: idCounter++,
@@ -246,16 +263,26 @@ function processLogPayload(log: LogEntry) {
     if (log.payload.includes("SIP/2.0") || log.message.toLowerCase().includes("sip")) {
         log.isSip = true;
 
-        // Detect Method
+        // Detect Method or Response
         const firstLine = log.payload.split('\n')[0] || "";
-
-        if (firstLine.includes("INVITE")) log.sipMethod = "INVITE";
-        else if (firstLine.includes("BYE")) log.sipMethod = "BYE";
-        else if (firstLine.includes("CANCEL")) log.sipMethod = "CANCEL";
-        else if (firstLine.includes("OPTIONS")) log.sipMethod = "OPTIONS";
-        else if (firstLine.includes("REGISTER")) log.sipMethod = "REGISTER";
-        else if (firstLine.includes("ACK")) log.sipMethod = "ACK";
-        else if (firstLine.includes(" 200 OK")) log.sipMethod = "200 OK";
+        const responseMatch = firstLine.match(/^SIP\/2\.0\s+(\d{3})\s+(.*)/i);
+        if (responseMatch) {
+            log.sipMethod = `${responseMatch[1]} ${responseMatch[2]}`;
+        } else {
+            const requestMatch = firstLine.match(/^([A-Z]+)\s+sip:.*SIP\/2\.0/i);
+            if (requestMatch) {
+                log.sipMethod = requestMatch[1];
+            } else {
+                // Fallback for fragmented or non-standard logs
+                const knownMethods = ["INVITE", "ACK", "BYE", "CANCEL", "OPTIONS", "REGISTER", "PRACK", "UPDATE", "SUBSCRIBE", "NOTIFY", "REFER", "INFO", "MESSAGE", "PUBLISH"];
+                for (const m of knownMethods) {
+                    if (firstLine.toUpperCase().includes(m)) {
+                        log.sipMethod = m;
+                        break;
+                    }
+                }
+            }
+        }
 
         // Extract Call-ID
         const callIdMatch = log.payload.match(/Call-ID:\s*(.+)/i);

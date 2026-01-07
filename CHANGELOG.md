@@ -5,6 +5,29 @@ All notable changes to the NocLense (LogScrub) project will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-01-06
+
+### Added - Timeline v3 & Comprehensive SIP Support
+- ✅ **Timeline Multi-track Lanes** - Call segments now automatically stack in separate lanes to prevent visual overlap.
+- ✅ **Effortless Zoom & Pan** - Re-enabled scroll-to-zoom with the mouse wheel. Added **Shift + Wheel** for horizontal panning.
+- ✅ **SIP Flow Hover Tooltip** - Hovering over timeline markers reveals the full sequence of SIP messages for that specific `callId`.
+- ✅ **Full SIP Method/Code Support** - Robust parsing for all SIP methods (INVITE, BYE, ACK, etc.) and all response classes (1xx-6xx).
+- ✅ **Granular SIP Filtering** - New filtering categories for Requests, Success, Provisional, Error, Options, and Keep-Alive.
+- ✅ **Synchronized Viewport Indicator** - The white viewport bar now stays in perfect sync regardless of log sort order (Asc/Desc).
+- ✅ **Marker Highlighting** - Selected logs now glow with a golden highlight on the timeline for easy tracking.
+- ✅ **Floating File Labels** - Hovering over file segments in the top strip displays the source file name.
+- ✅ **Resizable Timeline** - Added a drag-handle to adjust the height of the timeline panel.
+
+### Changed
+- **Default View Mode** - Timeline now defaults to "Filtered" mode for a more focused initial view.
+- **Improved UI Controls** - Replaced standard checkboxes with tab-based controls for scope switching and refined the time range display.
+- **Global Sorting** - Implemented robust background sorting to ensure timeline calculations are always accurate.
+
+### Fixed
+- **Blank Timeline Issue** - Resolved bugs that caused the timeline to disappear when switching between single-file and full-scope views.
+- **Reverse Sort Inconsistencies** - Fixed viewport indicator and scrubbing logic to support descending sort orders correctly.
+- **Filter Syncing** - Selected logs now bypass filters to ensure they are always visible in the viewer when clicked on the timeline.
+
 ## [1.1.0] - 2025-12-31
 
 ### Added - Multi-File Support Implementation

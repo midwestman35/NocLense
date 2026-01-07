@@ -54,8 +54,9 @@ const FileUploader = () => {
                 maxId = Math.max(maxId, ...parsed.map(l => l.id));
             }
 
-            // Merge with existing logs (append mode)
-            setLogs([...logs, ...allParsedLogs]);
+            // Merge with existing logs (append mode) and sort by timestamp
+            const mergedLogs = [...logs, ...allParsedLogs].sort((a, b) => a.timestamp - b.timestamp);
+            setLogs(mergedLogs);
             setSelectedLogId(null);
         } catch (err) {
             console.error("Failed to parse", err);

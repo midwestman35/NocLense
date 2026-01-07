@@ -109,7 +109,7 @@ const FilterBar = () => {
     const sipFilterEnabled = isSipFilterEnabled;
 
     return (
-        <div className="flex items-center gap-3 w-full p-2" ref={dropdownRef}>
+        <div className="flex items-center gap-3 w-full p-2 relative z-50" ref={dropdownRef}>
             <div className="relative flex-grow max-w-2xl">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[var(--text-secondary)]" size={16} />
                 <input

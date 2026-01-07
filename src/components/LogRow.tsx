@@ -1,4 +1,5 @@
 import { useState, memo } from 'react';
+import { stc, getSipColorClasses } from '../utils/colorUtils';
 import { format } from 'date-fns';
 import { ChevronRight, ChevronDown, AlertCircle, Info, Bug, AlertTriangle, Star } from 'lucide-react';
 import clsx from 'clsx';
@@ -25,19 +26,10 @@ interface LogRowProps {
     filterText?: string;
     isFavorite?: boolean;
     onToggleFavorite?: () => void;
+    isHighlighted?: boolean;
 }
 
-// Simple string-to-color function
-const stc = (str: string) => {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-        hash = str.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    const c = (hash & 0x00ffffff).toString(16).toUpperCase();
-    return '#' + '00000'.substring(0, 6 - c.length) + c;
-};
-
-const LogRow: React.FC<LogRowProps> = ({ log, style, onClick, active, measureRef, index, isTextWrap, filterText, isFavorite = false, onToggleFavorite }) => {
+const LogRow: React.FC<LogRowProps> = ({ log, style, onClick, active, measureRef, index, isTextWrap, filterText, isFavorite = false, onToggleFavorite, isHighlighted = false }) => {
     const [expanded, setExpanded] = useState(false);
 
     const toggleExpand = (e: React.MouseEvent) => {
@@ -59,7 +51,8 @@ const LogRow: React.FC<LogRowProps> = ({ log, style, onClick, active, measureRef
             style={style}
             className={clsx(
                 "flex flex-col border-b border-slate-700 hover:bg-slate-700/50 cursor-pointer text-sm font-mono transition-colors",
-                active && "bg-slate-700/80 border-l-4 border-l-blue-500"
+                active && "bg-slate-700/80 border-l-4 border-l-blue-500",
+                isHighlighted && "bg-yellow-500/10 ring-1 ring-inset ring-yellow-500/50 z-10"
             )}
             onClick={() => onClick(log)}
         >
@@ -102,12 +95,12 @@ const LogRow: React.FC<LogRowProps> = ({ log, style, onClick, active, measureRef
                         className="p-0.5 hover:bg-white/10 rounded text-slate-500 hover:text-yellow-400 transition-colors shrink-0"
                         title={isFavorite ? "Remove from favorites" : "Add to favorites"}
                     >
-                        <Star 
-                            size={14} 
+                        <Star
+                            size={14}
                             className={clsx(
                                 "transition-all",
                                 isFavorite ? "fill-yellow-500 text-yellow-500" : ""
-                            )} 
+                            )}
                         />
                     </button>
                     {log.callId && (
@@ -123,7 +116,14 @@ const LogRow: React.FC<LogRowProps> = ({ log, style, onClick, active, measureRef
                     )}
                     <span>
                         {highlightText(log.displayMessage, filterText || '')}
-                        {log.sipMethod && <span className="ml-2 px-1.5 py-0.5 bg-yellow-900/50 text-yellow-500 rounded text-xs">{log.sipMethod}</span>}
+                        {log.sipMethod && (
+                            <span className={clsx(
+                                "ml-2 px-1.5 py-0.5 rounded text-[10px] font-bold border transition-colors whitespace-nowrap",
+                                getSipColorClasses(log.sipMethod)
+                            )}>
+                                {log.sipMethod}
+                            </span>
+                        )}
                     </span>
                 </div>
             </div>

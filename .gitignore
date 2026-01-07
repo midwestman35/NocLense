@@ -25,3 +25,6 @@ dist-ssr
 
 # User logs
 *.txt
+
+# Allow analysis directory
+!analysis_logs/

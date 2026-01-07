@@ -96,3 +96,21 @@ body {
   grid-template-columns: 20px 160px 24px 130px 1fr;
   column-gap: 0.5rem;
 }
+
+/* Custom Scrollbars */
+.custom-scrollbar-h::-webkit-scrollbar {
+  height: 6px;
+}
+
+.custom-scrollbar-h::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.custom-scrollbar-h::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+
+.custom-scrollbar-h::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}

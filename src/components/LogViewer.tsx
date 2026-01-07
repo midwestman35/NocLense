@@ -27,7 +27,7 @@ const LogHeader = () => {
         return Array.from(components).sort();
     }, [logs, showAllServices]);
 
-    const toggleSort = (field: 'timestamp') => {
+    const toggleSort = (field: 'timestamp' | 'level') => {
         setSortConfig({
             field,
             direction: sortConfig.field === field && sortConfig.direction === 'asc' ? 'desc' : 'asc'
@@ -49,7 +49,15 @@ const LogHeader = () => {
                 )}
             </div>
 
-            <div className="text-center">Lvl</div>
+            <div
+                className="flex items-center justify-center gap-1 cursor-pointer hover:text-white transition-colors"
+                onClick={() => toggleSort('level')}
+            >
+                Lvl
+                {sortConfig.field === 'level' && (
+                    sortConfig.direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />
+                )}
+            </div>
 
             {/* Component Header with Filter */}
             <div className="relative">
@@ -105,7 +113,18 @@ const LogHeader = () => {
 };
 
 const LogViewer = () => {
-    const { logs, filteredLogs, selectedLogId, setSelectedLogId, isTextWrapEnabled, setVisibleRange, filterText, favoriteLogIds, toggleFavorite } = useLogContext();
+    const {
+        logs,
+        filteredLogs,
+        selectedLogId,
+        setSelectedLogId,
+        isTextWrapEnabled,
+        setVisibleRange,
+        filterText,
+        favoriteLogIds,
+        toggleFavorite,
+        hoveredCorrelation
+    } = useLogContext();
     const parentRef = useRef<HTMLDivElement>(null);
 
     // Dynamic row height estimation based on text wrap setting
@@ -121,12 +140,16 @@ const LogViewer = () => {
             if (!instance.range) return;
             const { startIndex, endIndex } = instance.range;
             // Map indices to timestamps
-            if (filteredLogs[startIndex] && filteredLogs[endIndex]) {
-                // Avoid updating state during render
+            const startLog = filteredLogs[startIndex];
+            const endLog = filteredLogs[endIndex];
+
+            if (startLog && endLog) {
+                // In Descending sort, startLog timestamp might be later than endLog
+                // We want visibleRange to be [minTS, maxTS] for TimelineScrubber
                 requestAnimationFrame(() => {
                     setVisibleRange({
-                        start: filteredLogs[startIndex].timestamp,
-                        end: filteredLogs[endIndex].timestamp
+                        start: Math.min(startLog.timestamp, endLog.timestamp),
+                        end: Math.max(startLog.timestamp, endLog.timestamp)
                     });
                 });
             }
@@ -144,25 +167,25 @@ const LogViewer = () => {
     }, [selectedLogId, filteredLogs, rowVirtualizer]);
 
     // Handle timeline scrubbing
-    const { scrollTargetTimestamp } = useLogContext();
+    const { scrollTargetTimestamp, sortConfig } = useLogContext();
     useEffect(() => {
         if (scrollTargetTimestamp !== null && filteredLogs.length > 0) {
-            // Find closest log index using binary search (assuming sorted by timestamp)
-            // If not sorted by timestamp, fallback to linear search or rely on current sort
-
-            // Simple linear approximate (findIndex is O(N))
             const target = scrollTargetTimestamp;
-            // Find first log with timestamp >= target
-            const index = filteredLogs.findIndex(l => l.timestamp >= target);
+            let index;
+
+            if (sortConfig.direction === 'asc') {
+                index = filteredLogs.findIndex(l => l.timestamp >= target);
+            } else {
+                index = filteredLogs.findIndex(l => l.timestamp <= target);
+            }
 
             if (index !== -1) {
                 rowVirtualizer.scrollToIndex(index, { align: 'start' });
             } else {
-                // Scrolled past end?
                 rowVirtualizer.scrollToIndex(filteredLogs.length - 1, { align: 'end' });
             }
         }
-    }, [scrollTargetTimestamp, filteredLogs, rowVirtualizer]);
+    }, [scrollTargetTimestamp, filteredLogs, rowVirtualizer, sortConfig.direction]);
 
     return (
         <div className="flex-grow flex flex-col h-full w-full bg-slate-900 overflow-hidden">
@@ -191,6 +214,15 @@ const LogViewer = () => {
                                     key={log.id}
                                     log={log}
                                     active={log.id === selectedLogId}
+                                    isHighlighted={
+                                        hoveredCorrelation?.type === 'file' ? log.fileName === hoveredCorrelation.value :
+                                            hoveredCorrelation?.type === 'callId' ? log.callId === hoveredCorrelation.value :
+                                                hoveredCorrelation?.type === 'report' ? log.reportId === hoveredCorrelation.value :
+                                                    hoveredCorrelation?.type === 'operator' ? log.operatorId === hoveredCorrelation.value :
+                                                        hoveredCorrelation?.type === 'extension' ? log.extensionId === hoveredCorrelation.value :
+                                                            hoveredCorrelation?.type === 'station' ? log.stationId === hoveredCorrelation.value :
+                                                                false
+                                    }
                                     onClick={(l) => setSelectedLogId(l.id === selectedLogId ? null : l.id)}
                                     measureRef={rowVirtualizer.measureElement}
                                     index={virtualRow.index}

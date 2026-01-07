@@ -8,7 +8,7 @@ import TimelineScrubber from './components/TimelineScrubber';
 import CorrelationSidebar from './components/CorrelationSidebar';
 import ExportModal from './components/export/ExportModal';
 import ChangelogDropdown from './components/ChangelogDropdown';
-import { Download, FolderOpen, X, AlertTriangle, Filter, Moon, Sun, Flame } from 'lucide-react';
+import { Download, FolderOpen, X, AlertTriangle, Filter, Moon, Sun, Flame, LocateFixed, ArrowLeft } from 'lucide-react';
 import { parseLogFile } from './utils/parser';
 import { validateFile } from './utils/fileUtils';
 import clsx from 'clsx';
@@ -24,9 +24,18 @@ const MainLayout = () => {
     setFilterText,
     activeCallFlowId,
     setActiveCallFlowId,
+
+    activeCorrelations,
+    setActiveCorrelations,
     toggleCorrelation,
     isSidebarOpen,
-    setIsSidebarOpen
+    setIsSidebarOpen,
+    isTimelineOpen,
+    setIsTimelineOpen,
+    jumpState,
+    setJumpState,
+    setScrollTargetTimestamp,
+    filterText
   } = useLogContext();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -52,6 +61,7 @@ const MainLayout = () => {
 
   // Panel Sizes
   const [detailsHeight, setDetailsHeight] = useState(256);
+  const [timelineHeight, setTimelineHeight] = useState(128);
 
   const selectedLog = selectedLogId ? filteredLogs.find(l => l.id === selectedLogId) || logs.find(l => l.id === selectedLogId) : null;
 
@@ -121,10 +131,38 @@ const MainLayout = () => {
     setTheme(next);
   };
 
+  const handleJumpToLog = () => {
+    if (!selectedLog) return;
+
+    // Save state
+    setJumpState({
+      active: true,
+      previousFilters: {
+        activeCorrelations: [...activeCorrelations],
+        filterText
+      }
+    });
+
+    // Clear filters (except file)
+    const fileFilters = activeCorrelations.filter(c => c.type === 'file');
+    setActiveCorrelations(fileFilters);
+    setFilterText('');
+    setScrollTargetTimestamp(selectedLog.timestamp);
+  };
+
+  const handleBackFromJump = () => {
+    if (!jumpState.active || !jumpState.previousFilters) return;
+
+    setActiveCorrelations(jumpState.previousFilters.activeCorrelations);
+    setFilterText(jumpState.previousFilters.filterText);
+    setJumpState({ active: false, previousFilters: null });
+    setScrollTargetTimestamp(null);
+  };
+
   return (
     <div className="flex flex-col h-screen overflow-hidden text-[var(--text-primary)]">
       {/* Header - Styled per NOC Tool */}
-      <header className="shrink-0 h-16 px-6 flex items-center justify-between shadow-[var(--shadow)] z-20"
+      <header className="shrink-0 h-16 px-6 flex items-center justify-between shadow-[var(--shadow)] z-50"
         style={{ backgroundColor: 'var(--primary-blue)', color: '#fff' }}>
 
         <div className="flex items-center gap-4">
@@ -138,6 +176,18 @@ const MainLayout = () => {
             <p className="text-xs text-blue-200 opacity-90">NOC Incident Automation (Log Viewer)</p>
           </div>
           <ChangelogDropdown />
+
+          {jumpState.active && (
+            <div className="flex items-center animate-in fade-in slide-in-from-top-2 duration-300 ml-4">
+              <button
+                onClick={handleBackFromJump}
+                className="flex items-center gap-2 px-3 py-1.5 bg-yellow-500 text-white rounded shadow-sm hover:bg-yellow-400 transition-colors font-semibold text-xs animate-pulse"
+              >
+                <ArrowLeft size={14} />
+                Restore Filters (Back)
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-4">
@@ -153,6 +203,18 @@ const MainLayout = () => {
             >
               <Filter size={18} />
               <span className="opacity-90">Filters</span>
+            </button>
+
+            <button
+              onClick={() => setIsTimelineOpen(!isTimelineOpen)}
+              className={clsx(
+                "p-2 rounded-lg transition-colors flex items-center gap-2 text-sm font-medium",
+                isTimelineOpen ? "bg-white/20 text-white" : "text-blue-100 hover:bg-white/10"
+              )}
+              title="Toggle Timeline"
+            >
+              <Download size={18} className="-rotate-90" />
+              <span className="opacity-90">Timeline</span>
             </button>
 
             {logs.length > 0 && (
@@ -213,7 +275,7 @@ const MainLayout = () => {
 
         {/* Sidebar */}
         {isSidebarOpen && (
-          <div className="shrink-0 z-10 h-full border-r border-[var(--border-color)] bg-[var(--card-bg)] shadow-[var(--shadow-lg)] w-80 transition-all duration-300">
+          <div className="shrink-0 z-10 h-full border-r border-[var(--border-color)] bg-[var(--card-bg)] shadow-[var(--shadow-lg)] transition-all duration-300">
             <CorrelationSidebar />
           </div>
         )}
@@ -223,7 +285,7 @@ const MainLayout = () => {
 
           {/* Filter Bar (Search) - Only show if logs exist or always? Usually always is fine but better if logs exist */}
           {logs.length > 0 && (
-            <div className="shrink-0 p-4 pb-0 z-10">
+            <div className="shrink-0 p-4 pb-0 z-40 relative">
               <div className="bg-[var(--card-bg)] rounded-lg shadow-[var(--shadow)] border border-[var(--border-color)] p-1">
                 <FilterBar />
               </div>
@@ -270,14 +332,35 @@ const MainLayout = () => {
                   )}
                 </div>
 
-                {/* Bottom: Timeline & Details */}
-                {selectedLog && (
-                  <div className="shrink-0 flex flex-col gap-4" style={{ height: detailsHeight }}>
-                    {/* Timeline */}
-                    <div className="h-16 bg-[var(--card-bg)] rounded-lg shadow-[var(--shadow)] border border-[var(--border-color)] overflow-hidden shrink-0 relative">
-                      <TimelineScrubber height={64} />
-                    </div>
+                {/* Decoupled Timeline */}
+                {/* Decoupled Timeline */}
+                {isTimelineOpen && logs.length > 0 && (
+                  <div className="shrink-0 bg-[var(--card-bg)] rounded-lg shadow-[var(--shadow)] border border-[var(--border-color)] overflow-hidden relative flex flex-col" style={{ height: timelineHeight }}>
+                    {/* Draggable Handle (Top) */}
+                    <div
+                      className="absolute top-0 left-0 right-0 h-1.5 bg-transparent hover:bg-[var(--accent-blue)] cursor-row-resize z-50 transition-colors"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        const startY = e.clientY;
+                        const startH = timelineHeight;
+                        const onMove = (mv: MouseEvent) => {
+                          setTimelineHeight(Math.max(60, Math.min(600, startH + (startY - mv.clientY))));
+                        };
+                        const onUp = () => {
+                          document.removeEventListener('mousemove', onMove);
+                          document.removeEventListener('mouseup', onUp);
+                        };
+                        document.addEventListener('mousemove', onMove);
+                        document.addEventListener('mouseup', onUp);
+                      }}
+                    />
+                    <TimelineScrubber height={timelineHeight} />
+                  </div>
+                )}
 
+                {/* Bottom: Details */}
+                {selectedLog && (
+                  <div className="shrink-0 flex flex-col" style={{ height: detailsHeight }}>
                     {/* Integrated Details Panel */}
                     <div className="flex-1 bg-[var(--card-bg)] rounded-lg shadow-[var(--shadow-lg)] border border-[var(--border-color)] overflow-hidden flex flex-col relative z-20">
                       {/* Draggable Handle */}
@@ -329,6 +412,16 @@ const MainLayout = () => {
                             className="text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-2 py-1 rounded hover:bg-[var(--bg-light)]"
                           >
                             Close
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={handleJumpToLog}
+                            className="flex items-center gap-1 text-xs bg-[var(--bg-light)] text-[var(--text-primary)] px-2 py-1 rounded hover:bg-[var(--accent-blue)] hover:text-white transition-colors border border-[var(--border-color)]"
+                            title="Jump to this log in main view (clears filters temporarily)"
+                          >
+                            <LocateFixed size={12} />
+                            Jump To
                           </button>
                         </div>
                       </div>
