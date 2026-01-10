@@ -149,3 +149,64 @@ git revert HEAD
 # or
 git checkout main -- src/components/FileUploader.tsx src/utils/parser.ts src/contexts/LogContext.tsx
 ```
+
+**Test Results**: ✅ All Phase 1 tests pass successfully
+- ✅ Spread operator fix prevents crashes with 50k+ logs
+- ✅ Chunked reading prevents OOM crashes on large files
+- ✅ Progress indicators functional
+- ⚠️ Minor performance lag with massive datasets (100k+ entries) - Phase 2 will address
+
+---
+
+## Phase 2: Performance Refactoring (Next)
+
+### Goal
+Optimize performance for massive log datasets (100k+ entries) by reducing re-renders and optimizing computations.
+
+### Expected Improvements
+- 30-50% performance improvement with large datasets
+- Smoother UI interactions (no lag between input)
+- Faster filtering and sorting operations
+- Reduced memory usage through better memoization
+
+### Planned Changes
+
+#### 1. Memoize LogContext Value ✅ Priority 1
+**File**: `src/contexts/LogContext.tsx`
+**Issue**: Context value object recreated on every render, causing unnecessary re-renders
+**Fix**: Wrap context value in `useMemo` with proper dependencies
+
+#### 2. Optimize filteredLogs Computation ✅ Priority 1
+**File**: `src/contexts/LogContext.tsx`
+**Issue**: O(n × m) complexity, processes all logs multiple times, string operations on every check
+**Fix**: 
+- Pre-compute Set-based indexes for correlation filters
+- Pre-compute lowercase strings during parsing
+- Use Set.has() for O(1) lookups instead of array searches
+
+#### 3. Debounce Timeline Updates ✅ Priority 2
+**File**: `src/components/LogViewer.tsx`, `src/components/TimelineScrubber.tsx`
+**Issue**: setVisibleRange called on every scroll event, triggers re-renders
+**Fix**: Debounce visibleRange updates, use refs for intermediate values
+
+#### 4. Add useCallback to Event Handlers ✅ Priority 2
+**File**: Multiple components
+**Issue**: Event handlers recreated on every render, causing child re-renders
+**Fix**: Wrap all event handlers in `useCallback` with proper dependencies
+
+#### 5. Optimize Timeline Computations ✅ Priority 3
+**File**: `src/components/TimelineScrubber.tsx`
+**Issue**: Multiple O(n²) operations, sorting entire arrays repeatedly
+**Fix**: Use Map/Set for O(1) lookups, pre-compute lane assignments, cache computations
+
+#### 6. Pre-compute Correlation Data Indexes ✅ Priority 3
+**File**: `src/utils/parser.ts`, `src/contexts/LogContext.tsx`
+**Issue**: Correlation data computed on every filter change, iterates through all logs
+**Fix**: Index correlation data during parsing, update incrementally
+
+**Timeline**: 4-8 hours for complete Phase 2 implementation
+
+**Expected Result**: 
+- Smooth UI interactions even with 100k+ logs
+- Instant filtering operations
+- No lag between user input and UI response
