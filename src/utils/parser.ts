@@ -87,11 +87,20 @@ const parseDatadogCSV = (text: string, fileColor: string, startId: number): LogE
             const callIdMatch = message.match(/callId[=:]([a-zA-Z0-9\-]+)/);
             if (callIdMatch) {
                 entry.callId = callIdMatch[1];
+                // Phase 2 Optimization: Pre-compute lowercase callId
+                entry._callIdLower = callIdMatch[1].toLowerCase();
             }
 
             const extensionMatch = message.match(/extensionID:\s*Optional\[(\d+)\]/);
             if (extensionMatch) {
                 entry.extensionId = extensionMatch[1];
+            }
+
+            // Phase 2 Optimization: Pre-compute lowercase strings for CSV entries
+            entry._messageLower = message.toLowerCase();
+            entry._componentLower = component.toLowerCase();
+            if (payload) {
+                entry._payloadLower = payload.toLowerCase();
             }
 
             parsedLogs.push(entry);
@@ -237,6 +246,7 @@ export const parseLogFile = async (file: File, fileColor: string = '#3b82f6', st
                 cleaned.displayMessage = specialTag + cleaned.displayMessage;
             }
 
+            const trimmedMessage = message.trim();
             currentLog = {
                 id: idCounter++,
                 timestamp: isNaN(timestamp) ? Date.now() : timestamp,
@@ -244,14 +254,17 @@ export const parseLogFile = async (file: File, fileColor: string = '#3b82f6', st
                 level: level as LogLevel,
                 component,
                 displayComponent: cleaned.displayComponent,
-                message: message.trim(),
+                message: trimmedMessage,
                 displayMessage: cleaned.displayMessage,
                 payload: "",
                 type: "LOG", // Default
                 isSip: false,
                 sipMethod: null,
                 fileName: file.name,
-                fileColor: fileColor
+                fileColor: fileColor,
+                // Phase 2 Optimization: Pre-compute lowercase strings during parsing for faster filtering
+                _messageLower: trimmedMessage.toLowerCase(),
+                _componentLower: component.toLowerCase()
             };
         } else {
             // Line does not match start of log. 
@@ -259,6 +272,10 @@ export const parseLogFile = async (file: File, fileColor: string = '#3b82f6', st
             if (currentLog) {
                 // Append to payload
                 currentLog.payload += (currentLog.payload ? "\n" : "") + line;
+                // Phase 2 Optimization: Defer lowercase computation for payload until processLogPayload
+                // This avoids accumulating lowercase strings for very large payloads
+                // The lowercase will be computed once in processLogPayload when the log is complete
+                currentLog._payloadLower = undefined; // Will be recomputed in processLogPayload
             }
         }
     }
@@ -282,8 +299,11 @@ export const parseLogFile = async (file: File, fileColor: string = '#3b82f6', st
 };
 
 function processLogPayload(log: LogEntry) {
-    // 1. Check for JSON
+    // Phase 2 Optimization: Pre-compute lowercase payload once
     const trimmedPayload = log.payload.trim();
+    log._payloadLower = trimmedPayload.toLowerCase();
+
+    // 1. Check for JSON
     if (trimmedPayload.startsWith('{') && trimmedPayload.endsWith('}')) {
         try {
             log.json = JSON.parse(trimmedPayload);
@@ -322,7 +342,8 @@ function processLogPayload(log: LogEntry) {
     }
 
     // 3. Check for SIP
-    if (log.payload.includes("SIP/2.0") || log.message.toLowerCase().includes("sip")) {
+    // Phase 2 Optimization: Use pre-computed lowercase
+    if (log.payload.includes("SIP/2.0") || (log._messageLower && log._messageLower.includes("sip"))) {
         log.isSip = true;
 
         // Detect Method or Response
@@ -348,7 +369,11 @@ function processLogPayload(log: LogEntry) {
 
         // Extract Call-ID
         const callIdMatch = log.payload.match(/Call-ID:\s*(.+)/i);
-        if (callIdMatch) log.callId = callIdMatch[1].trim();
+        if (callIdMatch) {
+            log.callId = callIdMatch[1].trim();
+            // Phase 2 Optimization: Pre-compute lowercase callId
+            log._callIdLower = log.callId.toLowerCase();
+        }
 
         // Extract From
         const fromMatch = log.payload.match(/From:\s*(.+)/i);
@@ -364,5 +389,10 @@ function processLogPayload(log: LogEntry) {
         if (agentIdMatch && !log.operatorId) {
             log.operatorId = agentIdMatch[1];
         }
+    }
+    
+    // Phase 2 Optimization: Pre-compute lowercase for callId if not already set (from message extraction)
+    if (log.callId && !log._callIdLower) {
+        log._callIdLower = log.callId.toLowerCase();
     }
 }

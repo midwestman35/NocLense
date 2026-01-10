@@ -353,13 +353,14 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
             // SIP Filter (Show Only SIP)
             if (isSipFilterEnabled && !log.isSip) return false;
 
-            // Phase 2 Optimization: Use pre-computed lowercase filter text, reduce toLowerCase() calls
+            // Phase 2 Optimization: Use pre-computed lowercase strings from parsing for O(1) string operations
+            // This eliminates toLowerCase() calls during filtering (major performance win for 100k+ logs)
             if (lowerFilterText) {
                 const matchContent =
-                    log.message.toLowerCase().includes(lowerFilterText) ||
-                    (log.payload && log.payload.toLowerCase().includes(lowerFilterText)) ||
-                    log.component.toLowerCase().includes(lowerFilterText) ||
-                    (log.callId && log.callId.toLowerCase().includes(lowerFilterText));
+                    (log._messageLower && log._messageLower.includes(lowerFilterText)) ||
+                    (log._payloadLower && log._payloadLower.includes(lowerFilterText)) ||
+                    (log._componentLower && log._componentLower.includes(lowerFilterText)) ||
+                    (log._callIdLower && log._callIdLower.includes(lowerFilterText));
 
                 if (!matchContent) return false;
             }

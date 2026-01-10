@@ -24,6 +24,11 @@ export interface LogEntry {
     sipTo?: string;
     fileName?: string;
     fileColor?: string;
+    // Phase 2 Optimization: Pre-computed lowercase strings for faster filtering
+    _messageLower?: string; // Pre-computed lowercase message
+    _componentLower?: string; // Pre-computed lowercase component
+    _payloadLower?: string; // Pre-computed lowercase payload
+    _callIdLower?: string; // Pre-computed lowercase callId
 }
 
 export interface LogState {

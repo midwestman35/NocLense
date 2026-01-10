@@ -34,8 +34,20 @@ const TimelineScrubber: React.FC<TimelineScrubberProps> = ({ height = 80 }) => {
 
 
     // Decide which logs to show on timeline
+    // Phase 2 Optimization: filteredLogs is already sorted, so only sort if using 'full' mode or if order changed
     const sourceLogsRaw = timelineViewMode === 'full' ? logs : filteredLogs;
-    const sourceLogs = useMemo(() => [...sourceLogsRaw].sort((a, b) => a.timestamp - b.timestamp), [sourceLogsRaw]);
+    const sourceLogs = useMemo(() => {
+        // filteredLogs is already sorted, so only sort for 'full' mode or if timestamps aren't already sorted
+        if (timelineViewMode === 'filtered') {
+            // filteredLogs should already be sorted, so we can use it directly
+            return sourceLogsRaw;
+        }
+        // For 'full' mode, check if already sorted, otherwise sort
+        const needsSort = sourceLogsRaw.length > 1 && sourceLogsRaw.some((log, idx) => 
+            idx > 0 && sourceLogsRaw[idx - 1].timestamp > log.timestamp
+        );
+        return needsSort ? [...sourceLogsRaw].sort((a, b) => a.timestamp - b.timestamp) : sourceLogsRaw;
+    }, [sourceLogsRaw, timelineViewMode]);
 
     const { minTime, duration, relevantLogs, fileSegments, callSegments, gaps, maxLanes } = useMemo(() => {
         if (!sourceLogs.length) return { minTime: 0, duration: 1, relevantLogs: [], fileSegments: [], callSegments: [], gaps: [], maxLanes: 0 };
@@ -123,6 +135,7 @@ const TimelineScrubber: React.FC<TimelineScrubberProps> = ({ height = 80 }) => {
             }
         });
 
+        // Phase 2 Optimization: Sort calls once
         const sortedCalls = Object.values(callGroups).sort((a, b) => a.start - b.start);
         const lanes: number[] = [];
         const callSegments = sortedCalls.map(seg => {
@@ -135,9 +148,16 @@ const TimelineScrubber: React.FC<TimelineScrubberProps> = ({ height = 80 }) => {
             return { ...seg, laneIndex };
         });
 
+        // Phase 2 Optimization: Use Map for O(1) lookup instead of O(n) find in loop
+        // This changes O(n²) to O(n) complexity - critical for large datasets
+        const callIdToLaneMap = new Map<string, number>();
+        callSegments.forEach(seg => {
+            callIdToLaneMap.set(seg.id, (seg as any).laneIndex);
+        });
+
         const logsWithLanes = relevantLogs.map(log => {
-            const seg = callSegments.find(s => s.id === log.callId);
-            return { ...log, laneIndex: seg ? (seg as any).laneIndex : 0 };
+            const laneIndex = log.callId ? (callIdToLaneMap.get(log.callId) ?? 0) : 0;
+            return { ...log, laneIndex };
         });
 
         return { minTime, duration, relevantLogs: logsWithLanes, fileSegments, callSegments, gaps, maxLanes: lanes.length };
@@ -182,12 +202,19 @@ const TimelineScrubber: React.FC<TimelineScrubberProps> = ({ height = 80 }) => {
             return ((ts - minTime) / duration) * 100;
         }
 
-        // Find which segment or gap this timestamp fits into
+        // Phase 2 Optimization: Optimize segment lookup for compact mode
+        // For typical use (1-10 files), linear search is fine. For 50+ files, could use binary search
+        // But fileSegments is typically small, so O(n) where n=number of files is acceptable
         for (let i = 0; i < fileSegments.length; i++) {
             const seg = fileSegments[i];
             if (ts >= seg.start && ts <= seg.end) {
                 const offset = compactMetadata.segmentOffsets[i];
                 return ((offset + (ts - seg.start)) / compactMetadata.totalDuration) * 100;
+            }
+            // Phase 2: Early exit optimization - if timestamp is before this segment, we're done
+            // (Segments are sorted by start time)
+            if (i < fileSegments.length - 1 && ts < seg.start) {
+                break;
             }
             // If between segments, put it at the gap or closest segment
             if (i < fileSegments.length - 1 && ts > seg.end && ts < fileSegments[i + 1].start) {
@@ -262,13 +289,30 @@ const TimelineScrubber: React.FC<TimelineScrubberProps> = ({ height = 80 }) => {
     const [zoomLevel, setZoomLevel] = useState(1);
     const [hoveredEvent, setHoveredEvent] = useState<{ log: LogEntry; x: number; y: number } | null>(null);
 
-    // Get related logs for the flow tooltip
+    // Phase 2 Optimization: Pre-index logs by callId for O(1) lookup instead of filtering on every hover
+    // This prevents filtering entire logs array every time hover changes
+    const logsByCallId = useMemo(() => {
+        const index = new Map<string, LogEntry[]>();
+        logs.forEach(log => {
+            if (log.callId && log.isSip) {
+                if (!index.has(log.callId)) {
+                    index.set(log.callId, []);
+                }
+                index.get(log.callId)!.push(log);
+            }
+        });
+        // Sort each call's logs once
+        index.forEach((callLogs) => {
+            callLogs.sort((a, b) => a.timestamp - b.timestamp);
+        });
+        return index;
+    }, [logs]);
+
+    // Get related logs for the flow tooltip - Phase 2 Optimized: O(1) lookup instead of O(n) filter
     const relatedFlowLogs = useMemo(() => {
         if (!hoveredEvent || !hoveredEvent.log.callId) return [];
-        return logs
-            .filter(l => l.callId === hoveredEvent.log.callId && l.isSip)
-            .sort((a, b) => a.timestamp - b.timestamp);
-    }, [hoveredEvent, logs]);
+        return logsByCallId.get(hoveredEvent.log.callId) || [];
+    }, [hoveredEvent, logsByCallId]);
     const handleScrub = (e: React.MouseEvent<HTMLDivElement>) => {
         if (e.buttons !== 1 && e.type !== 'click') return;
         const rect = e.currentTarget.getBoundingClientRect();
