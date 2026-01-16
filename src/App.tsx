@@ -11,6 +11,7 @@ import ChangelogDropdown from './components/ChangelogDropdown';
 import { Download, FolderOpen, X, AlertTriangle, Filter, Moon, Sun, Flame, LocateFixed, ArrowLeft } from 'lucide-react';
 import { parseLogFile } from './utils/parser';
 import { validateFile } from './utils/fileUtils';
+import { format } from 'date-fns';
 import clsx from 'clsx';
 
 const MainLayout = () => {
@@ -429,7 +430,7 @@ const MainLayout = () => {
                       {/* Content */}
                       <div className="p-4 overflow-auto font-mono text-xs text-[var(--text-primary)] h-full">
                         <div className="grid grid-cols-2 gap-x-8 gap-y-2 mb-4">
-                          <div><span className="text-[var(--text-secondary)]">Time:</span> {selectedLog.rawTimestamp}</div>
+                          <div><span className="text-[var(--text-secondary)]">Time:</span> {format(new Date(selectedLog.timestamp), 'MM/dd HH:mm:ss.SSS')}</div>
                           <div><span className="text-[var(--text-secondary)]">Component:</span> {selectedLog.component}</div>
                           <div className="col-span-2 flex gap-2">
                             <span className="text-[var(--text-secondary)] shrink-0">Message:</span>
