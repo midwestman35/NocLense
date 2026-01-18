@@ -84,11 +84,14 @@ const parseDatadogCSV = (text: string, fileColor: string, startId: number): LogE
             };
 
             // Extract correlation IDs from message
-            const callIdMatch = message.match(/callId[=:]([a-zA-Z0-9\-]+)/);
+            // Fix: Use more permissive regex to match various Call-ID formats and trim whitespace
+            // Matches: callId=value, callId:value, Call-ID:value (case insensitive)
+            const callIdMatch = message.match(/callId[=:]\s*([^\s;,\[\]\(\)]+)/i) || message.match(/Call-ID:\s*([^\s]+)/i);
             if (callIdMatch) {
-                entry.callId = callIdMatch[1];
+                const extractedCallId = callIdMatch[1].trim(); // Fix: Trim whitespace for consistent comparison
+                entry.callId = extractedCallId;
                 // Phase 2 Optimization: Pre-compute lowercase callId
-                entry._callIdLower = callIdMatch[1].toLowerCase();
+                entry._callIdLower = extractedCallId.toLowerCase();
             }
 
             const extensionMatch = message.match(/extensionID:\s*Optional\[(\d+)\]/);
@@ -215,16 +218,46 @@ export const parseLogFile = async (file: File, fileColor: string = '#3b82f6', st
             let timestampStr: string;
             let timestamp: number;
 
-            if (dateFormat === 'iso') {
-                // ISO format: 2025-12-17 09:18:05,686 -> convert to ISO string format
-                timestampStr = `${date} ${time}`;
-                // Replace comma with dot and add 'Z' for UTC, or parse as-is
-                const isoString = `${date}T${time.replace(',', '.')}`;
-                timestamp = new Date(isoString).getTime();
+            // Try to extract timestamp from message if it contains timezone info (more accurate)
+            // Pattern: "Wed Jan 14 2026 15:15:21 GMT-0600" or similar ISO-like strings with timezone
+            const messageTimestampMatch = message.match(/(\w{3}\s+\w{3}\s+\d{1,2}\s+\d{4}\s+\d{2}:\d{2}:\d{2}\s+GMT[+-]\d{4})/);
+            
+            if (messageTimestampMatch) {
+                // Use timestamp from message if it has timezone info
+                try {
+                    const messageTimestamp = new Date(messageTimestampMatch[1]).getTime();
+                    if (!isNaN(messageTimestamp)) {
+                        timestamp = messageTimestamp;
+                        timestampStr = messageTimestampMatch[1];
+                    } else {
+                        throw new Error('Invalid timestamp from message');
+                    }
+                } catch (e) {
+                    // Fall back to header timestamp parsing
+                    if (dateFormat === 'iso') {
+                        timestampStr = `${date} ${time}`;
+                        const isoString = `${date}T${time.replace(',', '.')}`;
+                        timestamp = new Date(isoString).getTime();
+                    } else {
+                        timestampStr = `${date} ${time}`;
+                        timestamp = new Date(timestampStr).getTime();
+                    }
+                }
             } else {
-                // Original format: MM/DD/YYYY time
-                timestampStr = `${date} ${time}`;
-                timestamp = new Date(timestampStr).getTime();
+                // Parse from header timestamp
+                if (dateFormat === 'iso') {
+                    // ISO format: 2025-12-17 09:18:05,686 -> convert to ISO string format
+                    timestampStr = `${date} ${time}`;
+                    // Replace comma with dot and add 'Z' for UTC, or parse as-is
+                    const isoString = `${date}T${time.replace(',', '.')}`;
+                    timestamp = new Date(isoString).getTime();
+                } else {
+                    // Original format: MM/DD/YYYY time
+                    // Note: JavaScript Date interprets this as local time, which may cause timezone issues
+                    // If logs are from a different timezone, consider parsing with explicit timezone handling
+                    timestampStr = `${date} ${time}`;
+                    timestamp = new Date(timestampStr).getTime();
+                }
             }
 
             let cleaned = cleanupLogEntry(component, message.trim());
