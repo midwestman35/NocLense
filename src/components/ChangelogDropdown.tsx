@@ -12,6 +12,15 @@ interface ChangelogEntry {
 // Latest changelog entries - update this when new features are added
 const changelogEntries: ChangelogEntry[] = [
   {
+    version: '1.2.1',
+    date: '2025-01-15',
+    fixes: [
+      '🔧 Fixed Call-ID filter mismatch - Call-ID filters now correctly catch all entries with matching Call-IDs',
+      '⏰ Improved timestamp parsing - Timestamps are now extracted from message content when timezone info is available for better accuracy',
+      '🎯 Enhanced Call-ID extraction - Support for more Call-ID formats and improved whitespace handling'
+    ]
+  },
+  {
     version: '1.2.0',
     date: '2025-01-15',
     features: [
