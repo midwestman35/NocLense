@@ -246,8 +246,203 @@ const parseHomerText = (text: string, fileColor: string, startId: number, fileNa
 };
 
 /**
+ * Streaming parser that processes file chunks line-by-line without accumulating full text
+ * This prevents memory exhaustion on large files (e.g., 740MB+)
+ */
+const parseLogFileStreaming = async (
+    file: File,
+    fileColor: string,
+    startId: number,
+    onProgress?: (progress: number) => void
+): Promise<LogEntry[]> => {
+    const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB chunks for better performance
+    const fileSize = file.size;
+    const parsedLogs: LogEntry[] = [];
+    let idCounter = startId;
+    let offset = 0;
+    let buffer = ''; // Buffer for incomplete lines at chunk boundaries
+    let chunkCount = 0;
+    const YIELD_INTERVAL = 5; // Yield every 5 chunks
+    
+    // Regex patterns (same as main parser)
+    const logRegex1 = /^\[(INFO|DEBUG|ERROR|WARN)\]\s\[(\d{1,2}\/\d{1,2}\/\d{4}),\s(.*?)\]\s\[(.*?)\]:\s(.*)/;
+    const logRegex2 = /^\[(INFO|DEBUG|ERROR|WARN)\]\s\[(\d{4}-\d{2}-\d{2})\s(\d{2}:\d{2}:\d{2},\d+)\]\s\[(.*?)\]\s(.*)/;
+    
+    let currentLog: LogEntry | null = null;
+    let lineCount = 0;
+    const YIELD_EVERY_N_LINES = 5000; // Yield every 5000 lines
+
+    while (offset < fileSize) {
+        const chunk = file.slice(offset, Math.min(offset + CHUNK_SIZE, fileSize));
+        const chunkText = await chunk.text();
+        offset += CHUNK_SIZE;
+        chunkCount++;
+
+        // Combine buffer with new chunk
+        const textToProcess = buffer + chunkText;
+        
+        // Split into lines, keeping last incomplete line in buffer
+        const lines = textToProcess.split(/\r?\n/);
+        buffer = lines.pop() || ''; // Last line might be incomplete
+
+        // Process complete lines
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            lineCount++;
+
+            // Yield control periodically
+            if (lineCount % YIELD_EVERY_N_LINES === 0) {
+                await new Promise(resolve => setTimeout(resolve, 0));
+                if (onProgress) {
+                    const progress = 0.1 + (offset / fileSize) * 0.8;
+                    onProgress(Math.min(progress, 0.95));
+                }
+            }
+
+            if (!line.trim()) continue; // Skip empty lines
+
+            let match = line.match(logRegex1);
+            let dateFormat = 'original';
+
+            if (!match) {
+                match = line.match(logRegex2);
+                dateFormat = 'iso';
+            }
+
+            if (match) {
+                // Push previous log if exists
+                if (currentLog) {
+                    processLogPayload(currentLog);
+                    parsedLogs.push(currentLog);
+                }
+
+                const [_, level, date, time, component, message] = match;
+                let timestampStr: string;
+                let timestamp: number;
+
+                // Parse timestamp (same logic as main parser)
+                const messageTimestampMatch = message.match(/(\w{3}\s+\w{3}\s+\d{1,2}\s+\d{4}\s+\d{2}:\d{2}:\d{2}\s+GMT[+-]\d{4})/);
+                
+                if (messageTimestampMatch) {
+                    try {
+                        const messageTimestamp = new Date(messageTimestampMatch[1]).getTime();
+                        if (!isNaN(messageTimestamp)) {
+                            timestamp = messageTimestamp;
+                            timestampStr = messageTimestampMatch[1];
+                        } else {
+                            throw new Error('Invalid timestamp');
+                        }
+                    } catch (e) {
+                        if (dateFormat === 'iso') {
+                            timestampStr = `${date} ${time}`;
+                            const isoString = `${date}T${time.replace(',', '.')}`;
+                            timestamp = new Date(isoString).getTime();
+                        } else {
+                            timestampStr = `${date} ${time}`;
+                            timestamp = new Date(timestampStr).getTime();
+                        }
+                    }
+                } else {
+                    if (dateFormat === 'iso') {
+                        timestampStr = `${date} ${time}`;
+                        const isoString = `${date}T${time.replace(',', '.')}`;
+                        timestamp = new Date(isoString).getTime();
+                    } else {
+                        let timeWithoutMs = time;
+                        let milliseconds = 0;
+                        
+                        const msMatch = time.match(/(.+?),\s*(\d+)$/);
+                        if (msMatch) {
+                            timeWithoutMs = msMatch[1].trim();
+                            milliseconds = parseInt(msMatch[2], 10);
+                        }
+                        
+                        timestampStr = `${date} ${time}`;
+                        const baseTimestamp = new Date(`${date} ${timeWithoutMs}`).getTime();
+                        
+                        if (!isNaN(baseTimestamp)) {
+                            timestamp = baseTimestamp + milliseconds;
+                        } else {
+                            timestamp = NaN;
+                        }
+                    }
+                }
+
+                let cleaned = cleanupLogEntry(component, message.trim());
+                if (message.includes('[std-logger]')) {
+                    cleaned.displayComponent = 'std-logger';
+                }
+
+                let specialTag = "";
+                if (message.includes('MEDIA_TIMEOUT') || line.includes('MEDIA_TIMEOUT')) {
+                    specialTag += "⚠️ [MEDIA_TIMEOUT] ";
+                }
+                if (line.includes('X-Recovery: true') || message.includes('X-Recovery: true')) {
+                    specialTag += "🔄 [RECOVERED] ";
+                }
+                if (specialTag) {
+                    cleaned.displayMessage = specialTag + cleaned.displayMessage;
+                }
+
+                const trimmedMessage = message.trim();
+                currentLog = {
+                    id: idCounter++,
+                    timestamp: isNaN(timestamp) ? Date.now() : timestamp,
+                    rawTimestamp: timestampStr,
+                    level: level as LogLevel,
+                    component,
+                    displayComponent: cleaned.displayComponent,
+                    message: trimmedMessage,
+                    displayMessage: cleaned.displayMessage,
+                    payload: "",
+                    type: "LOG",
+                    isSip: false,
+                    sipMethod: null,
+                    fileName: file.name,
+                    fileColor: fileColor,
+                    _messageLower: trimmedMessage.toLowerCase(),
+                    _componentLower: component.toLowerCase()
+                };
+            } else {
+                // Continuation line
+                if (currentLog) {
+                    currentLog.payload += (currentLog.payload ? "\n" : "") + line;
+                    currentLog._payloadLower = undefined;
+                }
+            }
+        }
+
+        // Yield control periodically
+        if (chunkCount % YIELD_INTERVAL === 0) {
+            await new Promise(resolve => setTimeout(resolve, 0));
+        }
+    }
+
+    // Process remaining buffer as final line
+    if (buffer.trim() && currentLog) {
+        currentLog.payload += (currentLog.payload ? "\n" : "") + buffer;
+    }
+
+    // Push last log
+    if (currentLog) {
+        processLogPayload(currentLog);
+        parsedLogs.push(currentLog);
+    }
+
+    if (onProgress) onProgress(0.95);
+
+    // Sort by timestamp
+    parsedLogs.sort((a, b) => a.timestamp - b.timestamp);
+
+    if (onProgress) onProgress(1.0);
+
+    return parsedLogs;
+};
+
+/**
  * Read file in chunks to prevent memory exhaustion on large files
  * Processes file incrementally and yields control to prevent tab freezing
+ * @deprecated Use parseLogFileStreaming for large files instead
  */
 const readFileInChunks = async (file: File): Promise<string> => {
     const CHUNK_SIZE = 1024 * 1024; // 1MB chunks
@@ -274,7 +469,21 @@ const readFileInChunks = async (file: File): Promise<string> => {
 };
 
 export const parseLogFile = async (file: File, fileColor: string = '#3b82f6', startId: number = 1, onProgress?: (progress: number) => void): Promise<LogEntry[]> => {
-    // For files larger than 10MB, use chunked reading to prevent OOM
+    // Check if this is a CSV file (CSV files use different parser, typically smaller)
+    const isCSV = file.name.toLowerCase().endsWith('.csv');
+    
+    // For files larger than 50MB, use streaming parser to prevent OOM
+    // Streaming parser processes chunks line-by-line without accumulating full text
+    // Note: CSV and Homer formats still use traditional parsing (they're typically smaller)
+    const STREAMING_THRESHOLD = 50 * 1024 * 1024; // 50MB
+    const useStreaming = !isCSV && file.size > STREAMING_THRESHOLD;
+    
+    if (useStreaming) {
+        // Use streaming parser for large standard log files
+        return parseLogFileStreaming(file, fileColor, startId, onProgress);
+    }
+    
+    // For smaller files or CSV files, use traditional parsing (faster for small files)
     const useChunkedReading = file.size > 10 * 1024 * 1024;
     
     let text: string;
@@ -285,8 +494,6 @@ export const parseLogFile = async (file: File, fileColor: string = '#3b82f6', st
         text = await file.text();
     }
 
-    // Check if this is a CSV file
-    const isCSV = file.name.toLowerCase().endsWith('.csv');
     if (isCSV) {
         if (onProgress) onProgress(0.5);
         const result = parseDatadogCSV(text, fileColor, startId);

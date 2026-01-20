@@ -6,7 +6,9 @@
 export const FILE_SIZE_LIMITS = {
     WARNING: 50 * 1024 * 1024,  // 50 MB - show warning
     MAX_RECOMMENDED: 200 * 1024 * 1024,  // 200 MB - warn strongly
+    CRITICAL: 500 * 1024 * 1024,  // 500 MB - critical warning about memory
     // Note: No hard limit, but browser memory constraints apply
+    // Chrome typically has 2-4GB per tab limit
 } as const;
 
 /**
@@ -37,11 +39,36 @@ export function exceedsRecommendedSize(fileSize: number): boolean {
 }
 
 /**
- * Get file size warning message
+ * Check if file size exceeds critical threshold
+ */
+export function exceedsCriticalSize(fileSize: number): boolean {
+    return fileSize >= FILE_SIZE_LIMITS.CRITICAL;
+}
+
+/**
+ * Estimate memory usage for a file (rough approximation)
+ * Returns estimated memory in MB
+ */
+export function estimateMemoryUsage(fileSizeBytes: number): number {
+    // Rough estimate: file size * 2-3x for parsed objects
+    // This accounts for:
+    // - UTF-16 string encoding (2x)
+    // - LogEntry objects with multiple string properties (additional overhead)
+    // - React state overhead
+    return Math.round((fileSizeBytes / (1024 * 1024)) * 2.5);
+}
+
+/**
+ * Get file size warning message with memory estimation
  */
 export function getFileSizeWarning(fileSize: number): string | null {
+    if (exceedsCriticalSize(fileSize)) {
+        const estimatedMB = estimateMemoryUsage(fileSize);
+        return `🚨 Very large file detected (${formatFileSize(fileSize)}). Estimated memory usage: ~${estimatedMB}MB. This may cause Chrome to crash. Consider splitting the file into smaller chunks (<200MB each).`;
+    }
     if (exceedsRecommendedSize(fileSize)) {
-        return `⚠️ Large file detected (${formatFileSize(fileSize)}). Parsing may take a while and could impact performance.`;
+        const estimatedMB = estimateMemoryUsage(fileSize);
+        return `⚠️ Large file detected (${formatFileSize(fileSize)}). Estimated memory usage: ~${estimatedMB}MB. Parsing may take a while and could impact performance.`;
     }
     if (shouldWarnAboutFileSize(fileSize)) {
         return `Large file detected (${formatFileSize(fileSize)}). Processing...`;

@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { useLogContext } from '../contexts/LogContext';
 import { parseLogFile } from '../utils/parser';
 import { Upload, AlertTriangle, X } from 'lucide-react';
-import { validateFile } from '../utils/fileUtils';
+import { validateFile, exceedsCriticalSize, estimateMemoryUsage, formatFileSize } from '../utils/fileUtils';
+import type { LogEntry } from '../types';
 
 const FileUploader = () => {
     const { logs, setLogs, setLoading, setSelectedLogId, parsingProgress, setParsingProgress } = useLogContext();
@@ -29,6 +30,18 @@ const FileUploader = () => {
             return;
         }
 
+        // Check for critical file sizes and request confirmation
+        const criticalFiles = filesArray.filter(f => exceedsCriticalSize(f.size));
+        if (criticalFiles.length > 0) {
+            const totalSize = criticalFiles.reduce((sum, f) => sum + f.size, 0);
+            const estimatedMB = estimateMemoryUsage(totalSize);
+            const confirmMessage = `Warning: You are about to process ${criticalFiles.length} very large file(s) totaling ${formatFileSize(totalSize)}.\n\nEstimated memory usage: ~${estimatedMB}MB\n\nThis may cause Chrome to crash due to memory limits. Consider splitting files into smaller chunks (<200MB each).\n\nDo you want to continue?`;
+            
+            if (!window.confirm(confirmMessage)) {
+                return; // User cancelled
+            }
+        }
+
         // Collect warnings
         const warnings = validationResults
             .map(r => r.validation.warning)
@@ -42,7 +55,8 @@ const FileUploader = () => {
         setParsingProgress(0);
         try {
             // Process all files
-            const allParsedLogs = [];
+            // Use let instead of const to allow reassignment with concat
+            let allParsedLogs: LogEntry[] = [];
             // Fix: Use reduce instead of spread operator to prevent "Maximum call stack size exceeded" error with large datasets
             let currentMaxId = logs.length > 0 ? logs.reduce((max, log) => Math.max(max, log.id), 0) : 0;
 
@@ -59,15 +73,19 @@ const FileUploader = () => {
                     setParsingProgress(fileProgress);
                 };
                 const parsed = await parseLogFile(file, color, startId, fileProgressCallback);
-                allParsedLogs.push(...parsed);
+                // Use concat instead of spread operator for large arrays to avoid "Maximum call stack size exceeded"
+                // This is more memory-efficient for large datasets
+                allParsedLogs = allParsedLogs.concat(parsed);
                 // Update currentMaxId to highest ID from parsed logs using reduce (safer for large arrays)
                 if (parsed.length > 0) {
                     currentMaxId = parsed.reduce((max, log) => Math.max(max, log.id), currentMaxId);
                 }
             }
 
-            // Merge with existing logs (append mode) and sort by timestamp
-            const mergedLogs = [...logs, ...allParsedLogs].sort((a, b) => a.timestamp - b.timestamp);
+            // Merge with existing logs (append mode) using concat for memory efficiency
+            // Then sort by timestamp
+            const mergedLogs = logs.concat(allParsedLogs);
+            mergedLogs.sort((a, b) => a.timestamp - b.timestamp);
             setLogs(mergedLogs);
             setSelectedLogId(null);
         } catch (err) {
