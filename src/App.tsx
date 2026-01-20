@@ -99,8 +99,11 @@ const MainLayout = () => {
     try {
       const allLogs = [];
       for (const { file } of validationResults) {
-        const parsed = await parseLogFile(file);
-        allLogs.push(...parsed);
+        const parsed = await parseLogFile(file, '#3b82f6', 1, undefined, false); // Use traditional parsing for App.tsx
+        if (Array.isArray(parsed)) {
+          allLogs.push(...parsed);
+        }
+        // If IndexedDB was used, logs are already stored, skip adding to array
       }
 
       // Sort combined logs by timestamp

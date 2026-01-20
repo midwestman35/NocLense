@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useMemo, useEffect, useCallback, type ReactNode } from 'react';
 import type { LogEntry, LogState } from '../types';
 import { loadSearchHistory, addToSearchHistory as saveToHistory, clearSearchHistory as clearHistoryStorage } from '../store/searchHistory';
+import { dbManager } from '../utils/indexedDB';
 
 export interface CorrelationItem {
     type: 'report' | 'operator' | 'extension' | 'station' | 'callId' | 'file';
@@ -88,6 +89,16 @@ interface LogContextType extends LogState {
     toggleFavorite: (logId: number) => void;
     isShowFavoritesOnly: boolean;
     setIsShowFavoritesOnly: (show: boolean) => void;
+    
+    // IndexedDB support (for large files)
+    useIndexedDBMode: boolean;
+    totalLogCount: number;
+    loadLogsFromIndexedDB: (filters?: {
+        component?: string;
+        callId?: string;
+        timestampRange?: { start: number; end: number };
+        limit?: number;
+    }) => Promise<LogEntry[]>;
 }
 
 const LogContext = createContext<LogContextType | null>(null);
@@ -104,12 +115,62 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
     const [logs, setLogs] = useState<LogEntry[]>([]);
     const [loading, setLoading] = useState(false);
     const [parsingProgress, setParsingProgress] = useState<number>(0); // Progress from 0 to 1
+    const [useIndexedDBMode, setUseIndexedDBMode] = useState(false); // Flag to indicate if IndexedDB is being used
+    const [totalLogCount, setTotalLogCount] = useState(0); // Total count when using IndexedDB
     const [filterText, setFilterText] = useState('');
     const [isSipFilterEnabled, setIsSipFilterEnabled] = useState(false);
     const [selectedSipMethod, setSelectedSipMethod] = useState<string | null>(null);
     const [selectedLogId, setSelectedLogId] = useState<number | null>(null);
     const [searchHistory, setSearchHistory] = useState<string[]>([]);
-
+    
+    // Initialize IndexedDB and check if we have stored logs
+    useEffect(() => {
+        const initIndexedDB = async () => {
+            try {
+                await dbManager.init();
+                const metadata = await dbManager.getMetadata();
+                if (metadata && metadata.totalLogs > 0) {
+                    setUseIndexedDBMode(true);
+                    setTotalLogCount(metadata.totalLogs);
+                    // Load initial batch of logs for display
+                    const initialLogs = await dbManager.getLogsByTimestampRange(
+                        metadata.dateRange.min,
+                        metadata.dateRange.max,
+                        1000 // Load first 1000 logs
+                    );
+                    setLogs(initialLogs.sort((a, b) => a.timestamp - b.timestamp));
+                }
+            } catch (error) {
+                console.error('Failed to initialize IndexedDB:', error);
+            }
+        };
+        initIndexedDB();
+    }, []);
+    
+    // State for IndexedDB-loaded logs (when using IndexedDB mode)
+    const [indexedDBLogs, setIndexedDBLogs] = useState<LogEntry[]>([]);
+    const [indexedDBLoading, setIndexedDBLoading] = useState(false);
+    
+    // Function to load logs from IndexedDB when needed
+    const loadLogsFromIndexedDB = useCallback(async (filters?: {
+        component?: string;
+        callId?: string;
+        timestampRange?: { start: number; end: number };
+        limit?: number;
+        isSip?: boolean;
+        level?: string;
+        fileName?: string;
+    }) => {
+        if (!useIndexedDBMode) return [];
+        try {
+            const loadedLogs = await dbManager.getLogsFiltered(filters || {});
+            return loadedLogs;
+        } catch (error) {
+            console.error('Failed to load logs from IndexedDB:', error);
+            return [];
+        }
+    }, [useIndexedDBMode]);
+    
     // Load search history on mount
     useEffect(() => {
         setSearchHistory(loadSearchHistory());
@@ -143,6 +204,128 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
     // Favorites State
     const [favoriteLogIds, setFavoriteLogIds] = useState<Set<number>>(new Set());
     const [isShowFavoritesOnly, setIsShowFavoritesOnly] = useState(false);
+
+    // Load logs from IndexedDB when filters change (for IndexedDB mode)
+    // This must be after all state declarations
+    useEffect(() => {
+        if (!useIndexedDBMode) {
+            setIndexedDBLogs([]);
+            return;
+        }
+        
+        const loadFilteredLogs = async () => {
+            setIndexedDBLoading(true);
+            try {
+                // Build filters from current state
+                const filters: any = {};
+                
+                // Component filter
+                if (selectedComponentFilter) {
+                    filters.component = selectedComponentFilter;
+                }
+                
+                // SIP filter
+                if (isSipFilterEnabled) {
+                    filters.isSip = true;
+                }
+                
+                // Correlation filters
+                const activeFileFilters = activeCorrelations.filter(c => c.type === 'file' && !c.excluded);
+                if (activeFileFilters.length > 0) {
+                    filters.fileName = activeFileFilters[0].value; // For now, use first file filter
+                }
+                
+                const callIdFilters = activeCorrelations.filter(c => c.type === 'callId' && !c.excluded);
+                if (callIdFilters.length > 0) {
+                    filters.callId = callIdFilters[0].value;
+                }
+                
+                // Text search - for now, load all and filter in memory (IndexedDB doesn't support full-text search easily)
+                // In the future, we could add a full-text search index
+                let loadedLogs = await loadLogsFromIndexedDB(filters);
+                
+                // Apply text filter in memory if present
+                if (filterText) {
+                    const lowerFilterText = filterText.toLowerCase();
+                    loadedLogs = loadedLogs.filter(log => {
+                        return (
+                            (log._messageLower && log._messageLower.includes(lowerFilterText)) ||
+                            (log._payloadLower && log._payloadLower.includes(lowerFilterText)) ||
+                            (log._componentLower && log._componentLower.includes(lowerFilterText)) ||
+                            (log._callIdLower && log._callIdLower.includes(lowerFilterText))
+                        );
+                    });
+                }
+                
+                // Apply SIP method filter
+                if (selectedSipMethod !== null) {
+                    const normalizeMethod = (method: string): string => {
+                        const responseMatch = method.match(/^(\d{3})\s+(\w+)(?:\s+.*)?$/i);
+                        if (responseMatch) {
+                            const code = responseMatch[1];
+                            const firstWord = responseMatch[2].charAt(0).toUpperCase() + responseMatch[2].slice(1).toLowerCase();
+                            return `${code} ${firstWord}`;
+                        }
+                        return method;
+                    };
+                    const normalizedSelected = normalizeMethod(selectedSipMethod);
+                    loadedLogs = loadedLogs.filter(log => {
+                        if (!log.isSip || !log.sipMethod) return false;
+                        return normalizeMethod(log.sipMethod) === normalizedSelected;
+                    });
+                }
+                
+                // Apply favorites filter
+                if (isShowFavoritesOnly) {
+                    loadedLogs = loadedLogs.filter(log => favoriteLogIds.has(log.id));
+                }
+                
+                // Sort
+                loadedLogs.sort((a, b) => {
+                    if (sortConfig.field === 'timestamp') {
+                        const timeA = a.timestamp;
+                        const timeB = b.timestamp;
+                        return sortConfig.direction === 'asc' ? timeA - timeB : timeB - timeA;
+                    } else if (sortConfig.field === 'level') {
+                        const levels = { ERROR: 3, WARN: 2, INFO: 1, DEBUG: 0 };
+                        const valA = levels[a.level] || 0;
+                        const valB = levels[b.level] || 0;
+                        return sortConfig.direction === 'asc' ? valA - valB : valB - valA;
+                    }
+                    return 0;
+                });
+                
+                setIndexedDBLogs(loadedLogs);
+            } catch (error) {
+                console.error('Failed to load filtered logs from IndexedDB:', error);
+            } finally {
+                setIndexedDBLoading(false);
+            }
+        };
+        
+        // Debounce the load to avoid excessive queries
+        const timeoutId = setTimeout(loadFilteredLogs, 300);
+        return () => clearTimeout(timeoutId);
+    }, [
+        useIndexedDBMode,
+        selectedComponentFilter,
+        isSipFilterEnabled,
+        selectedSipMethod,
+        activeCorrelations,
+        filterText,
+        isShowFavoritesOnly,
+        favoriteLogIds,
+        sortConfig,
+        loadLogsFromIndexedDB
+    ]);
+    
+    // Update totalLogCount when logs are cleared
+    useEffect(() => {
+        if (logs.length === 0 && useIndexedDBMode) {
+            // If logs are cleared but IndexedDB mode is active, reload count
+            dbManager.getTotalCount().then(count => setTotalLogCount(count));
+        }
+    }, [logs.length, useIndexedDBMode]);
 
     // Phase 2 Optimization: Wrap event handlers in useCallback to prevent unnecessary re-renders
     const toggleCorrelation = useCallback((item: CorrelationItem) => {
@@ -200,13 +383,17 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
 
 
     // Computed unique IDs and Counts for Sidebar
+    // For IndexedDB mode, use indexedDBLogs; otherwise use logs
     const { correlationData, correlationCounts } = useMemo(() => {
+        // Use appropriate log source based on mode
+        const sourceLogsArray = useIndexedDBMode ? indexedDBLogs : logs;
+        
         // 1. Determine local source logs based on "File" filters ONLY
         // This ensures the lists (Call IDs, etc.) show valid options for the selected files.
         const activeFileFilters = activeCorrelations.filter(c => c.type === 'file');
         const sourceLogs = activeFileFilters.length > 0
-            ? logs.filter(log => activeFileFilters.some(f => f.value === log.fileName))
-            : logs;
+            ? sourceLogsArray.filter(log => activeFileFilters.some(f => f.value === log.fileName))
+            : sourceLogsArray;
 
         const reportIds = new Set<string>();
         const operatorIds = new Set<string>();
@@ -282,7 +469,7 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
             },
             correlationCounts: counts // Note: Counts for non-selected files will be 0 or missing in this object.
         };
-    }, [logs, activeCorrelations]);
+    }, [logs, indexedDBLogs, useIndexedDBMode, activeCorrelations]);
 
     // Phase 2 Optimization: Pre-compute correlation indexes and lowercase filter text outside the filter loop
     const correlationIndexes = useMemo(() => {
@@ -304,7 +491,14 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
     const lowerFilterText = useMemo(() => filterText.toLowerCase(), [filterText]);
 
     // Computed filtered logs - Phase 2 Optimized
+    // When using IndexedDB mode, use indexedDBLogs instead of logs
     const filteredLogs = useMemo(() => {
+        // If using IndexedDB mode, return IndexedDB-loaded logs
+        if (useIndexedDBMode) {
+            return indexedDBLogs;
+        }
+        
+        // Otherwise, use traditional in-memory filtering
         if (!logs.length) return [];
 
         const { inclusions, exclusions } = correlationIndexes;
@@ -416,7 +610,7 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         });
 
         return result;
-    }, [logs, selectedLogId, correlationIndexes, selectedComponentFilter, isSipFilterEnabled, selectedSipMethod, lowerFilterText, sortConfig, isShowFavoritesOnly, favoriteLogIds]);
+    }, [logs, selectedLogId, correlationIndexes, selectedComponentFilter, isSipFilterEnabled, selectedSipMethod, lowerFilterText, sortConfig, isShowFavoritesOnly, favoriteLogIds, useIndexedDBMode, indexedDBLogs]);
 
     // Phase 2 Optimization: Wrap event handlers in useCallback
     const addToSearchHistory = useCallback((term: string) => {
@@ -445,10 +639,45 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
     // causing all consuming components to re-render unnecessarily
     // Note: Setters from useState are stable and don't need to be in dependencies
     // Callbacks wrapped in useCallback are also stable
+    // Enhanced setLogs that detects IndexedDB mode
+    const enhancedSetLogs = useCallback((newLogs: LogEntry[]) => {
+        setLogs(newLogs);
+        
+        // If logs array is empty, check if we should switch to IndexedDB mode
+        if (newLogs.length === 0) {
+            dbManager.getTotalCount().then(count => {
+                if (count > 0) {
+                    setUseIndexedDBMode(true);
+                    setTotalLogCount(count);
+                    // Load initial batch from IndexedDB
+                    dbManager.getMetadata().then(metadata => {
+                        if (metadata) {
+                            dbManager.getLogsByTimestampRange(
+                                metadata.dateRange.min,
+                                metadata.dateRange.max,
+                                1000
+                            ).then(initialLogs => {
+                                setIndexedDBLogs(initialLogs.sort((a, b) => a.timestamp - b.timestamp));
+                            });
+                        }
+                    });
+                } else {
+                    setUseIndexedDBMode(false);
+                    setTotalLogCount(0);
+                    setIndexedDBLogs([]);
+                }
+            });
+        } else {
+            // If setting logs directly (small files), disable IndexedDB mode
+            setUseIndexedDBMode(false);
+            setIndexedDBLogs([]);
+        }
+    }, []);
+    
     const value = useMemo(() => ({
-        logs,
-        setLogs,
-        loading,
+        logs: useIndexedDBMode ? indexedDBLogs : logs,
+        setLogs: enhancedSetLogs,
+        loading: loading || indexedDBLoading,
         setLoading,
         parsingProgress,
         setParsingProgress,
@@ -506,11 +735,18 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         favoriteLogIds,
         toggleFavorite,
         isShowFavoritesOnly,
-        setIsShowFavoritesOnly
+        setIsShowFavoritesOnly,
+        // IndexedDB support (for large files)
+        useIndexedDBMode,
+        totalLogCount,
+        loadLogsFromIndexedDB
     }), [
         // Only include values that actually change and affect consumers
         logs,
+        indexedDBLogs,
+        useIndexedDBMode,
         loading,
+        indexedDBLoading,
         parsingProgress,
         filterText,
         isSipFilterEnabled,
@@ -537,13 +773,16 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         correlationData,
         favoriteLogIds,
         isShowFavoritesOnly,
+        totalLogCount,
         // Stable callbacks - included to satisfy exhaustive-deps but won't cause unnecessary recalculations
         addToSearchHistory,
         clearSearchHistory,
         clearAllFilters,
         toggleCorrelation,
         setOnlyCorrelation,
-        toggleFavorite
+        toggleFavorite,
+        loadLogsFromIndexedDB,
+        enhancedSetLogs
     ]);
 
     return (

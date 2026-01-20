@@ -1,5 +1,6 @@
 import type { LogEntry, LogLevel } from '../types';
 import { cleanupLogEntry } from './messageCleanup';
+import { dbManager } from './indexedDB';
 
 /**
  * Log Parser for LogScrub
@@ -468,18 +469,257 @@ const readFileInChunks = async (file: File): Promise<string> => {
     return fullText;
 };
 
-export const parseLogFile = async (file: File, fileColor: string = '#3b82f6', startId: number = 1, onProgress?: (progress: number) => void): Promise<LogEntry[]> => {
+/**
+ * Streaming parser that writes directly to IndexedDB instead of accumulating in memory
+ * This is the preferred method for large files as it prevents memory exhaustion
+ */
+const parseLogFileStreamingToIndexedDB = async (
+    file: File,
+    fileColor: string,
+    startId: number,
+    onProgress?: (progress: number) => void
+): Promise<{ totalParsed: number; minTimestamp: number; maxTimestamp: number }> => {
+    // Initialize IndexedDB
+    await dbManager.init();
+    
+    const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB chunks
+    const BATCH_SIZE = 1000; // Write to IndexedDB in batches of 1000
+    const fileSize = file.size;
+    let idCounter = startId;
+    let offset = 0;
+    let buffer = '';
+    let chunkCount = 0;
+    const YIELD_INTERVAL = 5;
+    
+    // Regex patterns
+    const logRegex1 = /^\[(INFO|DEBUG|ERROR|WARN)\]\s\[(\d{1,2}\/\d{1,2}\/\d{4}),\s(.*?)\]\s\[(.*?)\]:\s(.*)/;
+    const logRegex2 = /^\[(INFO|DEBUG|ERROR|WARN)\]\s\[(\d{4}-\d{2}-\d{2})\s(\d{2}:\d{2}:\d{2},\d+)\]\s\[(.*?)\]\s(.*)/;
+    
+    let currentLog: LogEntry | null = null;
+    let batch: LogEntry[] = [];
+    let totalParsed = 0;
+    let minTimestamp = Infinity;
+    let maxTimestamp = -Infinity;
+    let lineCount = 0;
+    const YIELD_EVERY_N_LINES = 5000;
+
+    // Helper function to write batch to IndexedDB
+    const writeBatch = async () => {
+        if (batch.length > 0) {
+            await dbManager.addLogsBatch(batch);
+            totalParsed += batch.length;
+            batch = [];
+        }
+    };
+
+    while (offset < fileSize) {
+        const chunk = file.slice(offset, Math.min(offset + CHUNK_SIZE, fileSize));
+        const chunkText = await chunk.text();
+        offset += CHUNK_SIZE;
+        chunkCount++;
+
+        const textToProcess = buffer + chunkText;
+        const lines = textToProcess.split(/\r?\n/);
+        buffer = lines.pop() || '';
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            lineCount++;
+
+            if (lineCount % YIELD_EVERY_N_LINES === 0) {
+                await new Promise(resolve => setTimeout(resolve, 0));
+                if (onProgress) {
+                    const progress = 0.1 + (offset / fileSize) * 0.8;
+                    onProgress(Math.min(progress, 0.95));
+                }
+            }
+
+            if (!line.trim()) continue;
+
+            let match = line.match(logRegex1);
+            let dateFormat = 'original';
+
+            if (!match) {
+                match = line.match(logRegex2);
+                dateFormat = 'iso';
+            }
+
+            if (match) {
+                // Write previous log if exists
+                if (currentLog) {
+                    processLogPayload(currentLog);
+                    batch.push(currentLog);
+                    
+                    // Update timestamp range
+                    if (currentLog.timestamp < minTimestamp) minTimestamp = currentLog.timestamp;
+                    if (currentLog.timestamp > maxTimestamp) maxTimestamp = currentLog.timestamp;
+                    
+                    // Write batch if it's full
+                    if (batch.length >= BATCH_SIZE) {
+                        await writeBatch();
+                    }
+                }
+
+                const [_, level, date, time, component, message] = match;
+                let timestampStr: string;
+                let timestamp: number;
+
+                // Parse timestamp (same logic as streaming parser)
+                const messageTimestampMatch = message.match(/(\w{3}\s+\w{3}\s+\d{1,2}\s+\d{4}\s+\d{2}:\d{2}:\d{2}\s+GMT[+-]\d{4})/);
+                
+                if (messageTimestampMatch) {
+                    try {
+                        const messageTimestamp = new Date(messageTimestampMatch[1]).getTime();
+                        if (!isNaN(messageTimestamp)) {
+                            timestamp = messageTimestamp;
+                            timestampStr = messageTimestampMatch[1];
+                        } else {
+                            throw new Error('Invalid timestamp');
+                        }
+                    } catch (e) {
+                        if (dateFormat === 'iso') {
+                            timestampStr = `${date} ${time}`;
+                            const isoString = `${date}T${time.replace(',', '.')}`;
+                            timestamp = new Date(isoString).getTime();
+                        } else {
+                            timestampStr = `${date} ${time}`;
+                            timestamp = new Date(timestampStr).getTime();
+                        }
+                    }
+                } else {
+                    if (dateFormat === 'iso') {
+                        timestampStr = `${date} ${time}`;
+                        const isoString = `${date}T${time.replace(',', '.')}`;
+                        timestamp = new Date(isoString).getTime();
+                    } else {
+                        let timeWithoutMs = time;
+                        let milliseconds = 0;
+                        
+                        const msMatch = time.match(/(.+?),\s*(\d+)$/);
+                        if (msMatch) {
+                            timeWithoutMs = msMatch[1].trim();
+                            milliseconds = parseInt(msMatch[2], 10);
+                        }
+                        
+                        timestampStr = `${date} ${time}`;
+                        const baseTimestamp = new Date(`${date} ${timeWithoutMs}`).getTime();
+                        
+                        if (!isNaN(baseTimestamp)) {
+                            timestamp = baseTimestamp + milliseconds;
+                        } else {
+                            timestamp = NaN;
+                        }
+                    }
+                }
+
+                let cleaned = cleanupLogEntry(component, message.trim());
+                if (message.includes('[std-logger]')) {
+                    cleaned.displayComponent = 'std-logger';
+                }
+
+                let specialTag = "";
+                if (message.includes('MEDIA_TIMEOUT') || line.includes('MEDIA_TIMEOUT')) {
+                    specialTag += "⚠️ [MEDIA_TIMEOUT] ";
+                }
+                if (line.includes('X-Recovery: true') || message.includes('X-Recovery: true')) {
+                    specialTag += "🔄 [RECOVERED] ";
+                }
+                if (specialTag) {
+                    cleaned.displayMessage = specialTag + cleaned.displayMessage;
+                }
+
+                const trimmedMessage = message.trim();
+                currentLog = {
+                    id: idCounter++,
+                    timestamp: isNaN(timestamp) ? Date.now() : timestamp,
+                    rawTimestamp: timestampStr,
+                    level: level as LogLevel,
+                    component,
+                    displayComponent: cleaned.displayComponent,
+                    message: trimmedMessage,
+                    displayMessage: cleaned.displayMessage,
+                    payload: "",
+                    type: "LOG",
+                    isSip: false,
+                    sipMethod: null,
+                    fileName: file.name,
+                    fileColor: fileColor,
+                    _messageLower: trimmedMessage.toLowerCase(),
+                    _componentLower: component.toLowerCase()
+                };
+            } else {
+                // Continuation line
+                if (currentLog) {
+                    currentLog.payload += (currentLog.payload ? "\n" : "") + line;
+                    currentLog._payloadLower = undefined;
+                }
+            }
+        }
+
+        if (chunkCount % YIELD_INTERVAL === 0) {
+            await new Promise(resolve => setTimeout(resolve, 0));
+        }
+    }
+
+    // Process remaining buffer
+    if (buffer.trim() && currentLog) {
+        currentLog.payload += (currentLog.payload ? "\n" : "") + buffer;
+    }
+
+    // Write last log
+    if (currentLog) {
+        processLogPayload(currentLog);
+        batch.push(currentLog);
+        if (currentLog.timestamp < minTimestamp) minTimestamp = currentLog.timestamp;
+        if (currentLog.timestamp > maxTimestamp) maxTimestamp = currentLog.timestamp;
+    }
+
+    // Write remaining batch
+    await writeBatch();
+
+    if (onProgress) onProgress(0.95);
+
+    // Update metadata
+    const existingMetadata = await dbManager.getMetadata();
+    const existingFileNames = existingMetadata?.fileNames || [];
+    if (!existingFileNames.includes(file.name)) {
+        existingFileNames.push(file.name);
+    }
+    
+    await dbManager.updateMetadata({
+        totalLogs: (existingMetadata?.totalLogs || 0) + totalParsed,
+        fileNames: existingFileNames,
+        dateRange: {
+            min: Math.min(existingMetadata?.dateRange.min || Infinity, minTimestamp === Infinity ? 0 : minTimestamp),
+            max: Math.max(existingMetadata?.dateRange.max || -Infinity, maxTimestamp === -Infinity ? 0 : maxTimestamp)
+        }
+    });
+
+    if (onProgress) onProgress(1.0);
+
+    return { totalParsed, minTimestamp, maxTimestamp };
+};
+
+export const parseLogFile = async (file: File, fileColor: string = '#3b82f6', startId: number = 1, onProgress?: (progress: number) => void, useIndexedDB: boolean = true): Promise<LogEntry[] | { totalParsed: number; minTimestamp: number; maxTimestamp: number }> => {
     // Check if this is a CSV file (CSV files use different parser, typically smaller)
     const isCSV = file.name.toLowerCase().endsWith('.csv');
     
-    // For files larger than 50MB, use streaming parser to prevent OOM
-    // Streaming parser processes chunks line-by-line without accumulating full text
-    // Note: CSV and Homer formats still use traditional parsing (they're typically smaller)
+    // For files larger than 50MB, use IndexedDB streaming parser to prevent OOM
+    // This writes directly to IndexedDB instead of accumulating in memory
+    const INDEXEDDB_THRESHOLD = 50 * 1024 * 1024; // 50MB
+    const shouldUseIndexedDB = useIndexedDB && !isCSV && file.size > INDEXEDDB_THRESHOLD;
+    
+    if (shouldUseIndexedDB) {
+        // Use IndexedDB streaming parser for large files
+        return parseLogFileStreamingToIndexedDB(file, fileColor, startId, onProgress);
+    }
+    
+    // For smaller files or CSV files, use traditional parsing (faster for small files)
     const STREAMING_THRESHOLD = 50 * 1024 * 1024; // 50MB
     const useStreaming = !isCSV && file.size > STREAMING_THRESHOLD;
     
     if (useStreaming) {
-        // Use streaming parser for large standard log files
+        // Use streaming parser for large standard log files (still returns array for backward compatibility)
         return parseLogFileStreaming(file, fileColor, startId, onProgress);
     }
     

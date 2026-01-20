@@ -62,31 +62,66 @@ const FileUploader = () => {
 
             const FILE_COLORS = ['#3b82f6', '#eab308', '#a855f7', '#ec4899', '#22c55e', '#f97316', '#06b6d4', '#64748b'];
 
-            for (let i = 0; i < validationResults.length; i++) {
-                const { file } = validationResults[i];
-                const color = FILE_COLORS[i % FILE_COLORS.length];
-                // Use currentMaxId + 1 as startId for next file to ensure sequential IDs
-                const startId = currentMaxId + 1;
-                // Progress callback for this file (scaled by file index)
-                const fileProgressCallback = (progress: number) => {
-                    const fileProgress = (i / validationResults.length) + (progress / validationResults.length);
-                    setParsingProgress(fileProgress);
-                };
-                const parsed = await parseLogFile(file, color, startId, fileProgressCallback);
-                // Use concat instead of spread operator for large arrays to avoid "Maximum call stack size exceeded"
-                // This is more memory-efficient for large datasets
-                allParsedLogs = allParsedLogs.concat(parsed);
-                // Update currentMaxId to highest ID from parsed logs using reduce (safer for large arrays)
-                if (parsed.length > 0) {
-                    currentMaxId = parsed.reduce((max, log) => Math.max(max, log.id), currentMaxId);
+            // Check if any file is large enough to use IndexedDB
+            const hasLargeFile = validationResults.some(r => r.file.size > 50 * 1024 * 1024);
+            
+            if (hasLargeFile) {
+                // For large files, use IndexedDB parser (writes directly to IndexedDB)
+                // Don't load into memory - logs will be loaded on-demand
+                for (let i = 0; i < validationResults.length; i++) {
+                    const { file } = validationResults[i];
+                    const color = FILE_COLORS[i % FILE_COLORS.length];
+                    const startId = currentMaxId + 1;
+                    const fileProgressCallback = (progress: number) => {
+                        const fileProgress = (i / validationResults.length) + (progress / validationResults.length);
+                        setParsingProgress(fileProgress);
+                    };
+                    
+                    const result = await parseLogFile(file, color, startId, fileProgressCallback, true);
+                    
+                    // If IndexedDB was used, result is an object, not an array
+                    if (result && typeof result === 'object' && 'totalParsed' in result) {
+                        // IndexedDB was used - logs are already stored, just update max ID estimate
+                        currentMaxId += result.totalParsed;
+                    } else if (Array.isArray(result)) {
+                        // Traditional parsing - add to array
+                        allParsedLogs = allParsedLogs.concat(result);
+                        if (result.length > 0) {
+                            currentMaxId = result.reduce((max, log) => Math.max(max, log.id), currentMaxId);
+                        }
+                    }
                 }
-            }
+                
+                // For IndexedDB mode, logs are already stored in IndexedDB
+                // Trigger a reload by clearing logs and letting LogContext detect IndexedDB mode
+                setLogs([]); // Clear in-memory logs
+                // LogContext will detect IndexedDB has data and switch to IndexedDB mode
+            } else {
+                // Small files - use traditional parsing
+                for (let i = 0; i < validationResults.length; i++) {
+                    const { file } = validationResults[i];
+                    const color = FILE_COLORS[i % FILE_COLORS.length];
+                    const startId = currentMaxId + 1;
+                    const fileProgressCallback = (progress: number) => {
+                        const fileProgress = (i / validationResults.length) + (progress / validationResults.length);
+                        setParsingProgress(fileProgress);
+                    };
+                    const parsed = await parseLogFile(file, color, startId, fileProgressCallback, false);
+                    
+                    if (Array.isArray(parsed)) {
+                        allParsedLogs = allParsedLogs.concat(parsed);
+                        if (parsed.length > 0) {
+                            currentMaxId = parsed.reduce((max, log) => Math.max(max, log.id), currentMaxId);
+                        }
+                    }
+                }
 
-            // Merge with existing logs (append mode) using concat for memory efficiency
-            // Then sort by timestamp
-            const mergedLogs = logs.concat(allParsedLogs);
-            mergedLogs.sort((a, b) => a.timestamp - b.timestamp);
-            setLogs(mergedLogs);
+                // Merge with existing logs (append mode) using concat for memory efficiency
+                // Then sort by timestamp
+                const mergedLogs = logs.concat(allParsedLogs);
+                mergedLogs.sort((a, b) => a.timestamp - b.timestamp);
+                setLogs(mergedLogs);
+            }
             setSelectedLogId(null);
         } catch (err) {
             console.error("Failed to parse", err);
