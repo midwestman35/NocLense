@@ -394,8 +394,26 @@ export const parseLogFile = async (file: File, fileColor: string = '#3b82f6', st
                     // Original format: MM/DD/YYYY time
                     // Note: JavaScript Date interprets this as local time, which may cause timezone issues
                     // If logs are from a different timezone, consider parsing with explicit timezone handling
+                    // Handle milliseconds format: "5:04:57 AM,388" -> extract milliseconds and parse separately
+                    let timeWithoutMs = time;
+                    let milliseconds = 0;
+                    
+                    // Check if time contains milliseconds in format ",388" or ",123"
+                    const msMatch = time.match(/(.+?),\s*(\d+)$/);
+                    if (msMatch) {
+                        timeWithoutMs = msMatch[1].trim(); // "5:04:57 AM"
+                        milliseconds = parseInt(msMatch[2], 10); // 388
+                    }
+                    
                     timestampStr = `${date} ${time}`;
-                    timestamp = new Date(timestampStr).getTime();
+                    const baseTimestamp = new Date(`${date} ${timeWithoutMs}`).getTime();
+                    
+                    // If parsing succeeded, add milliseconds
+                    if (!isNaN(baseTimestamp)) {
+                        timestamp = baseTimestamp + milliseconds;
+                    } else {
+                        timestamp = NaN; // Will fall back to Date.now() on line 424
+                    }
                 }
             }
 
