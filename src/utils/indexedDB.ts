@@ -277,6 +277,69 @@ class IndexedDBManager {
     }
 
     /**
+     * Get count of logs for a specific index value (e.g., count logs per fileName)
+     */
+    async getCountByIndexValue(indexName: string, value: string): Promise<number> {
+        const db = await this.getDB();
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction([STORE_NAME], 'readonly');
+            const store = transaction.objectStore(STORE_NAME);
+            
+            let index: IDBIndex;
+            try {
+                index = store.index(indexName);
+            } catch (e) {
+                resolve(0);
+                return;
+            }
+            
+            const request = index.count(IDBKeyRange.only(value));
+            
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        });
+    }
+
+    /**
+     * Get counts for all unique values of an index (e.g., count per fileName)
+     * More efficient than calling getCountByIndexValue for each value
+     */
+    async getCountsByIndex(indexName: string): Promise<Map<string, number>> {
+        const db = await this.getDB();
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction([STORE_NAME], 'readonly');
+            const store = transaction.objectStore(STORE_NAME);
+            
+            let index: IDBIndex;
+            try {
+                index = store.index(indexName);
+            } catch (e) {
+                resolve(new Map());
+                return;
+            }
+            
+            const counts = new Map<string, number>();
+            const request = index.openCursor();
+            
+            request.onsuccess = (event) => {
+                const cursor = (event.target as IDBRequest<IDBCursorWithValue>).result;
+                if (cursor) {
+                    const key = cursor.key;
+                    if (key !== null && key !== undefined) {
+                        const keyStr = String(key);
+                        counts.set(keyStr, (counts.get(keyStr) || 0) + 1);
+                    }
+                    cursor.continue();
+                } else {
+                    resolve(counts);
+                }
+            };
+            
+            request.onerror = () => reject(request.error);
+        });
+    }
+
+    /**
      * Get all unique values for an index (for correlation sidebar)
      * Optimized to handle null/undefined values
      */

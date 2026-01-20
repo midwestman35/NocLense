@@ -451,12 +451,18 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
                     fileNames
                 });
 
-                // Compute counts from the loaded indexedDBLogs
-                // This is approximate but better than showing 0
+                // Get ACTUAL counts from IndexedDB for file names
+                // This queries IndexedDB directly for accurate counts per file
                 const counts: Record<string, number> = {};
                 
-                // Use totalLogCount divided by unique values as approximate count
-                // Or compute from indexedDBLogs if available
+                // Get file counts from IndexedDB (this is the most important one)
+                const fileCountsMap = await dbManager.getCountsByIndex('fileName');
+                fileCountsMap.forEach((count, fileName) => {
+                    counts[`file:${fileName}`] = count;
+                });
+                
+                // For other correlation types, we can compute from indexedDBLogs
+                // since they're less critical and there are usually fewer unique values
                 if (indexedDBLogs.length > 0) {
                     indexedDBLogs.forEach(log => {
                         if (log.reportId) counts[`report:${log.reportId}`] = (counts[`report:${log.reportId}`] || 0) + 1;
@@ -464,12 +470,6 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
                         if (log.extensionId) counts[`extension:${log.extensionId}`] = (counts[`extension:${log.extensionId}`] || 0) + 1;
                         if (log.stationId) counts[`station:${log.stationId}`] = (counts[`station:${log.stationId}`] || 0) + 1;
                         if (log.callId) counts[`callId:${log.callId}`] = (counts[`callId:${log.callId}`] || 0) + 1;
-                        if (log.fileName) counts[`file:${log.fileName}`] = (counts[`file:${log.fileName}`] || 0) + 1;
-                    });
-                } else {
-                    // Show total count for each file if we don't have detailed counts
-                    fileNames.forEach(fileName => {
-                        counts[`file:${fileName}`] = Math.round(totalLogCount / fileNames.length);
                     });
                 }
                 
