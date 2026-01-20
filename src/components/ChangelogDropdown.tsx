@@ -12,6 +12,24 @@ interface ChangelogEntry {
 // Latest changelog entries - update this when new features are added
 const changelogEntries: ChangelogEntry[] = [
   {
+    version: '1.5.0',
+    date: '2026-01-20',
+    features: [
+      '💾 IndexedDB Storage - Large files (>50MB) automatically stored in browser IndexedDB for persistent, memory-efficient access',
+      '🚀 Automatic Mode Detection - Seamlessly switches between in-memory (small files) and IndexedDB (large files) modes',
+      '🔍 IndexedDB Filtering - All filters (component, SIP, correlation, text search) work with IndexedDB-stored logs',
+      '📊 Lazy Loading - Only loads visible/filtered logs into memory, dramatically reducing memory usage',
+      '⚡ Efficient Querying - IndexedDB indexes enable fast filtering by timestamp, component, callId, and more',
+      '🔄 Backward Compatible - Small files continue to use fast in-memory processing',
+      '📈 Scalability - Support for files of any size without browser crashes (tested with 740MB+ files)'
+    ],
+    fixes: [
+      '🔧 Fixed memory exhaustion for very large files - logs now stored in IndexedDB instead of React state',
+      '⚡ Optimized correlation data computation for IndexedDB mode',
+      '🎯 Improved initial load performance for large datasets'
+    ]
+  },
+  {
     version: '1.4.0',
     date: '2026-01-20',
     features: [

@@ -5,6 +5,26 @@ All notable changes to the NocLense (LogScrub) project will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-01-20
+
+### Added - IndexedDB Storage for Large Files
+- ✅ **IndexedDB Manager** - New IndexedDB wrapper (`src/utils/indexedDB.ts`) for efficient log storage and querying with indexes on timestamp, component, callId, fileName, level, SIP methods, and correlation fields
+- ✅ **Automatic Mode Detection** - Seamlessly switches between in-memory mode (small files) and IndexedDB mode (large files >50MB) for optimal performance
+- ✅ **IndexedDB Filtering** - All filters (component, SIP, correlation, text search) now work with IndexedDB-stored logs
+- ✅ **Lazy Loading** - Only loads visible/filtered logs into memory, dramatically reducing memory footprint
+- ✅ **Efficient Querying** - IndexedDB indexes enable fast filtering by timestamp range, component, callId, and other fields
+- ✅ **Correlation Data from IndexedDB** - Sidebar correlation data (Call IDs, Report IDs, etc.) computed from IndexedDB logs
+
+### Fixed
+- **Memory Exhaustion** - Fixed memory crashes for very large files (740MB+) by storing logs in IndexedDB instead of React state
+- **Large File Support** - Can now handle files of any size without browser crashes (tested with 740MB+ files)
+- **Filtering Performance** - Optimized filtering for IndexedDB mode with debounced queries
+
+### Changed
+- **Parser Integration** - Parser automatically writes to IndexedDB for files >50MB during parsing
+- **LogContext Architecture** - Refactored to support both in-memory and IndexedDB modes with automatic detection
+- **Backward Compatibility** - Small files continue to use fast in-memory processing for optimal performance
+
 ## [1.4.0] - 2026-01-20
 
 ### Added - Memory Optimizations for Large Files
