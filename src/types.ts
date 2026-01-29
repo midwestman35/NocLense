@@ -22,6 +22,11 @@ export interface LogEntry {
     stationId?: string;
     sipFrom?: string;
     sipTo?: string;
+    // New UI (CNC/FDX) correlation and summarization
+    messageType?: string;
+    cncID?: string;
+    messageID?: string;
+    summaryMessage?: string;
     fileName?: string;
     fileColor?: string;
     // Phase 2 Optimization: Pre-computed lowercase strings for faster filtering
