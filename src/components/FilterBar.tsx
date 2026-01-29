@@ -3,6 +3,7 @@ import { useLogContext } from '../contexts/LogContext';
 import { Search, Check, X, Star } from 'lucide-react';
 import SearchHistoryDropdown from './SearchHistoryDropdown';
 import SipFilterDropdown from './SipFilterDropdown';
+import MessageTypeFilterDropdown from './MessageTypeFilterDropdown';
 
 const FilterBar = () => {
     const {
@@ -16,8 +17,6 @@ const FilterBar = () => {
         toggleSipMethod,
         logs,
         filteredLogs,
-        isTextWrapEnabled,
-        setIsTextWrapEnabled,
         clearAllFilters,
         clearFilterSelections,
         activeCorrelations,
@@ -27,7 +26,14 @@ const FilterBar = () => {
         clearSearchHistory,
         favoriteLogIds,
         isShowFavoritesOnly,
-        setIsShowFavoritesOnly
+        setIsShowFavoritesOnly,
+        availableMessageTypes,
+        excludedMessageTypes,
+        toggleExcludedMessageType,
+        selectedMessageTypeFilter,
+        setSelectedMessageTypeFilter,
+        isCollapseSimilarEnabled,
+        setIsCollapseSimilarEnabled
     } = useLogContext();
 
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -109,8 +115,6 @@ const FilterBar = () => {
             }
         };
     }, []);
-
-    const wrapText = isTextWrapEnabled;
 
     // Detect if Homer logs are present and extract available SIP methods
     const hasHomerLogs = useMemo(() => {
@@ -209,28 +213,13 @@ const FilterBar = () => {
                     onClearAll={clearFilterSelections}
                 />
 
-                <label className="flex items-center gap-2 text-xs text-[var(--text-secondary)] cursor-pointer hover:text-[var(--text-primary)] transition-colors select-none group">
-                    <div
-                        onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setIsTextWrapEnabled(!isTextWrapEnabled);
-                        }}
-                        role="button"
-                        tabIndex={0}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setIsTextWrapEnabled(!isTextWrapEnabled);
-                            }
-                        }}
-                        className={`w-4 h-4 border rounded transition-all duration-200 flex items-center justify-center ${wrapText ? 'bg-[var(--accent-blue)] border-[var(--accent-blue)]' : 'border-[var(--text-secondary)] bg-transparent'}`}
-                    >
-                        {wrapText && <Check size={12} className="text-white" />}
-                    </div>
-                    <span className="font-medium group-hover:text-[var(--accent-blue)] transition-colors">Wrap Text</span>
-                </label>
+                <MessageTypeFilterDropdown
+                    availableMessageTypes={availableMessageTypes}
+                    excludedMessageTypes={excludedMessageTypes}
+                    selectedMessageTypeFilter={selectedMessageTypeFilter}
+                    onToggleExcluded={toggleExcludedMessageType}
+                    onSelectFilter={setSelectedMessageTypeFilter}
+                />
 
                 <label className="flex items-center gap-2 text-xs text-[var(--text-secondary)] cursor-pointer hover:text-[var(--text-primary)] transition-colors select-none group">
                     <div
@@ -247,6 +236,22 @@ const FilterBar = () => {
                     </div>
                     <span className="font-medium group-hover:text-yellow-500 transition-colors">Favorites</span>
                     {favoriteLogIds.size > 0 && <span className="text-[10px] opacity-70">({favoriteLogIds.size})</span>}
+                </label>
+
+                <label className="flex items-center gap-2 text-xs text-[var(--text-secondary)] cursor-pointer hover:text-[var(--text-primary)] transition-colors select-none group" title="Group consecutive rows with same service and message">
+                    <div
+                        onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setIsCollapseSimilarEnabled(!isCollapseSimilarEnabled);
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        className={`w-4 h-4 border rounded transition-all duration-200 flex items-center justify-center ${isCollapseSimilarEnabled ? 'bg-[var(--accent-blue)] border-[var(--accent-blue)]' : 'border-[var(--text-secondary)] bg-transparent'}`}
+                    >
+                        {isCollapseSimilarEnabled && <Check size={12} className="text-white" />}
+                    </div>
+                    <span className="font-medium group-hover:text-[var(--accent-blue)] transition-colors">Collapse similar</span>
                 </label>
             </div>
 

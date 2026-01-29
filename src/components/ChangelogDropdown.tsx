@@ -12,6 +12,13 @@ interface ChangelogEntry {
 // Latest changelog entries - update this when new features are added
 const changelogEntries: ChangelogEntry[] = [
   {
+    version: '1.5.1',
+    date: '2026-01-29',
+    changes: [
+      '📝 Wrap text by default - Removed the "Wrap Text" toggle; log text is now always wrapped for better readability'
+    ]
+  },
+  {
     version: '1.5.0',
     date: '2026-01-20',
     features: [

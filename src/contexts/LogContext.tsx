@@ -4,7 +4,7 @@ import { loadSearchHistory, addToSearchHistory as saveToHistory, clearSearchHist
 import { dbManager } from '../utils/indexedDB';
 
 export interface CorrelationItem {
-    type: 'report' | 'operator' | 'extension' | 'station' | 'callId' | 'file';
+    type: 'report' | 'operator' | 'extension' | 'station' | 'callId' | 'file' | 'cncID' | 'messageID';
     value: string;
     excluded?: boolean;
 }
@@ -39,6 +39,17 @@ interface LogContextType extends LogState {
     setSortConfig: (config: { field: 'timestamp' | 'level', direction: 'asc' | 'desc' }) => void;
     selectedComponentFilter: string | null;
     setSelectedComponentFilter: (component: string | null) => void;
+    // Message type: exclude noisy types (6.3) and filter to one type (6.5)
+    excludedMessageTypes: Set<string>;
+    toggleExcludedMessageType: (type: string) => void;
+    selectedMessageTypeFilter: string | null;
+    setSelectedMessageTypeFilter: (type: string | null) => void;
+    availableMessageTypes: string[];
+    // Collapse similar consecutive rows (6.3 Option A)
+    isCollapseSimilarEnabled: boolean;
+    setIsCollapseSimilarEnabled: (enabled: boolean) => void;
+    /** When collapse similar is on, one row per group; each item has firstLog + count */
+    collapsedViewList: Array<{ firstLog: LogEntry; count: number }> | null;
 
     // Timeline States
     visibleRange: { start: number; end: number };
@@ -86,6 +97,8 @@ interface LogContextType extends LogState {
         stationIds: string[];
         callIds: string[];
         fileNames: string[];
+        cncIds: string[];
+        messageIds: string[];
     };
     // Favorites
     favoriteLogIds: Set<number>;
@@ -183,19 +196,22 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
     }, []);
 
     // New State for View Options
-    const [isTextWrapEnabled, setIsTextWrapEnabled] = useState(false);
+    const [isTextWrapEnabled, setIsTextWrapEnabled] = useState(true);
     const [sortConfig, setSortConfig] = useState<{ field: 'timestamp' | 'level', direction: 'asc' | 'desc' }>({ field: 'timestamp', direction: 'asc' });
     const [selectedComponentFilter, setSelectedComponentFilter] = useState<string | null>(null);
+    const [excludedMessageTypes, setExcludedMessageTypes] = useState<Set<string>>(new Set());
+    const [selectedMessageTypeFilter, setSelectedMessageTypeFilter] = useState<string | null>(null);
+    const [isCollapseSimilarEnabled, setIsCollapseSimilarEnabled] = useState(false);
     const [visibleRange, setVisibleRange] = useState<{ start: number; end: number }>({ start: 0, end: 1 });
     const [scrollTargetTimestamp, setScrollTargetTimestamp] = useState<number | null>(null);
     const [timelineViewMode, setTimelineViewMode] = useState<'full' | 'filtered'>('filtered');
 
+    const [isTimelineCompact, setIsTimelineCompact] = useState(false);
+    const [timelineZoomRange, setTimelineZoomRange] = useState<{ start: number; end: number } | null>(null);
     // Reset zoom when switching between Full/Filtered modes to prevent "blank" timeline issues
     useEffect(() => {
         setTimelineZoomRange(null);
     }, [timelineViewMode]);
-    const [isTimelineCompact, setIsTimelineCompact] = useState(false);
-    const [timelineZoomRange, setTimelineZoomRange] = useState<{ start: number; end: number } | null>(null);
     const [timelineEventFilters, setTimelineEventFilters] = useState({ requests: true, success: true, provisional: true, error: true, options: true, keepAlive: true });
     const [hoveredCallId, setHoveredCallId] = useState<string | null>(null);
     const [jumpState, setJumpState] = useState<{ active: boolean; previousFilters: any | null }>({ active: false, previousFilters: null });
@@ -309,6 +325,33 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
                 if (isShowFavoritesOnly) {
                     loadedLogs = loadedLogs.filter(log => favoriteLogIds.has(log.id));
                 }
+
+                // Message type: exclude (6.3) and include-only (6.5)
+                if (excludedMessageTypes.size > 0) {
+                    loadedLogs = loadedLogs.filter(log => !log.messageType || !excludedMessageTypes.has(log.messageType));
+                }
+                if (selectedMessageTypeFilter !== null) {
+                    loadedLogs = loadedLogs.filter(log => log.messageType === selectedMessageTypeFilter);
+                }
+
+                // Correlation filters (cncID / messageID) – in memory (no IDB index)
+                const cncIdFilters = activeCorrelations.filter(c => c.type === 'cncID' && !c.excluded);
+                const msgIdFilters = activeCorrelations.filter(c => c.type === 'messageID' && !c.excluded);
+                const cncIdExcl = activeCorrelations.filter(c => c.type === 'cncID' && c.excluded);
+                const msgIdExcl = activeCorrelations.filter(c => c.type === 'messageID' && c.excluded);
+                if (cncIdFilters.length > 0 || msgIdFilters.length > 0 || cncIdExcl.length > 0 || msgIdExcl.length > 0) {
+                    const cncSet = new Set(cncIdFilters.map(c => c.value));
+                    const msgSet = new Set(msgIdFilters.map(c => c.value));
+                    const cncExclSet = new Set(cncIdExcl.map(c => c.value));
+                    const msgExclSet = new Set(msgIdExcl.map(c => c.value));
+                    loadedLogs = loadedLogs.filter(log => {
+                        if (cncExclSet.size && log.cncID && cncExclSet.has(log.cncID)) return false;
+                        if (msgExclSet.size && log.messageID && msgExclSet.has(log.messageID)) return false;
+                        if (cncSet.size && (!log.cncID || !cncSet.has(log.cncID))) return false;
+                        if (msgSet.size && (!log.messageID || !msgSet.has(log.messageID))) return false;
+                        return true;
+                    });
+                }
                 
                 // Sort
                 loadedLogs.sort((a, b) => {
@@ -347,7 +390,9 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         isShowFavoritesOnly,
         favoriteLogIds,
         sortConfig,
-        loadLogsFromIndexedDB
+        loadLogsFromIndexedDB,
+        excludedMessageTypes,
+        selectedMessageTypeFilter
     ]);
     
     // Update totalLogCount when logs are cleared
@@ -421,13 +466,17 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         stationIds: string[];
         callIds: string[];
         fileNames: string[];
+        cncIds: string[];
+        messageIds: string[];
     }>({
         reportIds: [],
         operatorIds: [],
         extensionIds: [],
         stationIds: [],
         callIds: [],
-        fileNames: []
+        fileNames: [],
+        cncIds: [],
+        messageIds: []
     });
     const [correlationCountsState, setCorrelationCountsState] = useState<Record<string, number>>({});
 
@@ -441,13 +490,15 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         const loadCorrelationData = async () => {
             try {
                 // Use IndexedDB's efficient getUniqueValues instead of iterating all logs
-                const [reportIdsSet, operatorIdsSet, extensionIdsSet, stationIdsSet, callIdsSet, fileNamesSet] = await Promise.all([
+                const [reportIdsSet, operatorIdsSet, extensionIdsSet, stationIdsSet, callIdsSet, fileNamesSet, cncIdsSet, messageIdsSet] = await Promise.all([
                     dbManager.getUniqueValues('reportId'),
                     dbManager.getUniqueValues('operatorId'),
                     dbManager.getUniqueValues('extensionId'),
                     dbManager.getUniqueValues('stationId'),
                     dbManager.getUniqueValues('callId'),
-                    dbManager.getUniqueValues('fileName')
+                    dbManager.getUniqueValues('fileName'),
+                    dbManager.getUniqueValues('cncID'),
+                    dbManager.getUniqueValues('messageID')
                 ]);
 
                 const reportIds = Array.from(reportIdsSet).sort();
@@ -456,6 +507,8 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
                 const stationIds = Array.from(stationIdsSet).sort();
                 const callIds = Array.from(callIdsSet).sort();
                 const fileNames = Array.from(fileNamesSet).sort();
+                const cncIds = Array.from(cncIdsSet).sort();
+                const messageIds = Array.from(messageIdsSet).sort();
 
                 setCorrelationDataState({
                     reportIds,
@@ -463,7 +516,9 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
                     extensionIds,
                     stationIds,
                     callIds,
-                    fileNames
+                    fileNames,
+                    cncIds,
+                    messageIds
                 });
 
                 // Get ACTUAL counts from IndexedDB for file names
@@ -485,6 +540,8 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
                         if (log.extensionId) counts[`extension:${log.extensionId}`] = (counts[`extension:${log.extensionId}`] || 0) + 1;
                         if (log.stationId) counts[`station:${log.stationId}`] = (counts[`station:${log.stationId}`] || 0) + 1;
                         if (log.callId) counts[`callId:${log.callId}`] = (counts[`callId:${log.callId}`] || 0) + 1;
+                        if (log.cncID) counts[`cncID:${log.cncID}`] = (counts[`cncID:${log.cncID}`] || 0) + 1;
+                        if (log.messageID) counts[`messageID:${log.messageID}`] = (counts[`messageID:${log.messageID}`] || 0) + 1;
                     });
                 }
                 
@@ -519,6 +576,8 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         const stationIds = new Set<string>();
         const callIds = new Set<string>();
         const fileNames = new Set<string>();
+        const cncIds = new Set<string>();
+        const messageIds = new Set<string>();
 
         const counts: Record<string, number> = {};
 
@@ -534,6 +593,8 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
             if (log.stationId) { stationIds.add(log.stationId); increment('station', log.stationId); }
             if (log.callId) { callIds.add(log.callId); increment('callId', log.callId); }
             if (log.fileName) { fileNames.add(log.fileName); increment('file', log.fileName); }
+            if (log.cncID) { cncIds.add(log.cncID); increment('cncID', log.cncID); }
+            if (log.messageID) { messageIds.add(log.messageID); increment('messageID', log.messageID); }
         });
 
         // Re-populate fileNames from ALL logs strictly for the list
@@ -547,7 +608,9 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
                 extensionIds: Array.from(extensionIds).sort(),
                 stationIds: Array.from(stationIds).sort(),
                 callIds: Array.from(callIds).sort(),
-                fileNames: Array.from(allFiles).sort()
+                fileNames: Array.from(allFiles).sort(),
+                cncIds: Array.from(cncIds).sort(),
+                messageIds: Array.from(messageIds).sort()
             },
             correlationCounts: counts
         };
@@ -571,6 +634,25 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
 
     // Phase 2 Optimization: Pre-compute lowercase filter text once
     const lowerFilterText = useMemo(() => filterText.toLowerCase(), [filterText]);
+
+    // Available message types from current logs (for Exclude / Filter by message type UI)
+    const availableMessageTypes = useMemo(() => {
+        const source = useIndexedDBMode ? indexedDBLogs : logs;
+        const set = new Set<string>();
+        source.forEach(log => {
+            if (log.messageType && log.messageType.trim()) set.add(log.messageType);
+        });
+        return Array.from(set).sort();
+    }, [useIndexedDBMode, logs, indexedDBLogs]);
+
+    const toggleExcludedMessageType = useCallback((type: string) => {
+        setExcludedMessageTypes(prev => {
+            const next = new Set(prev);
+            if (next.has(type)) next.delete(type);
+            else next.add(type);
+            return next;
+        });
+    }, []);
 
     // Computed filtered logs - Phase 2 Optimized
     // When using IndexedDB mode, use indexedDBLogs instead of logs
@@ -604,6 +686,8 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
                         case 'station': match = !!log.stationId && values.has(log.stationId); break;
                         case 'callId': match = !!log.callId && values.has(log.callId); break;
                         case 'file': match = !!log.fileName && values.has(log.fileName); break;
+                        case 'cncID': match = !!log.cncID && values.has(log.cncID); break;
+                        case 'messageID': match = !!log.messageID && values.has(log.messageID); break;
                     }
                     if (!match) return false;
                 }
@@ -619,6 +703,8 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
                         case 'station': matchExclude = !!log.stationId && values.has(log.stationId); break;
                         case 'callId': matchExclude = !!log.callId && values.has(log.callId); break;
                         case 'file': matchExclude = !!log.fileName && values.has(log.fileName); break;
+                        case 'cncID': matchExclude = !!log.cncID && values.has(log.cncID); break;
+                        case 'messageID': matchExclude = !!log.messageID && values.has(log.messageID); break;
                     }
                     if (matchExclude) return false; // Fail if any excluded value matches
                 }
@@ -627,6 +713,14 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
             // Component Filter
             if (selectedComponentFilter && log.displayComponent !== selectedComponentFilter) {
                 return false;
+            }
+
+            // Message type: exclude selected types (6.3 Option B)
+            if (log.messageType && excludedMessageTypes.has(log.messageType)) return false;
+
+            // Message type: show only selected type (6.5)
+            if (selectedMessageTypeFilter !== null) {
+                if (!log.messageType || log.messageType !== selectedMessageTypeFilter) return false;
             }
 
             // Level Filter (multi-select: show only logs whose level is in selectedLevels)
@@ -689,7 +783,23 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         });
 
         return result;
-    }, [logs, selectedLogId, correlationIndexes, selectedComponentFilter, selectedLevels, isSipFilterEnabled, selectedSipMethods, lowerFilterText, sortConfig, isShowFavoritesOnly, favoriteLogIds, useIndexedDBMode, indexedDBLogs]);
+    }, [logs, selectedLogId, correlationIndexes, selectedComponentFilter, selectedLevels, isSipFilterEnabled, selectedSipMethods, lowerFilterText, sortConfig, isShowFavoritesOnly, favoriteLogIds, useIndexedDBMode, indexedDBLogs, excludedMessageTypes, selectedMessageTypeFilter]);
+
+    // Collapse similar: group consecutive rows with same (displayComponent, summaryMessage/displayMessage) (6.3 Option A)
+    const collapsedViewList = useMemo((): Array<{ firstLog: LogEntry; count: number }> | null => {
+        if (!isCollapseSimilarEnabled || filteredLogs.length === 0) return null;
+        const groups: Array<{ key: string; logs: LogEntry[] }> = [];
+        const keyOf = (log: LogEntry) => `${log.displayComponent}\0${log.summaryMessage ?? log.displayMessage}`;
+        for (const log of filteredLogs) {
+            const k = keyOf(log);
+            if (groups.length > 0 && groups[groups.length - 1].key === k) {
+                groups[groups.length - 1].logs.push(log);
+            } else {
+                groups.push({ key: k, logs: [log] });
+            }
+        }
+        return groups.map(g => ({ firstLog: g.logs[0], count: g.logs.length }));
+    }, [isCollapseSimilarEnabled, filteredLogs]);
 
     // Phase 2 Optimization: Wrap event handlers in useCallback
     const addToSearchHistory = useCallback((term: string) => {
@@ -709,6 +819,8 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         setSelectedSipMethods(new Set());
         setIsSipFilterEnabled(false);
         setSelectedComponentFilter(null);
+        setExcludedMessageTypes(new Set());
+        setSelectedMessageTypeFilter(null);
         setActiveCorrelations([]);
         setSelectedLogId(null);
         setIsShowFavoritesOnly(false);
@@ -765,7 +877,9 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
             extensionIds: [],
             stationIds: [],
             callIds: [],
-            fileNames: []
+            fileNames: [],
+            cncIds: [],
+            messageIds: []
         });
         setCorrelationCountsState({});
     }, []);
@@ -834,6 +948,14 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         setSortConfig,
         selectedComponentFilter,
         setSelectedComponentFilter,
+        excludedMessageTypes,
+        toggleExcludedMessageType,
+        selectedMessageTypeFilter,
+        setSelectedMessageTypeFilter,
+        availableMessageTypes,
+        isCollapseSimilarEnabled,
+        setIsCollapseSimilarEnabled,
+        collapsedViewList,
         visibleRange,
         setVisibleRange,
         scrollTargetTimestamp,
@@ -892,6 +1014,11 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         isTextWrapEnabled,
         sortConfig,
         selectedComponentFilter,
+        excludedMessageTypes,
+        selectedMessageTypeFilter,
+        availableMessageTypes,
+        isCollapseSimilarEnabled,
+        collapsedViewList,
         visibleRange,
         scrollTargetTimestamp,
         timelineViewMode,
