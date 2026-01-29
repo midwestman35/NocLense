@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useMemo, useEffect, useCallback, type ReactNode } from 'react';
-import type { LogEntry, LogState } from '../types';
+import type { LogEntry, LogLevel, LogState } from '../types';
 import { loadSearchHistory, addToSearchHistory as saveToHistory, clearSearchHistory as clearHistoryStorage } from '../store/searchHistory';
 import { dbManager } from '../utils/indexedDB';
 
@@ -17,8 +17,10 @@ interface LogContextType extends LogState {
     setFilterText: (text: string) => void;
     isSipFilterEnabled: boolean;
     setIsSipFilterEnabled: (enabled: boolean) => void;
-    selectedSipMethod: string | null;
-    setSelectedSipMethod: (method: string | null) => void;
+    selectedLevels: Set<LogLevel>;
+    toggleLevel: (level: LogLevel) => void;
+    selectedSipMethods: Set<string>;
+    toggleSipMethod: (method: string) => void;
     // Deprecated alias aliases kept for compatibility if needed, otherwise removed
     smartFilterActive: boolean;
     setSmartFilterActive: (active: boolean) => void;
@@ -28,6 +30,7 @@ interface LogContextType extends LogState {
     addToSearchHistory: (term: string) => void;
     clearSearchHistory: () => void;
     clearAllFilters: () => void;
+    clearFilterSelections: () => void;
 
     // New View Options
     isTextWrapEnabled: boolean;
@@ -121,7 +124,8 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
     const [totalLogCount, setTotalLogCount] = useState(0); // Total count when using IndexedDB
     const [filterText, setFilterText] = useState('');
     const [isSipFilterEnabled, setIsSipFilterEnabled] = useState(false);
-    const [selectedSipMethod, setSelectedSipMethod] = useState<string | null>(null);
+    const [selectedLevels, setSelectedLevels] = useState<Set<LogLevel>>(() => new Set());
+    const [selectedSipMethods, setSelectedSipMethods] = useState<Set<string>>(() => new Set());
     const [selectedLogId, setSelectedLogId] = useState<number | null>(null);
     const [searchHistory, setSearchHistory] = useState<string[]>([]);
     
@@ -225,6 +229,11 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
                 if (selectedComponentFilter) {
                     filters.component = selectedComponentFilter;
                 }
+
+                // Level filter (IndexedDB supports single level; multi-level filtered in memory below)
+                if (selectedLevels.size === 1) {
+                    filters.level = [...selectedLevels][0];
+                }
                 
                 // SIP filter
                 if (isSipFilterEnabled) {
@@ -248,7 +257,7 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
                 const MAX_INITIAL_LOGS = 5000;
                 
                 // If no specific filters, limit the load
-                const hasSpecificFilters = selectedComponentFilter || isSipFilterEnabled || 
+                const hasSpecificFilters = selectedComponentFilter || selectedLevels.size > 0 || isSipFilterEnabled || 
                     activeFileFilters.length > 0 || callIdFilters.length > 0 || filterText;
                 
                 if (!hasSpecificFilters) {
@@ -273,21 +282,26 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
                     });
                 }
                 
-                // Apply SIP method filter
-                if (selectedSipMethod !== null) {
-                    const normalizeMethod = (method: string): string => {
-                        const responseMatch = method.match(/^(\d{3})\s+(\w+)(?:\s+.*)?$/i);
-                        if (responseMatch) {
-                            const code = responseMatch[1];
-                            const firstWord = responseMatch[2].charAt(0).toUpperCase() + responseMatch[2].slice(1).toLowerCase();
-                            return `${code} ${firstWord}`;
-                        }
-                        return method;
-                    };
-                    const normalizedSelected = normalizeMethod(selectedSipMethod);
+                // Level filter in memory (multi-level or when IndexedDB didn't apply)
+                if (selectedLevels.size > 0) {
+                    loadedLogs = loadedLogs.filter(log => selectedLevels.has(log.level));
+                }
+
+                // SIP method filter in memory
+                const normalizeMethod = (method: string): string => {
+                    const responseMatch = method.match(/^(\d{3})\s+(\w+)(?:\s+.*)?$/i);
+                    if (responseMatch) {
+                        const code = responseMatch[1];
+                        const firstWord = responseMatch[2].charAt(0).toUpperCase() + responseMatch[2].slice(1).toLowerCase();
+                        return `${code} ${firstWord}`;
+                    }
+                    return method;
+                };
+                if (isSipFilterEnabled && selectedSipMethods.size > 0) {
                     loadedLogs = loadedLogs.filter(log => {
                         if (!log.isSip || !log.sipMethod) return false;
-                        return normalizeMethod(log.sipMethod) === normalizedSelected;
+                        const normalizedLog = normalizeMethod(log.sipMethod);
+                        return [...selectedSipMethods].some(m => normalizeMethod(m) === normalizedLog);
                     });
                 }
                 
@@ -325,8 +339,9 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
     }, [
         useIndexedDBMode,
         selectedComponentFilter,
+        selectedLevels,
         isSipFilterEnabled,
-        selectedSipMethod,
+        selectedSipMethods,
         activeCorrelations,
         filterText,
         isShowFavoritesOnly,
@@ -614,30 +629,27 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
                 return false;
             }
 
+            // Level Filter (multi-select: show only logs whose level is in selectedLevels)
+            if (selectedLevels.size > 0 && !selectedLevels.has(log.level)) return false;
+
             // SIP Filter (Show Only SIP)
             if (isSipFilterEnabled && !log.isSip) return false;
 
-            // SIP Method Filter (when specific method selected)
-            // If a method is selected, only show SIP logs matching that method
-            // Normalize comparison: "100 trying" and "100 trying -- your call is important to us" should both match "100 Trying"
-            if (selectedSipMethod !== null) {
+            // SIP Method Filter (multi-select: when methods selected, only show SIP logs matching any of them)
+            const normalizeMethod = (method: string): string => {
+                const responseMatch = method.match(/^(\d{3})\s+(\w+)(?:\s+.*)?$/i);
+                if (responseMatch) {
+                    const code = responseMatch[1];
+                    const firstWord = responseMatch[2].charAt(0).toUpperCase() + responseMatch[2].slice(1).toLowerCase();
+                    return `${code} ${firstWord}`;
+                }
+                return method;
+            };
+            if (isSipFilterEnabled && selectedSipMethods.size > 0) {
                 if (!log.isSip || !log.sipMethod) return false;
-                
-                // Normalize both values for comparison
-                const normalizeMethod = (method: string): string => {
-                    const responseMatch = method.match(/^(\d{3})\s+(\w+)(?:\s+.*)?$/i);
-                    if (responseMatch) {
-                        const code = responseMatch[1];
-                        const firstWord = responseMatch[2].charAt(0).toUpperCase() + responseMatch[2].slice(1).toLowerCase();
-                        return `${code} ${firstWord}`;
-                    }
-                    return method; // Request methods (INVITE, ACK, etc.) remain unchanged
-                };
-                
-                const normalizedSelected = normalizeMethod(selectedSipMethod);
                 const normalizedLog = normalizeMethod(log.sipMethod);
-                
-                if (normalizedLog !== normalizedSelected) return false;
+                const matchesAny = [...selectedSipMethods].some(m => normalizeMethod(m) === normalizedLog);
+                if (!matchesAny) return false;
             }
 
             // Phase 2 Optimization: Use pre-computed lowercase strings from parsing for O(1) string operations
@@ -677,7 +689,7 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         });
 
         return result;
-    }, [logs, selectedLogId, correlationIndexes, selectedComponentFilter, isSipFilterEnabled, selectedSipMethod, lowerFilterText, sortConfig, isShowFavoritesOnly, favoriteLogIds, useIndexedDBMode, indexedDBLogs]);
+    }, [logs, selectedLogId, correlationIndexes, selectedComponentFilter, selectedLevels, isSipFilterEnabled, selectedSipMethods, lowerFilterText, sortConfig, isShowFavoritesOnly, favoriteLogIds, useIndexedDBMode, indexedDBLogs]);
 
     // Phase 2 Optimization: Wrap event handlers in useCallback
     const addToSearchHistory = useCallback((term: string) => {
@@ -693,13 +705,40 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
     // Phase 2 Optimization: Wrap clearAllFilters in useCallback
     const clearAllFilters = useCallback(() => {
         setFilterText('');
+        setSelectedLevels(new Set());
+        setSelectedSipMethods(new Set());
         setIsSipFilterEnabled(false);
-        setSelectedSipMethod(null);
         setSelectedComponentFilter(null);
         setActiveCorrelations([]);
         setSelectedLogId(null);
         setIsShowFavoritesOnly(false);
     }, []);
+
+    const clearFilterSelections = useCallback(() => {
+        setSelectedLevels(new Set());
+        setSelectedSipMethods(new Set());
+        setIsSipFilterEnabled(false);
+    }, []);
+
+    const toggleLevel = useCallback((level: LogLevel) => {
+        setSelectedLevels(prev => {
+            const next = new Set(prev);
+            if (next.has(level)) next.delete(level);
+            else next.add(level);
+            return next;
+        });
+    }, []);
+
+    const toggleSipMethod = useCallback((method: string) => {
+        const wasSelected = selectedSipMethods.has(method);
+        setSelectedSipMethods(prev => {
+            const next = new Set(prev);
+            if (next.has(method)) next.delete(method);
+            else next.add(method);
+            return next;
+        });
+        if (!wasSelected) setIsSipFilterEnabled(true);
+    }, [selectedSipMethods]);
 
     // Phase 2 Optimization: Memoize context value to prevent unnecessary re-renders
     // This is critical - without memoization, the entire value object is recreated on every render
@@ -775,8 +814,10 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         setFilterText,
         isSipFilterEnabled,
         setIsSipFilterEnabled,
-        selectedSipMethod,
-        setSelectedSipMethod,
+        selectedLevels,
+        toggleLevel,
+        selectedSipMethods,
+        toggleSipMethod,
         smartFilterActive: isSipFilterEnabled, // Alias
         setSmartFilterActive: setIsSipFilterEnabled, // Alias
         filteredLogs,
@@ -786,6 +827,7 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         addToSearchHistory,
         clearSearchHistory,
         clearAllFilters,
+        clearFilterSelections,
         isTextWrapEnabled,
         setIsTextWrapEnabled,
         sortConfig,
@@ -842,6 +884,8 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         parsingProgress,
         filterText,
         isSipFilterEnabled,
+        selectedLevels,
+        selectedSipMethods,
         filteredLogs,
         selectedLogId,
         searchHistory,

@@ -10,13 +10,16 @@ const FilterBar = () => {
         setFilterText,
         isSipFilterEnabled,
         setIsSipFilterEnabled,
-        selectedSipMethod,
-        setSelectedSipMethod,
+        selectedLevels,
+        toggleLevel,
+        selectedSipMethods,
+        toggleSipMethod,
         logs,
         filteredLogs,
         isTextWrapEnabled,
         setIsTextWrapEnabled,
         clearAllFilters,
+        clearFilterSelections,
         activeCorrelations,
         toggleCorrelation,
         searchHistory,
@@ -107,9 +110,7 @@ const FilterBar = () => {
         };
     }, []);
 
-    // Mapping for user-friendly toggle text?
     const wrapText = isTextWrapEnabled;
-    const sipFilterEnabled = isSipFilterEnabled;
 
     // Detect if Homer logs are present and extract available SIP methods
     const hasHomerLogs = useMemo(() => {
@@ -197,44 +198,16 @@ const FilterBar = () => {
 
             {/* Toggles */}
             <div className="flex items-center gap-4 shrink-0">
-                {hasHomerLogs && availableSipMethods.length > 0 ? (
-                    // Show dropdown when Homer logs are detected
-                    <SipFilterDropdown
-                        availableMethods={availableSipMethods}
-                        selectedMethod={selectedSipMethod}
-                        onSelect={(method) => {
-                            setSelectedSipMethod(method);
-                            // Auto-enable SIP filter when a method is selected
-                            if (method !== null) {
-                                setIsSipFilterEnabled(true);
-                            }
-                        }}
-                    />
-                ) : (
-                    // Show toggle for non-Homer logs or when no Homer logs present
-                    <label className="flex items-center gap-2 text-xs text-[var(--text-secondary)] cursor-pointer hover:text-[var(--text-primary)] transition-colors select-none group">
-                        <div
-                            onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setIsSipFilterEnabled(!isSipFilterEnabled);
-                            }}
-                            role="button"
-                            tabIndex={0}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter' || e.key === ' ') {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    setIsSipFilterEnabled(!isSipFilterEnabled);
-                                }
-                            }}
-                            className={`w-8 h-4 rounded-full p-0.5 transition-colors duration-200 ease-in-out ${sipFilterEnabled ? 'bg-[var(--accent-blue)]' : 'bg-[var(--text-secondary)]/30'}`}
-                        >
-                            <div className={`w-3 h-3 bg-[var(--card-bg)] rounded-full shadow-sm transform transition-transform duration-200 ${sipFilterEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
-                        </div>
-                        <span className="font-medium group-hover:text-[var(--accent-blue)] transition-colors">SIP Filter</span>
-                    </label>
-                )}
+                <SipFilterDropdown
+                    selectedLevels={selectedLevels}
+                    isSipFilterEnabled={isSipFilterEnabled}
+                    selectedSipMethods={selectedSipMethods}
+                    availableSipMethods={availableSipMethods}
+                    onToggleLevel={toggleLevel}
+                    onToggleSipOnly={() => setIsSipFilterEnabled(!isSipFilterEnabled)}
+                    onToggleSipMethod={toggleSipMethod}
+                    onClearAll={clearFilterSelections}
+                />
 
                 <label className="flex items-center gap-2 text-xs text-[var(--text-secondary)] cursor-pointer hover:text-[var(--text-primary)] transition-colors select-none group">
                     <div
