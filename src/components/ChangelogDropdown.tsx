@@ -12,6 +12,15 @@ interface ChangelogEntry {
 // Latest changelog entries - update this when new features are added
 const changelogEntries: ChangelogEntry[] = [
   {
+    version: '1.5.2',
+    date: '2026-01-29',
+    fixes: [
+      '🔧 UI not loading after file upload - Fixed race where clearAllData overwrote newly loaded logs; file upload now awaits clearAllData before parsing',
+      '🔧 LogContext hook order - Fixed useState/useEffect and filteredLogs/collapsedViewList declaration order',
+      '📋 Bootstrap error handling - Added .catch() to loadServiceMappings chain so startup failures are logged'
+    ]
+  },
+  {
     version: '1.5.1',
     date: '2026-01-29',
     changes: [

@@ -5,10 +5,14 @@ import App from './App.tsx'
 import { loadServiceMappings } from './utils/messageCleanup'
 
 // Load service mappings before rendering
-loadServiceMappings().then(() => {
-  createRoot(document.getElementById('root')!).render(
-    <StrictMode>
-      <App />
-    </StrictMode>,
-  )
-});
+loadServiceMappings()
+  .then(() => {
+    createRoot(document.getElementById('root')!).render(
+      <StrictMode>
+        <App />
+      </StrictMode>,
+    );
+  })
+  .catch((err) => {
+    console.error('Failed to bootstrap app:', err);
+  });

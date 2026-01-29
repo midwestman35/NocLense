@@ -8,10 +8,10 @@ import TimelineScrubber from './components/TimelineScrubber';
 import CorrelationSidebar from './components/CorrelationSidebar';
 import ExportModal from './components/export/ExportModal';
 import ChangelogDropdown from './components/ChangelogDropdown';
-import { Download, FolderOpen, X, AlertTriangle, Filter, Moon, Sun, Flame, LocateFixed, ArrowLeft } from 'lucide-react';
+import { Download, FolderOpen, X, AlertTriangle, Filter, Moon, Sun, Flame, ArrowLeft } from 'lucide-react';
+import LogDetailsPanel from './components/log/LogDetailsPanel';
 import { parseLogFile } from './utils/parser';
 import { validateFile } from './utils/fileUtils';
-import { format } from 'date-fns';
 import clsx from 'clsx';
 
 const MainLayout = () => {
@@ -27,7 +27,6 @@ const MainLayout = () => {
     setActiveCallFlowId,
     activeCorrelations,
     setActiveCorrelations,
-    toggleCorrelation,
     isSidebarOpen,
     setIsSidebarOpen,
     isTimelineOpen,
@@ -92,7 +91,11 @@ const MainLayout = () => {
     }
 
     setLoading(true);
-    setLogs([]);
+    if (clearAllData) {
+      await clearAllData();
+    } else {
+      setLogs([]);
+    }
     setSelectedLogId(null);
     setActiveCallFlowId(null);
 
@@ -370,9 +373,7 @@ const MainLayout = () => {
                 {/* Bottom: Details */}
                 {selectedLog && (
                   <div className="shrink-0 flex flex-col" style={{ height: detailsHeight }}>
-                    {/* Integrated Details Panel */}
-                    <div className="flex-1 bg-[var(--card-bg)] rounded-lg shadow-[var(--shadow-lg)] border border-[var(--border-color)] overflow-hidden flex flex-col relative z-20">
-                      {/* Draggable Handle */}
+                    <div className="flex-1 overflow-hidden flex flex-col relative z-20">
                       <div
                         className="absolute top-0 left-0 right-0 h-1 bg-[var(--border-color)] hover:bg-[var(--accent-blue)] cursor-row-resize z-50 transition-colors"
                         onMouseDown={(e) => {
@@ -390,73 +391,11 @@ const MainLayout = () => {
                           document.addEventListener('mouseup', onUp);
                         }}
                       />
-
-                      {/* Header */}
-                      <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--border-color)] bg-[var(--bg-light)]">
-                        <span className="font-semibold text-sm text-[var(--text-primary)]">Details: Log #{selectedLog.id}</span>
-                        <div className="flex items-center gap-2">
-                          {selectedLog.callId && (
-                            <>
-                              <button
-                                onClick={() => setActiveCallFlowId(selectedLog.callId!)}
-                                className="flex items-center gap-1 text-xs bg-blue-500/10 text-blue-500 px-2 py-1 rounded hover:bg-blue-500/20 transition-colors border border-blue-500/20"
-                              >
-                                <Download size={12} className="rotate-180" />
-                                Flow
-                              </button>
-                              <button
-                                onClick={() => {
-                                  toggleCorrelation({ type: 'callId', value: selectedLog.callId! });
-                                  setIsSidebarOpen(true);
-                                }}
-                                className="flex items-center gap-1 text-xs bg-[var(--bg-light)] text-[var(--text-secondary)] px-2 py-1 rounded hover:bg-[var(--border-color)] transition-colors border border-[var(--border-color)]"
-                              >
-                                <Filter size={12} />
-                                Filter
-                              </button>
-                            </>
-                          )}
-                          <button
-                            onClick={() => setSelectedLogId(null)}
-                            className="text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-2 py-1 rounded hover:bg-[var(--bg-light)]"
-                          >
-                            Close
-                          </button>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={handleJumpToLog}
-                            className="flex items-center gap-1 text-xs bg-[var(--bg-light)] text-[var(--text-primary)] px-2 py-1 rounded hover:bg-[var(--accent-blue)] hover:text-white transition-colors border border-[var(--border-color)]"
-                            title="Jump to this log in main view (clears filters temporarily)"
-                          >
-                            <LocateFixed size={12} />
-                            Jump To
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Content */}
-                      <div className="p-4 overflow-auto font-mono text-xs text-[var(--text-primary)] h-full">
-                        <div className="grid grid-cols-2 gap-x-8 gap-y-2 mb-4">
-                          <div><span className="text-[var(--text-secondary)]">Time:</span> {format(new Date(selectedLog.timestamp), 'MM/dd HH:mm:ss.SSS')}</div>
-                          <div><span className="text-[var(--text-secondary)]">Component:</span> {selectedLog.component}</div>
-                          <div className="col-span-2 flex gap-2">
-                            <span className="text-[var(--text-secondary)] shrink-0">Message:</span>
-                            <span>{selectedLog.message}</span>
-                          </div>
-                          {selectedLog.reportId && <div><span className="text-[var(--text-secondary)]">Report ID:</span> <span className="text-blue-500">{selectedLog.reportId}</span></div>}
-                          {selectedLog.operatorId && <div><span className="text-[var(--text-secondary)]">Operator ID:</span> <span className="text-purple-500">{selectedLog.operatorId}</span></div>}
-                          {selectedLog.callId && <div><span className="text-[var(--text-secondary)]">Call ID:</span> <span className="text-yellow-500">{selectedLog.callId}</span></div>}
-                        </div>
-
-                        <div className="bg-[var(--bg-light)] p-3 rounded border border-[var(--border-color)] mt-2 overflow-auto max-h-60">
-                          {selectedLog.type === 'JSON' ? (
-                            <pre>{JSON.stringify(selectedLog.json, null, 2)}</pre>
-                          ) : (
-                            <pre className="whitespace-pre-wrap">{selectedLog.payload}</pre>
-                          )}
-                        </div>
-                      </div>
+                      <LogDetailsPanel
+                        log={selectedLog}
+                        onClose={() => setSelectedLogId(null)}
+                        onJumpToLog={handleJumpToLog}
+                      />
                     </div>
                   </div>
                 )}
