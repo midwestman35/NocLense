@@ -126,7 +126,9 @@ const LogViewer = () => {
         hoveredCorrelation,
         useIndexedDBMode,
         loadLogsFromIndexedDB,
-        visibleRange
+        visibleRange,
+        isCollapseSimilarEnabled,
+        collapsedViewList
     } = useLogContext();
     const parentRef = useRef<HTMLDivElement>(null);
     // Phase 2 Optimization: Debounce timeline updates to reduce re-renders
@@ -182,8 +184,16 @@ const LogViewer = () => {
         }
     }, [useIndexedDBMode, visibleRange, loadLogsFromIndexedDB]);
 
+    // When collapse similar is on, show one row per group; otherwise one row per log
+    const viewItems = useMemo(() => {
+        if (collapsedViewList && collapsedViewList.length > 0) {
+            return collapsedViewList;
+        }
+        return filteredLogs.map(log => ({ firstLog: log, count: 1 }));
+    }, [collapsedViewList, filteredLogs]);
+
     const rowVirtualizer = useVirtualizer({
-        count: filteredLogs.length,
+        count: viewItems.length,
         getScrollElement: () => parentRef.current,
         estimateSize: estimateSize,
         overscan: 5,
@@ -191,9 +201,8 @@ const LogViewer = () => {
         onChange: (instance) => {
             if (!instance.range) return;
             const { startIndex, endIndex } = instance.range;
-            // Map indices to timestamps
-            const startLog = filteredLogs[startIndex];
-            const endLog = filteredLogs[endIndex];
+            const startLog = viewItems[startIndex]?.firstLog;
+            const endLog = viewItems[endIndex]?.firstLog;
 
             if (startLog && endLog) {
                 // Phase 2 Optimization: Use debounced update instead of immediate setVisibleRange
@@ -218,36 +227,36 @@ const LogViewer = () => {
         };
     }, []);
 
-    // Scroll to selected log if initiated externally
+    // Scroll to selected log if initiated externally (find index in viewItems)
     useEffect(() => {
         if (selectedLogId && parentRef.current) {
-            const index = filteredLogs.findIndex(l => l.id === selectedLogId);
+            const index = viewItems.findIndex(item => item.firstLog.id === selectedLogId);
             if (index !== -1) {
                 rowVirtualizer.scrollToIndex(index, { align: 'center' });
             }
         }
-    }, [selectedLogId, filteredLogs, rowVirtualizer]);
+    }, [selectedLogId, viewItems, rowVirtualizer]);
 
-    // Handle timeline scrubbing
+    // Handle timeline scrubbing (use viewItems for index)
     const { scrollTargetTimestamp, sortConfig } = useLogContext();
     useEffect(() => {
-        if (scrollTargetTimestamp !== null && filteredLogs.length > 0) {
+        if (scrollTargetTimestamp !== null && viewItems.length > 0) {
             const target = scrollTargetTimestamp;
-            let index;
+            let index: number;
 
             if (sortConfig.direction === 'asc') {
-                index = filteredLogs.findIndex(l => l.timestamp >= target);
+                index = viewItems.findIndex(item => item.firstLog.timestamp >= target);
             } else {
-                index = filteredLogs.findIndex(l => l.timestamp <= target);
+                index = viewItems.findIndex(item => item.firstLog.timestamp <= target);
             }
 
             if (index !== -1) {
                 rowVirtualizer.scrollToIndex(index, { align: 'start' });
             } else {
-                rowVirtualizer.scrollToIndex(filteredLogs.length - 1, { align: 'end' });
+                rowVirtualizer.scrollToIndex(viewItems.length - 1, { align: 'end' });
             }
         }
-    }, [scrollTargetTimestamp, filteredLogs, rowVirtualizer, sortConfig.direction]);
+    }, [scrollTargetTimestamp, viewItems, rowVirtualizer, sortConfig.direction]);
 
     return (
         <div className="flex-grow flex flex-col h-full w-full bg-slate-900 overflow-hidden">
@@ -257,7 +266,7 @@ const LogViewer = () => {
                 ref={parentRef}
                 className="flex-grow w-full overflow-y-auto relative"
             >
-                {filteredLogs.length === 0 ? (
+                {viewItems.length === 0 ? (
                     <div className="absolute inset-0 flex items-center justify-center text-slate-500">
                         No logs to display
                     </div>
@@ -270,12 +279,13 @@ const LogViewer = () => {
                         }}
                     >
                         {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                            const log = filteredLogs[virtualRow.index];
+                            const { firstLog: log, count } = viewItems[virtualRow.index];
                             return (
                                 <LogRow
-                                    key={log.id}
+                                    key={isCollapseSimilarEnabled && count > 1 ? `group-${log.id}-${virtualRow.index}` : log.id}
                                     log={log}
                                     active={log.id === selectedLogId}
+                                    collapseCount={count > 1 ? count : undefined}
                                     isHighlighted={
                                         hoveredCorrelation?.type === 'file' ? log.fileName === hoveredCorrelation.value :
                                             hoveredCorrelation?.type === 'callId' ? log.callId === hoveredCorrelation.value :
@@ -283,7 +293,9 @@ const LogViewer = () => {
                                                     hoveredCorrelation?.type === 'operator' ? log.operatorId === hoveredCorrelation.value :
                                                         hoveredCorrelation?.type === 'extension' ? log.extensionId === hoveredCorrelation.value :
                                                             hoveredCorrelation?.type === 'station' ? log.stationId === hoveredCorrelation.value :
-                                                                false
+                                                                hoveredCorrelation?.type === 'cncID' ? log.cncID === hoveredCorrelation.value :
+                                                                    hoveredCorrelation?.type === 'messageID' ? log.messageID === hoveredCorrelation.value :
+                                                                        false
                                     }
                                     onClick={(l) => setSelectedLogId(l.id === selectedLogId ? null : l.id)}
                                     measureRef={rowVirtualizer.measureElement}

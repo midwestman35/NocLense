@@ -33,6 +33,8 @@
     "ccm": "CCM",
     "cnc-service": "CNC",
     "cnc": "CNC",
+    "cncmessagehandlerservice": "CNC",
+    "fdxmessagehandlerservice": "FDX",
     "messaging-service": "Messaging",
     "messaging": "Messaging",
     "conversation-service": "Conversation",

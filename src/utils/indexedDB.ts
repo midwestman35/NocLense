@@ -6,7 +6,7 @@
 import type { LogEntry } from '../types';
 
 const DB_NAME = 'NocLenseDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = 'logs';
 const METADATA_STORE = 'metadata';
 
@@ -39,12 +39,11 @@ class IndexedDBManager {
 
             request.onupgradeneeded = (event) => {
                 const db = (event.target as IDBOpenDBRequest).result;
+                const oldVersion = (event as IDBVersionChangeEvent).oldVersion;
 
                 // Create logs store with indexes
                 if (!db.objectStoreNames.contains(STORE_NAME)) {
                     const logsStore = db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: false });
-                    
-                    // Create indexes for efficient querying
                     logsStore.createIndex('timestamp', 'timestamp', { unique: false });
                     logsStore.createIndex('level', 'level', { unique: false });
                     logsStore.createIndex('component', 'component', { unique: false });
@@ -55,6 +54,16 @@ class IndexedDBManager {
                     logsStore.createIndex('reportId', 'reportId', { unique: false });
                     logsStore.createIndex('operatorId', 'operatorId', { unique: false });
                     logsStore.createIndex('extensionId', 'extensionId', { unique: false });
+                }
+
+                // V2: add cncID / messageID indexes for correlation
+                if (oldVersion < 2) {
+                    const tx = (event.target as IDBOpenDBRequest).transaction;
+                    if (tx) {
+                        const store = tx.objectStore(STORE_NAME);
+                        if (!store.indexNames.contains('cncID')) store.createIndex('cncID', 'cncID', { unique: false });
+                        if (!store.indexNames.contains('messageID')) store.createIndex('messageID', 'messageID', { unique: false });
+                    }
                 }
 
                 // Create metadata store

@@ -19,6 +19,7 @@ const FilterBar = () => {
         filteredLogs,
         clearAllFilters,
         clearFilterSelections,
+        hasActiveFilters,
         activeCorrelations,
         toggleCorrelation,
         searchHistory,
@@ -169,32 +170,35 @@ const FilterBar = () => {
                 />
             </div>
 
-            {/* Active Filters Display Chips */}
-            {activeCorrelations.length > 0 && (
-                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar mask-gradient flex-1">
-                    {activeCorrelations.map((filter) => (
-                        <div
-                            key={`${filter.type}-${filter.value}`}
-                            className="flex items-center gap-1 bg-[var(--accent-blue)]/10 text-[var(--accent-blue)] border border-[var(--accent-blue)]/20 px-2.5 py-1 rounded-full text-xs whitespace-nowrap shadow-sm"
-                        >
-                            <span className="font-bold uppercase opacity-75 text-[10px] tracking-wider">{filter.type}:</span>
-                            <span className="font-mono font-medium">{filter.value}</span>
-                            <button
-                                onClick={() => toggleCorrelation(filter)}
-                                className="ml-1 hover:text-[var(--err)] transition-colors p-0.5 rounded-full hover:bg-[var(--err)]/10"
+            {/* Active Filters Display Chips + Clear filters button */}
+            {hasActiveFilters && (
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <div className="flex items-center gap-2 overflow-x-auto no-scrollbar mask-gradient min-w-0 flex-1">
+                        {activeCorrelations.map((filter) => (
+                            <div
+                                key={`${filter.type}-${filter.value}`}
+                                className="flex items-center gap-1 bg-[var(--accent-blue)]/10 text-[var(--accent-blue)] border border-[var(--accent-blue)]/20 px-2.5 py-1 rounded-full text-xs whitespace-nowrap shadow-sm shrink-0"
                             >
-                                <X size={12} />
-                            </button>
-                        </div>
-                    ))}
-                    {activeCorrelations.length > 0 && (
-                        <button
-                            onClick={clearAllFilters}
-                            className="text-[10px] text-[var(--text-secondary)] hover:text-[var(--err)] underline decoration-dotted underline-offset-2 whitespace-nowrap ml-2"
-                        >
-                            Clear All
-                        </button>
-                    )}
+                                <span className="font-bold uppercase opacity-75 text-[10px] tracking-wider">{filter.type}:</span>
+                                <span className="font-mono font-medium">{filter.value}</span>
+                                <button
+                                    onClick={() => toggleCorrelation(filter)}
+                                    className="ml-1 hover:text-[var(--err)] transition-colors p-0.5 rounded-full hover:bg-[var(--err)]/10"
+                                    title={`Remove ${filter.type} filter`}
+                                >
+                                    <X size={12} />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                    <button
+                        onClick={clearAllFilters}
+                        className="flex items-center gap-1.5 shrink-0 px-2.5 py-1 rounded-md text-xs font-medium bg-slate-700/80 text-slate-200 border border-slate-600 hover:bg-slate-600 hover:text-white hover:border-slate-500 transition-colors"
+                        title="Clear all filters (keeps log data)"
+                    >
+                        <X size={14} />
+                        Clear filters
+                    </button>
                 </div>
             )}
 

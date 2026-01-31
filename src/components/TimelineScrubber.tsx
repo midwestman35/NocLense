@@ -18,13 +18,8 @@ const TimelineScrubber: React.FC<TimelineScrubberProps> = ({ height = 80 }) => {
         selectedLogId,
         setSelectedLogId,
         visibleRange,
-        timelineViewMode,
-        setTimelineViewMode,
+        hasActiveFilters,
         setScrollTargetTimestamp,
-        isTimelineCompact,
-        setIsTimelineCompact,
-        timelineZoomRange,
-        setTimelineZoomRange,
         timelineEventFilters,
         setTimelineEventFilters,
         setHoveredCallId,
@@ -32,35 +27,24 @@ const TimelineScrubber: React.FC<TimelineScrubberProps> = ({ height = 80 }) => {
         hoveredCorrelation
     } = useLogContext();
 
-
-    // Decide which logs to show on timeline
-    // PERFORMANCE: Limit timeline to max 10k events to prevent UI freeze
+    // Full scope by default; use filtered logs only when filters are actually selected
     const MAX_TIMELINE_EVENTS = 10000;
-    const sourceLogsRaw = timelineViewMode === 'full' ? logs : filteredLogs;
+    const sourceLogsRaw = hasActiveFilters ? filteredLogs : logs;
     const sourceLogs = useMemo(() => {
-        // Limit the number of logs processed for timeline to prevent performance issues
         let limitedLogs = sourceLogsRaw;
-        
         if (sourceLogsRaw.length > MAX_TIMELINE_EVENTS) {
-            // Sample logs evenly across the dataset
             const step = Math.ceil(sourceLogsRaw.length / MAX_TIMELINE_EVENTS);
             limitedLogs = sourceLogsRaw.filter((_, idx) => idx % step === 0).slice(0, MAX_TIMELINE_EVENTS);
         }
-        
-        // filteredLogs is already sorted, so only sort for 'full' mode or if timestamps aren't already sorted
-        if (timelineViewMode === 'filtered') {
-            // filteredLogs should already be sorted, so we can use it directly
-            return limitedLogs;
-        }
-        // For 'full' mode, check if already sorted, otherwise sort
-        const needsSort = limitedLogs.length > 1 && limitedLogs.some((log, idx) => 
+        if (hasActiveFilters) return limitedLogs;
+        const needsSort = limitedLogs.length > 1 && limitedLogs.some((log, idx) =>
             idx > 0 && limitedLogs[idx - 1].timestamp > log.timestamp
         );
         return needsSort ? [...limitedLogs].sort((a, b) => a.timestamp - b.timestamp) : limitedLogs;
-    }, [sourceLogsRaw, timelineViewMode]);
+    }, [sourceLogsRaw, hasActiveFilters]);
 
-    const { minTime, duration, relevantLogs, fileSegments, callSegments, gaps, maxLanes } = useMemo(() => {
-        if (!sourceLogs.length) return { minTime: 0, duration: 1, relevantLogs: [], fileSegments: [], callSegments: [], gaps: [], maxLanes: 0 };
+    const { minTime, duration, relevantLogs, fileSegments, callSegments, maxLanes } = useMemo(() => {
+        if (!sourceLogs.length) return { minTime: 0, duration: 1, relevantLogs: [], fileSegments: [], callSegments: [], maxLanes: 0 };
 
         const minTime = sourceLogs[0].timestamp;
         const maxTime = sourceLogs[sourceLogs.length - 1].timestamp;
@@ -87,10 +71,8 @@ const TimelineScrubber: React.FC<TimelineScrubberProps> = ({ height = 80 }) => {
             return l.level === 'ERROR';
         });
 
-        // 2. Compute File Segments and Gaps
+        // 2. Compute File Segments (gaps not rendered in compact view)
         const fileSegments: { fileName: string, color: string, start: number, end: number, duration: number }[] = [];
-        const gaps: { start: number, end: number, duration: number }[] = [];
-        const GAP_THRESHOLD = 60000; // 1 minute
 
         if (sourceLogs.length > 0) {
             let currentSegment = {
@@ -108,15 +90,6 @@ const TimelineScrubber: React.FC<TimelineScrubberProps> = ({ height = 80 }) => {
                 if (logFileName !== currentSegment.fileName) {
                     currentSegment.duration = currentSegment.end - currentSegment.start;
                     fileSegments.push(currentSegment);
-
-                    // Check for gap between previous end and new start
-                    if (log.timestamp - currentSegment.end > GAP_THRESHOLD) {
-                        gaps.push({
-                            start: currentSegment.end,
-                            end: log.timestamp,
-                            duration: log.timestamp - currentSegment.end
-                        });
-                    }
 
                     currentSegment = {
                         fileName: logFileName,
@@ -170,90 +143,18 @@ const TimelineScrubber: React.FC<TimelineScrubberProps> = ({ height = 80 }) => {
             return { ...log, laneIndex };
         });
 
-        return { minTime, duration, relevantLogs: logsWithLanes, fileSegments, callSegments, gaps, maxLanes: lanes.length };
+        return { minTime, duration, relevantLogs: logsWithLanes, fileSegments, callSegments, maxLanes: lanes.length };
     }, [sourceLogs, timelineEventFilters]); // Re-calc when filters change
 
-    // Compact Mode Coordinate Mapping
-    const COMPACT_GAP_MS = 30000; // Visual gap weight (30s)
-
-    // We pre-calculate cumulative offsets for segments in compact mode
-    const compactMetadata = useMemo(() => {
-        if (!isTimelineCompact) return null;
-
-        let currentOffset = 0;
-        const segmentOffsets: Record<number, number> = {}; // idx -> offset
-        const gapOffsets: Record<number, number> = {}; // idx -> offset
-
-        fileSegments.forEach((seg, idx) => {
-            segmentOffsets[idx] = currentOffset;
-            currentOffset += seg.duration;
-            if (idx < fileSegments.length - 1) {
-                gapOffsets[idx] = currentOffset;
-                currentOffset += COMPACT_GAP_MS;
-            }
-        });
-
-        return { totalDuration: currentOffset, segmentOffsets, gapOffsets };
-    }, [isTimelineCompact, fileSegments]);
-
+    // Linear time mapping: full time range (first event → last event) maps to 0% → 100% width.
+    // This ensures events span from one side to the other instead of clustering by file segments.
     const getPosition = (ts: number) => {
-        // Apply Zoom if active (and not in compact mode for now, or handle both??)
-        // Let's support zoom on top of current view.
-        if (timelineZoomRange && !isTimelineCompact) { // Compact mode zoom is tricky, let's disable zoom in compact for V1 or handle mapped time.
-            // Actually, simplest is to Map global time -> % -> then Zoom transforms that %.
-            // But for now let's apply zoom to Local Duration.
-
-            // Linear Mode Zoom:
-            const zoomDuration = timelineZoomRange.end - timelineZoomRange.start;
-            return ((ts - timelineZoomRange.start) / zoomDuration) * 100;
-        }
-
-        if (!isTimelineCompact || !compactMetadata) {
-            return ((ts - minTime) / duration) * 100;
-        }
-
-        // Phase 2 Optimization: Optimize segment lookup for compact mode
-        // For typical use (1-10 files), linear search is fine. For 50+ files, could use binary search
-        // But fileSegments is typically small, so O(n) where n=number of files is acceptable
-        for (let i = 0; i < fileSegments.length; i++) {
-            const seg = fileSegments[i];
-            if (ts >= seg.start && ts <= seg.end) {
-                const offset = compactMetadata.segmentOffsets[i];
-                return ((offset + (ts - seg.start)) / compactMetadata.totalDuration) * 100;
-            }
-            // Phase 2: Early exit optimization - if timestamp is before this segment, we're done
-            // (Segments are sorted by start time)
-            if (i < fileSegments.length - 1 && ts < seg.start) {
-                break;
-            }
-            // If between segments, put it at the gap or closest segment
-            if (i < fileSegments.length - 1 && ts > seg.end && ts < fileSegments[i + 1].start) {
-                const gapOffset = compactMetadata.gapOffsets[i];
-                const gapDuration = fileSegments[i + 1].start - seg.end;
-                const progressInGap = (ts - seg.end) / gapDuration;
-                return ((gapOffset + (progressInGap * COMPACT_GAP_MS)) / compactMetadata.totalDuration) * 100;
-            }
-        }
-
-        // Fallback
         return ((ts - minTime) / duration) * 100;
     };
 
     const getWidth = (start: number, end: number) => {
-        if (timelineZoomRange && !isTimelineCompact) {
-            const zoomDuration = timelineZoomRange.end - timelineZoomRange.start;
-            const w = ((end - start) / zoomDuration) * 100;
-            return Math.max(w, 0.2);
-        }
-
-        if (!isTimelineCompact || !compactMetadata) {
-            const w = ((end - start) / duration) * 100;
-            return Math.max(w, 0.2);
-        }
-
-        // For segments themselves
-        const w = ((end - start) / compactMetadata.totalDuration) * 100;
-        return Math.max(w, 0.1);
+        const w = ((end - start) / duration) * 100;
+        return Math.max(w, 0.2);
     };
 
     const getColor = (log: LogEntry) => {
@@ -270,33 +171,10 @@ const TimelineScrubber: React.FC<TimelineScrubberProps> = ({ height = 80 }) => {
     };
 
     const handleWheel = (e: React.WheelEvent) => {
-        if (isTimelineCompact) return;
-
-        // If Shift is held, allow native horizontal scrolling
-        if (e.shiftKey) return;
-
+        // Compact view is always on; wheel zoom is disabled. Prevent wheel from scrolling the page when over the scrubber.
         e.preventDefault();
-        e.stopPropagation();
-
-        const rect = e.currentTarget.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        const relativeX = (mouseX + e.currentTarget.scrollLeft) / (rect.width * (zoomLevel || 1));
-
-        const zoomFactor = e.deltaY < 0 ? 1.2 : 0.8;
-        const newZoom = Math.min(100, Math.max(1, (zoomLevel || 1) * zoomFactor));
-
-        // Anchor zoom on mouse
-        const newScrollLeft = (relativeX * rect.width * newZoom) - mouseX;
-        setZoomLevel(newZoom);
-
-        // Use requestAnimationFrame to ensure the scroll happens after the width update
-        const target = e.currentTarget;
-        requestAnimationFrame(() => {
-            target.scrollLeft = newScrollLeft;
-        });
     };
 
-    const [zoomLevel, setZoomLevel] = useState(1);
     const [hoveredEvent, setHoveredEvent] = useState<{ log: LogEntry; x: number; y: number } | null>(null);
 
     // Phase 2 Optimization: Pre-index logs by callId for O(1) lookup instead of filtering on every hover
@@ -329,63 +207,21 @@ const TimelineScrubber: React.FC<TimelineScrubberProps> = ({ height = 80 }) => {
         const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
         const percentage = x / rect.width;
 
-        let targetTime;
-        if (timelineZoomRange && !isTimelineCompact) {
-            const zoomDuration = timelineZoomRange.end - timelineZoomRange.start;
-            targetTime = timelineZoomRange.start + (percentage * zoomDuration);
-        } else {
-            targetTime = minTime + (percentage * duration);
-        }
+        const targetTime = minTime + (percentage * duration);
 
         setScrollTargetTimestamp(targetTime);
     };
 
     if (!logs.length) return null;
 
-    const startTime = timelineZoomRange && !isTimelineCompact ? timelineZoomRange.start : minTime;
-    const endTime = timelineZoomRange && !isTimelineCompact ? timelineZoomRange.end : minTime + duration;
+    const startTime = minTime;
+    const endTime = minTime + duration;
 
     return (
         <div className="flex flex-col bg-slate-800 border-t border-slate-700 shrink-0 select-none" style={{ height }}>
             {/* Controls Bar */}
             <div className="flex items-center justify-between px-2 py-1 bg-slate-900/50 text-[10px] text-slate-400 border-b border-slate-700/50 shrink-0">
                 <div className="flex items-center gap-2">
-                    {/* View Mode Tabs */}
-                    <div className="flex bg-slate-800 rounded p-0.5 border border-slate-700 mr-2">
-                        <button
-                            onClick={() => setTimelineViewMode('filtered')}
-                            className={clsx(
-                                "px-2 py-0.5 rounded transition-all",
-                                timelineViewMode === 'filtered' ? "bg-slate-700 text-slate-100 shadow-sm font-semibold" : "hover:text-slate-200"
-                            )}
-                        >
-                            Filtered
-                        </button>
-                        <button
-                            onClick={() => setTimelineViewMode('full')}
-                            className={clsx(
-                                "px-2 py-0.5 rounded transition-all",
-                                timelineViewMode === 'full' ? "bg-slate-700 text-slate-100 shadow-sm font-semibold" : "hover:text-slate-200"
-                            )}
-                        >
-                            Full Scope
-                        </button>
-                    </div>
-
-                    <div className="h-4 w-[1px] bg-slate-700 mx-1" />
-
-                    <label className="flex items-center cursor-pointer hover:text-slate-200 select-none ml-2 gap-1.5">
-                        <input
-                            type="checkbox"
-                            className="mr-1 rounded border-slate-600 bg-slate-700 text-blue-500 focus:ring-0 focus:ring-offset-0 w-3 h-3"
-                            checked={isTimelineCompact}
-                            onChange={() => setIsTimelineCompact(!isTimelineCompact)}
-                        />
-                        Compact
-                    </label>
-
-                    <div className="h-4 w-[1px] bg-slate-700 mx-2" />
-
                     {/* Time Range - Instrument Look */}
                     <div className="flex items-center gap-1 font-mono bg-slate-950/40 px-2 py-0.5 rounded border border-slate-700/50 text-[#94a3b8] text-[9px] min-w-[140px] justify-center">
                         <span className="text-emerald-400/90">{format(new Date(startTime), 'HH:mm:ss')}</span>
@@ -393,14 +229,6 @@ const TimelineScrubber: React.FC<TimelineScrubberProps> = ({ height = 80 }) => {
                         <span className="text-emerald-400/90">{format(new Date(endTime), 'HH:mm:ss')}</span>
                     </div>
 
-                    {timelineZoomRange && !isTimelineCompact && (
-                        <button
-                            onClick={() => setTimelineZoomRange(null)}
-                            className="ml-2 px-1.5 py-0.5 rounded bg-slate-700 hover:bg-slate-600 text-white text-[9px] uppercase font-bold transition-colors"
-                        >
-                            Reset Zoom
-                        </button>
-                    )}
                 </div>
 
                 <div className="flex items-center gap-3 ml-4 border-l border-slate-700 pl-4 overflow-x-auto no-scrollbar">
@@ -448,7 +276,7 @@ const TimelineScrubber: React.FC<TimelineScrubberProps> = ({ height = 80 }) => {
                 <div
                     className="relative h-full"
                     style={{
-                        width: `${zoomLevel * 100}%`,
+                        width: '100%',
                         minHeight: `${40 + (maxLanes * 22)}px`
                     }}
                 >
@@ -476,16 +304,6 @@ const TimelineScrubber: React.FC<TimelineScrubberProps> = ({ height = 80 }) => {
                     </div>
 
                     {/* 2. Gaps */}
-                    {!isTimelineCompact && gaps.map((gap, idx) => (
-                        <div
-                            key={`gap-${idx}`}
-                            className="absolute h-full flex flex-col items-center justify-center opacity-30 pointer-events-none border-x border-dashed border-slate-600/50 bg-slate-500/5"
-                            style={{
-                                left: `${getPosition(gap.start)}%`,
-                                width: `${getWidth(gap.start, gap.end)}%`
-                            }}
-                        />
-                    ))}
 
                     {/* 3. Call Sessions (Multi-track) */}
                     <div className="absolute top-4 left-0 right-0 bottom-0 z-10">

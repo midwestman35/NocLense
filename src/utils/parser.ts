@@ -935,12 +935,64 @@ export const parseLogFile = async (file: File, fileColor: string = '#3b82f6', st
     return parsedLogs;
 };
 
+/** Payload size cap (500KB) – larger payloads are truncated in memory; full payload could be lazy-loaded later. */
+const PAYLOAD_CAP_BYTES = 500 * 1024;
+
+/**
+ * Build a short summary for CNC/FDX JSON log entries so the table row is useful without opening the payload.
+ */
+function buildJsonSummary(log: LogEntry, j: Record<string, unknown>): string | null {
+    const messageType = j.messageType != null ? String(j.messageType) : null;
+    const isHttpLogger = log.component?.includes('HTTP-Logger') ?? false;
+    if (isHttpLogger) return null; // HTTP-Logger messages (e.g. "✅ Response: POST ...") stay as displayMessage
+
+    const parts: string[] = [];
+
+    // CNC-specific: e.g. CNC_OPERATORS_STATUSES_UPDATE_MESSAGE (N operators)
+    if (messageType && (messageType.includes('OPERATORS_STATUSES') || messageType.includes('OPERATOR'))) {
+        const operatorsStatuses = j.operatorsStatuses;
+        const n = Array.isArray(operatorsStatuses) ? operatorsStatuses.length : 0;
+        parts.push(n > 0 ? `${messageType} (${n} operators)` : messageType);
+    }
+    // FDX: reportNLPConversation -> reportID and optionally first transcript line
+    else if (j.reportNLPConversation && typeof j.reportNLPConversation === 'object') {
+        const rnc = j.reportNLPConversation as Record<string, unknown>;
+        const reportID = rnc.reportID != null ? String(rnc.reportID) : null;
+        const transcript = rnc.transcript;
+        let firstLine: string | null = null;
+        if (Array.isArray(transcript) && transcript.length > 0 && typeof transcript[0] === 'string') {
+            firstLine = transcript[0].slice(0, 60);
+            if ((transcript[0] as string).length > 60) firstLine += '…';
+        }
+        if (reportID) parts.push(`report ${reportID}`);
+        if (firstLine) parts.push(firstLine);
+    }
+    // FDX: fdxReportUpdateMessageData -> reportUpdateTypes or report state
+    else if (j.fdxReportUpdateMessageData && typeof j.fdxReportUpdateMessageData === 'object') {
+        const data = j.fdxReportUpdateMessageData as Record<string, unknown>;
+        const reportUpdateTypes = data.reportUpdateTypes;
+        const reportId = data.reportID != null ? String(data.reportID) : null;
+        if (reportId) parts.push(`report ${reportId}`);
+        if (Array.isArray(reportUpdateTypes) && reportUpdateTypes.length > 0) {
+            parts.push(reportUpdateTypes.map((t: unknown) => String(t)).join(', '));
+        } else if (reportUpdateTypes != null) {
+            parts.push(String(reportUpdateTypes));
+        }
+    }
+    // Generic: messageType only
+    else if (messageType) {
+        parts.push(messageType);
+    }
+
+    if (parts.length === 0) return null;
+    return parts.join(' · ');
+}
+
 function processLogPayload(log: LogEntry) {
     // Phase 2 Optimization: Pre-compute lowercase payload once
     const trimmedPayload = log.payload.trim();
-    log._payloadLower = trimmedPayload.toLowerCase();
 
-    // 1. Check for JSON
+    // 1. Check for JSON (parse from full payload first so summary is accurate; truncate for storage afterward if needed)
     if (trimmedPayload.startsWith('{') && trimmedPayload.endsWith('}')) {
         try {
             log.json = JSON.parse(trimmedPayload);
@@ -951,17 +1003,32 @@ function processLogPayload(log: LogEntry) {
             if (log.json.recipientsClientIDs && Array.isArray(log.json.recipientsClientIDs) && log.json.recipientsClientIDs.length > 0) {
                 log.operatorId = log.json.recipientsClientIDs[0];
             }
-            if (log.json.operatorID) log.operatorId = log.json.operatorID; // Some logs might have it here
+            if (log.json.operatorID) log.operatorId = log.json.operatorID;
             if (log.json.extensionID) {
                 log.extensionId = String(log.json.extensionID);
-                // Derive Station ID (e.g. 1017 -> 17)
                 if (log.extensionId.length > 2) log.stationId = log.extensionId.substring(2);
             }
+            // New UI: correlation fields (cncID, messageID for session/message correlation)
+            if (log.json.messageType != null) log.messageType = String(log.json.messageType);
+            if (log.json.cncID != null) log.cncID = String(log.json.cncID);
+            if (log.json.messageID != null) log.messageID = String(log.json.messageID);
 
+            // Summary for table row (CNC/FDX message summary per APEX_NEW_UI_LOG_ANALYSIS)
+            const summary = buildJsonSummary(log, log.json as Record<string, unknown>);
+            if (summary) {
+                log.summaryMessage = summary;
+                log.displayMessage = summary;
+            }
         } catch (e) {
             // Not valid JSON, ignore
         }
     }
+
+    // Optional: cap very large payloads in memory (full payload already parsed for summary above)
+    if (trimmedPayload.length > PAYLOAD_CAP_BYTES) {
+        log.payload = trimmedPayload.slice(0, PAYLOAD_CAP_BYTES) + '\n... [payload truncated for display]';
+    }
+    log._payloadLower = log.payload.toLowerCase();
 
     // 2. Extract IDs from Message/Payload via Regex (Fallback or Primary if not JSON)
 

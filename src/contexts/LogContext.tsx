@@ -56,10 +56,8 @@ interface LogContextType extends LogState {
     setVisibleRange: (range: { start: number; end: number }) => void;
     scrollTargetTimestamp: number | null;
     setScrollTargetTimestamp: (timestamp: number | null) => void;
-    timelineViewMode: 'full' | 'filtered';
-    setTimelineViewMode: (mode: 'full' | 'filtered') => void;
-    isTimelineCompact: boolean;
-    setIsTimelineCompact: (isCompact: boolean) => void;
+    /** True when any filter is applied; timeline uses full scope when false, filtered when true */
+    hasActiveFilters: boolean;
 
     // Correlation
     activeCorrelations: CorrelationItem[];
@@ -204,14 +202,7 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
     const [isCollapseSimilarEnabled, setIsCollapseSimilarEnabled] = useState(false);
     const [visibleRange, setVisibleRange] = useState<{ start: number; end: number }>({ start: 0, end: 1 });
     const [scrollTargetTimestamp, setScrollTargetTimestamp] = useState<number | null>(null);
-    const [timelineViewMode, setTimelineViewMode] = useState<'full' | 'filtered'>('filtered');
-
-    const [isTimelineCompact, setIsTimelineCompact] = useState(false);
     const [timelineZoomRange, setTimelineZoomRange] = useState<{ start: number; end: number } | null>(null);
-    // Reset zoom when switching between Full/Filtered modes to prevent "blank" timeline issues
-    useEffect(() => {
-        setTimelineZoomRange(null);
-    }, [timelineViewMode]);
     const [timelineEventFilters, setTimelineEventFilters] = useState({ requests: true, success: true, provisional: true, error: true, options: true, keepAlive: true });
     const [hoveredCallId, setHoveredCallId] = useState<string | null>(null);
     const [jumpState, setJumpState] = useState<{ active: boolean; previousFilters: any | null }>({ active: false, previousFilters: null });
@@ -801,6 +792,19 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         return groups.map(g => ({ firstLog: g.logs[0], count: g.logs.length }));
     }, [isCollapseSimilarEnabled, filteredLogs]);
 
+    /** True when any filter is applied; timeline shows full scope when false, filtered when true */
+    const hasActiveFilters = useMemo(() => {
+        if (filterText.trim() !== '') return true;
+        if (selectedLevels.size > 0) return true;
+        if (selectedComponentFilter != null) return true;
+        if (excludedMessageTypes.size > 0) return true;
+        if (selectedMessageTypeFilter != null) return true;
+        if (isSipFilterEnabled) return true;
+        if (activeCorrelations.length > 0) return true;
+        if (isShowFavoritesOnly) return true;
+        return false;
+    }, [filterText, selectedLevels, selectedComponentFilter, excludedMessageTypes, selectedMessageTypeFilter, isSipFilterEnabled, activeCorrelations, isShowFavoritesOnly]);
+
     // Phase 2 Optimization: Wrap event handlers in useCallback
     const addToSearchHistory = useCallback((term: string) => {
         saveToHistory(term);
@@ -960,10 +964,7 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         setVisibleRange,
         scrollTargetTimestamp,
         setScrollTargetTimestamp,
-        timelineViewMode,
-        setTimelineViewMode,
-        isTimelineCompact,
-        setIsTimelineCompact,
+        hasActiveFilters,
         timelineZoomRange,
         setTimelineZoomRange,
         timelineEventFilters,
@@ -1021,8 +1022,7 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         collapsedViewList,
         visibleRange,
         scrollTargetTimestamp,
-        timelineViewMode,
-        isTimelineCompact,
+        hasActiveFilters,
         timelineZoomRange,
         timelineEventFilters,
         hoveredCallId,

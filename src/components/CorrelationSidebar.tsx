@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useLogContext, type CorrelationItem } from '../contexts/LogContext';
-import { Hash, User, Phone, Monitor, ChevronRight, ChevronDown, Filter, X, ArrowUpAZ, ArrowDown, FileText, Ban } from 'lucide-react';
+import { Hash, User, Phone, Monitor, ChevronRight, ChevronDown, Filter, X, ArrowUpAZ, ArrowDown, FileText, Ban, Activity, MessageSquare } from 'lucide-react';
 import clsx from 'clsx';
 
 type SortMode = 'alpha' | 'count';
@@ -193,6 +193,8 @@ const CorrelationSidebar = () => {
         station: true,
         callId: true,
         extension: true,
+        cncID: true,
+        messageID: true,
     });
 
     const [sortMode, setSortMode] = useState<SortMode>('count');
@@ -335,7 +337,34 @@ const CorrelationSidebar = () => {
                         activeCorrelations={activeCorrelations} correlationCounts={correlationCounts}
                         toggleCorrelation={toggleCorrelation} setOnlyCorrelation={setOnlyCorrelation}
                         showAllCallIds={showAllCallIds} setShowAllCallIds={setShowAllCallIds}
+                        sortMode={sortMode}
+                        hoveredCallId={hoveredCallId}
+                        hoveredCorrelation={hoveredCorrelation}
+                        setHoveredCorrelation={setHoveredCorrelation}
+                    />
+                )}
 
+                <SectionHeader title="Session (cncID)" icon={Activity} expanded={expandedSections.cncID} onToggle={() => toggleSection('cncID')} />
+                {expandedSections.cncID && (
+                    <CorrelationItemList
+                        items={Array.from(correlationData.cncIds || [])} type="cncID"
+                        activeCorrelations={activeCorrelations} correlationCounts={correlationCounts}
+                        toggleCorrelation={toggleCorrelation} setOnlyCorrelation={setOnlyCorrelation}
+                        showAllCallIds={true} setShowAllCallIds={setShowAllCallIds}
+                        sortMode={sortMode}
+                        hoveredCallId={hoveredCallId}
+                        hoveredCorrelation={hoveredCorrelation}
+                        setHoveredCorrelation={setHoveredCorrelation}
+                    />
+                )}
+
+                <SectionHeader title="Message (messageID)" icon={MessageSquare} expanded={expandedSections.messageID} onToggle={() => toggleSection('messageID')} />
+                {expandedSections.messageID && (
+                    <CorrelationItemList
+                        items={Array.from(correlationData.messageIds || [])} type="messageID"
+                        activeCorrelations={activeCorrelations} correlationCounts={correlationCounts}
+                        toggleCorrelation={toggleCorrelation} setOnlyCorrelation={setOnlyCorrelation}
+                        showAllCallIds={true} setShowAllCallIds={setShowAllCallIds}
                         sortMode={sortMode}
                         hoveredCallId={hoveredCallId}
                         hoveredCorrelation={hoveredCorrelation}
