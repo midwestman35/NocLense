@@ -12,6 +12,72 @@ import { dbManager } from './indexedDB';
  */
 
 /**
+ * Normalize log level strings to standard LogLevel values
+ * Handles case-insensitivity and alternative level names (CRITICAL, FATAL, SEVERE, ERR, etc.)
+ */
+function normalizeLogLevel(level: string): LogLevel {
+    const upper = level.toUpperCase().trim();
+    
+    // Map alternative ERROR names
+    if (['ERROR', 'ERR', 'CRITICAL', 'FATAL', 'SEVERE', 'FAILURE', 'FAIL'].includes(upper)) {
+        return 'ERROR';
+    }
+    // Map alternative WARN names
+    if (['WARN', 'WARNING', 'CAUTION'].includes(upper)) {
+        return 'WARN';
+    }
+    // Map alternative DEBUG names
+    if (['DEBUG', 'TRACE', 'VERBOSE', 'FINE', 'FINER', 'FINEST'].includes(upper)) {
+        return 'DEBUG';
+    }
+    // Default to INFO for INFO and any unrecognized levels
+    if (['INFO', 'INFORMATION', 'NOTICE', 'LOG'].includes(upper)) {
+        return 'INFO';
+    }
+    
+    // Fallback: try to infer from partial matches
+    if (upper.includes('ERR') || upper.includes('FATAL') || upper.includes('CRIT')) {
+        return 'ERROR';
+    }
+    if (upper.includes('WARN')) {
+        return 'WARN';
+    }
+    if (upper.includes('DEBUG') || upper.includes('TRACE')) {
+        return 'DEBUG';
+    }
+    
+    return 'INFO'; // Default fallback
+}
+
+/**
+ * Detect log level from SIP response code
+ * 4xx = Client errors (WARN), 5xx = Server errors (ERROR), 6xx = Global failures (ERROR)
+ */
+function getSipResponseLevel(sipMethod: string | null | undefined): LogLevel | null {
+    if (!sipMethod) return null;
+    
+    const codeMatch = sipMethod.match(/^(\d{3})/);
+    if (!codeMatch) return null;
+    
+    const code = parseInt(codeMatch[1], 10);
+    
+    // 1xx Provisional - INFO
+    // 2xx Success - INFO
+    // 3xx Redirection - INFO
+    // 4xx Client Error - WARN (client-side issues, not server errors)
+    // 5xx Server Error - ERROR
+    // 6xx Global Failure - ERROR
+    if (code >= 400 && code < 500) {
+        return 'WARN';
+    }
+    if (code >= 500) {
+        return 'ERROR';
+    }
+    
+    return null; // Keep original level for 1xx, 2xx, 3xx
+}
+
+/**
  * Parse Datadog CSV export format
  * CSV Format: Date,Host,Service,Content
  * Content field contains JSON with nested log data
@@ -43,7 +109,7 @@ const parseDatadogCSV = (text: string, fileColor: string, startId: number): LogE
 
             // Extract log data from the nested structure
             const timestamp = new Date(isoDate).getTime();
-            const level: LogLevel = (log.logLevel || 'INFO').toUpperCase() as LogLevel;
+            const level: LogLevel = normalizeLogLevel(log.logLevel || 'INFO');
             const component = log.logSource || service || 'Unknown';
             const message = log.message || '';
             const rawTimestamp = log.timestamp || isoDate;
@@ -159,7 +225,7 @@ const parseHomerText = (text: string, fileColor: string, startId: number, fileNa
                     id: idCounter++,
                     timestamp: currentTimestamp,
                     rawTimestamp: currentTimestampStr,
-                    level: 'INFO' as LogLevel,
+                    level: 'INFO' as LogLevel, // Will be updated based on SIP response code
                     component: 'Homer SIP',
                     displayComponent: 'Homer SIP',
                     message,
@@ -176,6 +242,12 @@ const parseHomerText = (text: string, fileColor: string, startId: number, fileNa
 
                 // Process SIP payload to extract Call-ID, methods, etc.
                 processLogPayload(entry);
+                
+                // Update level based on SIP response code (4xx=WARN, 5xx/6xx=ERROR)
+                const sipLevel = getSipResponseLevel(entry.sipMethod);
+                if (sipLevel) {
+                    entry.level = sipLevel;
+                }
 
                 parsedLogs.push(entry);
             }
@@ -224,7 +296,7 @@ const parseHomerText = (text: string, fileColor: string, startId: number, fileNa
             id: idCounter++,
             timestamp: currentTimestamp,
             rawTimestamp: currentTimestampStr,
-            level: 'INFO' as LogLevel,
+            level: 'INFO' as LogLevel, // Will be updated based on SIP response code
             component: 'Homer SIP',
             displayComponent: 'Homer SIP',
             message,
@@ -240,6 +312,13 @@ const parseHomerText = (text: string, fileColor: string, startId: number, fileNa
         };
 
         processLogPayload(entry);
+        
+        // Update level based on SIP response code (4xx=WARN, 5xx/6xx=ERROR)
+        const sipLevel = getSipResponseLevel(entry.sipMethod);
+        if (sipLevel) {
+            entry.level = sipLevel;
+        }
+        
         parsedLogs.push(entry);
     }
 
@@ -265,9 +344,10 @@ const parseLogFileStreaming = async (
     let chunkCount = 0;
     const YIELD_INTERVAL = 5; // Yield every 5 chunks
     
-    // Regex patterns (same as main parser)
-    const logRegex1 = /^\[(INFO|DEBUG|ERROR|WARN)\]\s\[(\d{1,2}\/\d{1,2}\/\d{4}),\s(.*?)\]\s\[(.*?)\]:\s(.*)/;
-    const logRegex2 = /^\[(INFO|DEBUG|ERROR|WARN)\]\s\[(\d{4}-\d{2}-\d{2})\s(\d{2}:\d{2}:\d{2},\d+)\]\s\[(.*?)\]\s(.*)/;
+    // Regex patterns - case insensitive, supports alternative level names
+    // Matches: INFO, DEBUG, ERROR, WARN, CRITICAL, FATAL, SEVERE, ERR, WARNING, TRACE, etc.
+    const logRegex1 = /^\[(INFO|DEBUG|ERROR|WARN|CRITICAL|FATAL|SEVERE|ERR|WARNING|TRACE|VERBOSE|NOTICE|FAILURE|FAIL)\]\s\[(\d{1,2}\/\d{1,2}\/\d{4}),\s(.*?)\]\s\[(.*?)\]:\s(.*)/i;
+    const logRegex2 = /^\[(INFO|DEBUG|ERROR|WARN|CRITICAL|FATAL|SEVERE|ERR|WARNING|TRACE|VERBOSE|NOTICE|FAILURE|FAIL)\]\s\[(\d{4}-\d{2}-\d{2})\s(\d{2}:\d{2}:\d{2},\d+)\]\s\[(.*?)\]\s(.*)/i;
     
     let currentLog: LogEntry | null = null;
     let lineCount = 0;
@@ -317,7 +397,8 @@ const parseLogFileStreaming = async (
                     parsedLogs.push(currentLog);
                 }
 
-                const [_, level, date, time, component, message] = match;
+                const [_, levelRaw, date, time, component, message] = match;
+                const level = normalizeLogLevel(levelRaw); // Normalize level (case-insensitive, aliases)
                 let timestampStr: string;
                 let timestamp: number;
 
@@ -390,7 +471,7 @@ const parseLogFileStreaming = async (
                     id: idCounter++,
                     timestamp: isNaN(timestamp) ? Date.now() : timestamp,
                     rawTimestamp: timestampStr,
-                    level: level as LogLevel,
+                    level: level,
                     component,
                     displayComponent: cleaned.displayComponent,
                     message: trimmedMessage,
@@ -491,9 +572,9 @@ const parseLogFileStreamingToIndexedDB = async (
     let chunkCount = 0;
     const YIELD_INTERVAL = 5;
     
-    // Regex patterns
-    const logRegex1 = /^\[(INFO|DEBUG|ERROR|WARN)\]\s\[(\d{1,2}\/\d{1,2}\/\d{4}),\s(.*?)\]\s\[(.*?)\]:\s(.*)/;
-    const logRegex2 = /^\[(INFO|DEBUG|ERROR|WARN)\]\s\[(\d{4}-\d{2}-\d{2})\s(\d{2}:\d{2}:\d{2},\d+)\]\s\[(.*?)\]\s(.*)/;
+    // Regex patterns - case insensitive, supports alternative level names
+    const logRegex1 = /^\[(INFO|DEBUG|ERROR|WARN|CRITICAL|FATAL|SEVERE|ERR|WARNING|TRACE|VERBOSE|NOTICE|FAILURE|FAIL)\]\s\[(\d{1,2}\/\d{1,2}\/\d{4}),\s(.*?)\]\s\[(.*?)\]:\s(.*)/i;
+    const logRegex2 = /^\[(INFO|DEBUG|ERROR|WARN|CRITICAL|FATAL|SEVERE|ERR|WARNING|TRACE|VERBOSE|NOTICE|FAILURE|FAIL)\]\s\[(\d{4}-\d{2}-\d{2})\s(\d{2}:\d{2}:\d{2},\d+)\]\s\[(.*?)\]\s(.*)/i;
     
     let currentLog: LogEntry | null = null;
     let batch: LogEntry[] = [];
@@ -560,7 +641,8 @@ const parseLogFileStreamingToIndexedDB = async (
                     }
                 }
 
-                const [_, level, date, time, component, message] = match;
+                const [_, levelRaw, date, time, component, message] = match;
+                const level = normalizeLogLevel(levelRaw); // Normalize level (case-insensitive, aliases)
                 let timestampStr: string;
                 let timestamp: number;
 
@@ -633,7 +715,7 @@ const parseLogFileStreamingToIndexedDB = async (
                     id: idCounter++,
                     timestamp: isNaN(timestamp) ? Date.now() : timestamp,
                     rawTimestamp: timestampStr,
-                    level: level as LogLevel,
+                    level: level,
                     component,
                     displayComponent: cleaned.displayComponent,
                     message: trimmedMessage,
@@ -759,10 +841,11 @@ export const parseLogFile = async (file: File, fileColor: string = '#3b82f6', st
     if (onProgress) onProgress(0.2);
 
     // Original format: [INFO] [12/17/2024, 09:18:05] [component]: message
-    const logRegex1 = /^\[(INFO|DEBUG|ERROR|WARN)\]\s\[(\d{1,2}\/\d{1,2}\/\d{4}),\s(.*?)\]\s\[(.*?)\]:\s(.*)/;
+    // Case insensitive, supports alternative level names (CRITICAL, FATAL, SEVERE, ERR, etc.)
+    const logRegex1 = /^\[(INFO|DEBUG|ERROR|WARN|CRITICAL|FATAL|SEVERE|ERR|WARNING|TRACE|VERBOSE|NOTICE|FAILURE|FAIL)\]\s\[(\d{1,2}\/\d{1,2}\/\d{4}),\s(.*?)\]\s\[(.*?)\]:\s(.*)/i;
 
     // ISO format: [INFO] [2025-12-17 09:18:05,686] [component] message
-    const logRegex2 = /^\[(INFO|DEBUG|ERROR|WARN)\]\s\[(\d{4}-\d{2}-\d{2})\s(\d{2}:\d{2}:\d{2},\d+)\]\s\[(.*?)\]\s(.*)/;
+    const logRegex2 = /^\[(INFO|DEBUG|ERROR|WARN|CRITICAL|FATAL|SEVERE|ERR|WARNING|TRACE|VERBOSE|NOTICE|FAILURE|FAIL)\]\s\[(\d{4}-\d{2}-\d{2})\s(\d{2}:\d{2}:\d{2},\d+)\]\s\[(.*?)\]\s(.*)/i;
 
     let currentLog: LogEntry | null = null;
     let idCounter = startId;
@@ -799,7 +882,8 @@ export const parseLogFile = async (file: File, fileColor: string = '#3b82f6', st
                 parsedLogs.push(currentLog);
             }
 
-            const [_, level, date, time, component, message] = match;
+            const [_, levelRaw, date, time, component, message] = match;
+            const level = normalizeLogLevel(levelRaw); // Normalize level (case-insensitive, aliases)
 
             let timestampStr: string;
             let timestamp: number;
@@ -888,7 +972,7 @@ export const parseLogFile = async (file: File, fileColor: string = '#3b82f6', st
                 id: idCounter++,
                 timestamp: isNaN(timestamp) ? Date.now() : timestamp,
                 rawTimestamp: timestampStr,
-                level: level as LogLevel,
+                level: level, // Already normalized via normalizeLogLevel()
                 component,
                 displayComponent: cleaned.displayComponent,
                 message: trimmedMessage,
@@ -1019,6 +1103,30 @@ function processLogPayload(log: LogEntry) {
                 log.summaryMessage = summary;
                 log.displayMessage = summary;
             }
+            
+            // JSON-based level extraction: check if JSON has level/severity/logLevel fields
+            // Only upgrade level if current level is INFO (don't downgrade ERROR to WARN, etc.)
+            if (log.level === 'INFO') {
+                const jsonLevel = log.json.level || log.json.severity || log.json.logLevel || 
+                                  log.json.Level || log.json.Severity || log.json.LogLevel ||
+                                  log.json.log_level || log.json.loglevel;
+                if (jsonLevel) {
+                    const normalizedJsonLevel = normalizeLogLevel(String(jsonLevel));
+                    // Only upgrade, never downgrade
+                    if (normalizedJsonLevel === 'ERROR' || normalizedJsonLevel === 'WARN') {
+                        log.level = normalizedJsonLevel;
+                    }
+                }
+                
+                // Also check for error indicators in JSON
+                const hasError = log.json.error || log.json.Error || log.json.ERROR ||
+                                 log.json.exception || log.json.Exception ||
+                                 log.json.stackTrace || log.json.stack_trace ||
+                                 log.json.errorMessage || log.json.error_message;
+                if (hasError && log.level === 'INFO') {
+                    log.level = 'ERROR';
+                }
+            }
         } catch (e) {
             // Not valid JSON, ignore
         }
@@ -1092,6 +1200,15 @@ function processLogPayload(log: LogEntry) {
         const agentIdMatch = log.payload.match(/agentid=([a-f0-9\-]+)/i);
         if (agentIdMatch && !log.operatorId) {
             log.operatorId = agentIdMatch[1];
+        }
+        
+        // SIP level detection: 4xx=WARN, 5xx/6xx=ERROR
+        // Only upgrade level if current level is INFO (don't downgrade ERROR entries)
+        if (log.level === 'INFO') {
+            const sipLevel = getSipResponseLevel(log.sipMethod);
+            if (sipLevel) {
+                log.level = sipLevel;
+            }
         }
     }
     

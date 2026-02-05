@@ -5,6 +5,27 @@ All notable changes to the NocLense (LogScrub) project will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2026-02-05
+
+### Added - UI Improvements & Enhanced Error Detection
+- ✅ **SIP Column** - New dedicated "SIP" column in log viewer showing SIP methods/response codes (OPTIONS, INVITE, 200 OK, etc.) with color-coded badges
+- ✅ **Individual File Removal** - Added "X" button to remove individual log files from the sidebar without clearing all data
+- ✅ **Message Truncation** - Log messages now truncate at 150 characters in the main view for cleaner display; full message visible on click
+- ✅ **Case-Insensitive Level Matching** - Parser now handles `[error]`, `[Error]`, `[ERROR]` identically
+- ✅ **Level Aliases** - Recognizes alternative level names: CRITICAL, FATAL, SEVERE, ERR → ERROR; WARNING → WARN; TRACE, VERBOSE → DEBUG
+- ✅ **JSON Level Extraction** - Detects error levels from JSON payload fields (level, severity, logLevel, error, exception, stackTrace)
+- ✅ **SIP Error Detection** - SIP 4xx responses marked as WARN, 5xx/6xx responses marked as ERROR (including Homer SIP exports)
+
+### Changed
+- **Log Grid Layout** - Updated from 5-column to 6-column layout: Expand | Timestamp | Level | Service | SIP | Message
+- **Reduced Visual Noise** - Removed generic "LOG" badge; compacted Call-ID display to color dot + 8 chars; cncID/messageID shown as subtle colored dots
+- **Cleaner Message Column** - Fewer inline badges, tighter spacing, category badges only shown for non-LOG types (JSON, specific messageTypes)
+- **Report ID Display** - Compact format "#9092610" instead of "report 9092610"
+
+### Fixed
+- **Homer SIP Levels** - Homer SIP exports now correctly detect ERROR/WARN levels from SIP response codes instead of all being INFO
+- **Missing ERRORs** - Logs using alternative level names (CRITICAL, FATAL, etc.) or lowercase levels are now properly captured by ERROR filter
+
 ## [1.5.2] - 2026-01-29
 
 ### Fixed

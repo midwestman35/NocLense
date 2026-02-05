@@ -112,12 +112,26 @@ const LogRow: React.FC<LogRowProps> = ({ log, style, onClick, active, measureRef
                     {log.displayComponent}
                 </div>
 
-                {/* 5. Message (1fr) — Category badge (§6.2), summary preferred (§6.1), Call-ID pill, text, SIP method */}
+                {/* 5. SIP Code (90px) */}
+                <div className="flex items-center justify-center">
+                    {log.sipMethod ? (
+                        <span className={clsx(
+                            "px-1.5 py-0.5 rounded text-[10px] font-bold border transition-colors whitespace-nowrap",
+                            getSipColorClasses(log.sipMethod)
+                        )}>
+                            {log.sipMethod}
+                        </span>
+                    ) : (
+                        <span className="text-slate-600 text-[10px]">—</span>
+                    )}
+                </div>
+
+                {/* 6. Message (1fr) — Optimized: fewer inline badges, cleaner layout */}
                 <div className={clsx(
-                    "text-slate-200 min-w-0 flex items-center gap-2",
+                    "text-slate-200 min-w-0 flex items-center gap-1.5",
                     isTextWrap ? "whitespace-pre-wrap break-all" : "truncate overflow-hidden whitespace-nowrap"
                 )} title={!isTextWrap ? (log.summaryMessage ?? log.message) : undefined}>
-                    {/* Star icon - positioned directly to the left of message */}
+                    {/* Star icon */}
                     <button
                         onClick={handleToggleFavorite}
                         className="p-0.5 hover:bg-white/10 rounded text-slate-500 hover:text-yellow-400 transition-colors shrink-0"
@@ -131,72 +145,85 @@ const LogRow: React.FC<LogRowProps> = ({ log, style, onClick, active, measureRef
                             )}
                         />
                     </button>
-                    {/* Category / MessageType badge (§6.2) */}
+                    
+                    {/* Category / MessageType badge - only show for non-LOG types */}
                     {(() => {
                         const badge = getCategoryBadge(log);
-                        if (!badge) return null;
+                        // Skip showing generic LOG badge to reduce noise
+                        if (!badge || badge.label === 'LOG') return null;
                         return (
                             <span
-                                className={clsx(badge.className, 'whitespace-nowrap max-w-[200px] truncate')}
+                                className={clsx(badge.className, 'whitespace-nowrap max-w-[180px] truncate')}
                                 title={badge.title}
                             >
                                 {badge.label}
                             </span>
                         );
                     })()}
+                    
+                    {/* Call-ID: show color dot only, full ID in tooltip */}
                     {log.callId && (
                         <div
-                            className="flex items-center gap-1.5 px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700 mx-1 max-w-[120px] cursor-pointer hover:border-slate-500"
+                            className="flex items-center gap-1 px-1 py-0.5 bg-slate-800/50 rounded cursor-pointer hover:bg-slate-700/50 shrink-0"
                             onClick={(e) => { e.stopPropagation(); toggleCorrelation({ type: 'callId', value: log.callId! }); setIsSidebarOpen(true); }}
                             title={`Call-ID: ${log.callId} – click to filter`}
                         >
                             <div
-                                className="w-1.5 h-1.5 rounded-full shrink-0"
+                                className="w-2 h-2 rounded-full shrink-0"
                                 style={{ backgroundColor: stc(log.callId) }}
-                            ></div>
-                            <span className="text-[10px] text-slate-400 truncate font-mono">{log.callId}</span>
+                            />
+                            <span className="text-[9px] text-slate-500 font-mono">{log.callId.slice(0, 8)}…</span>
                         </div>
                     )}
+                    
+                    {/* Report ID - compact */}
                     {log.reportId && (
                         <div
-                            className="flex items-center gap-1 px-1.5 py-0.5 bg-blue-500/10 rounded border border-blue-500/30 max-w-[100px] cursor-pointer hover:border-blue-500/50"
+                            className="px-1 py-0.5 bg-blue-500/10 rounded cursor-pointer hover:bg-blue-500/20 shrink-0"
                             onClick={(e) => { e.stopPropagation(); toggleCorrelation({ type: 'report', value: log.reportId! }); setIsSidebarOpen(true); }}
-                            title={`report ${log.reportId} – click to filter`}
+                            title={`Report ${log.reportId} – click to filter`}
                         >
-                            <span className="text-[10px] text-blue-400 truncate font-mono">report {log.reportId}</span>
+                            <span className="text-[9px] text-blue-400 font-mono">#{log.reportId}</span>
                         </div>
                     )}
-                    {log.cncID && (
-                        <div
-                            className="flex items-center gap-1 px-1.5 py-0.5 bg-cyan-500/10 rounded border border-cyan-500/30 max-w-[100px] cursor-pointer hover:border-cyan-500/50"
-                            onClick={(e) => { e.stopPropagation(); toggleCorrelation({ type: 'cncID', value: log.cncID! }); setIsSidebarOpen(true); }}
-                            title={`cncID: ${log.cncID} – click to filter`}
+                    
+                    {/* cncID & messageID - show subtle indicator, details on hover */}
+                    {(log.cncID || log.messageID) && (
+                        <div 
+                            className="flex items-center gap-0.5 shrink-0"
+                            title={[
+                                log.cncID ? `cncID: ${log.cncID}` : null,
+                                log.messageID ? `messageID: ${log.messageID}` : null
+                            ].filter(Boolean).join('\n')}
                         >
-                            <span className="text-[10px] text-cyan-400 truncate font-mono">cnc: {log.cncID.length > 10 ? log.cncID.slice(0, 10) + '…' : log.cncID}</span>
+                            {log.cncID && (
+                                <div
+                                    className="w-1.5 h-1.5 rounded-full bg-cyan-400/60 cursor-pointer hover:bg-cyan-400"
+                                    onClick={(e) => { e.stopPropagation(); toggleCorrelation({ type: 'cncID', value: log.cncID! }); setIsSidebarOpen(true); }}
+                                />
+                            )}
+                            {log.messageID && (
+                                <div
+                                    className="w-1.5 h-1.5 rounded-full bg-emerald-400/60 cursor-pointer hover:bg-emerald-400"
+                                    onClick={(e) => { e.stopPropagation(); toggleCorrelation({ type: 'messageID', value: log.messageID! }); setIsSidebarOpen(true); }}
+                                />
+                            )}
                         </div>
                     )}
-                    {log.messageID && (
-                        <div
-                            className="flex items-center gap-1 px-1.5 py-0.5 bg-emerald-500/10 rounded border border-emerald-500/30 max-w-[100px] cursor-pointer hover:border-emerald-500/50"
-                            onClick={(e) => { e.stopPropagation(); toggleCorrelation({ type: 'messageID', value: log.messageID! }); setIsSidebarOpen(true); }}
-                            title={`messageID: ${log.messageID} – click to filter`}
-                        >
-                            <span className="text-[10px] text-emerald-400 truncate font-mono">msg: {log.messageID.length > 10 ? log.messageID.slice(0, 10) + '…' : log.messageID}</span>
-                        </div>
-                    )}
-                    <span className="min-w-0">
-                        {highlightText(log.summaryMessage ?? log.displayMessage, filterText || '')}
+                    
+                    {/* Message text */}
+                    <span className="min-w-0 truncate">
+                        {(() => {
+                            const fullMessage = log.summaryMessage ?? log.displayMessage;
+                            const maxLength = 150;
+                            const truncatedMessage = fullMessage.length > maxLength 
+                                ? fullMessage.slice(0, maxLength) + '…' 
+                                : fullMessage;
+                            return highlightText(truncatedMessage, filterText || '');
+                        })()}
                         {collapseCount != null && collapseCount > 1 && (
                             <span className="ml-1.5 px-1.5 py-0.5 rounded bg-slate-600/80 text-[10px] text-slate-300 font-mono shrink-0" title={`${collapseCount} similar rows`}>
                                 ×{collapseCount}
-                            </span>
-                        )}
-                        {log.sipMethod && (
-                            <span className={clsx(
-                                "ml-2 px-1.5 py-0.5 rounded text-[10px] font-bold border transition-colors whitespace-nowrap shrink-0",
-                                getSipColorClasses(log.sipMethod)
-                            )}>
-                                {log.sipMethod}
                             </span>
                         )}
                     </span>

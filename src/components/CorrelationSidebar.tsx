@@ -19,7 +19,8 @@ const CorrelationItemList = ({
     sortMode,
     hoveredCallId,
     hoveredCorrelation,
-    setHoveredCorrelation
+    setHoveredCorrelation,
+    onRemoveItem
 }: {
     items: string[],
     type: CorrelationItem['type'],
@@ -32,7 +33,8 @@ const CorrelationItemList = ({
     sortMode: SortMode,
     hoveredCallId: string | null,
     hoveredCorrelation: CorrelationItem | null,
-    setHoveredCorrelation: (item: CorrelationItem | null) => void
+    setHoveredCorrelation: (item: CorrelationItem | null) => void,
+    onRemoveItem?: (item: string) => void
 }) => {
 
     const isUuid = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}/i.test(s);
@@ -102,6 +104,18 @@ const CorrelationItemList = ({
                         <span className="break-all mr-2" title={item}>{item}</span>
 
                         <div className="flex items-center gap-2 shrink-0 ml-auto pointer-events-auto">
+                            {onRemoveItem && (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onRemoveItem(item);
+                                    }}
+                                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-red-500/20 text-[var(--text-secondary)] hover:text-red-400"
+                                    title="Remove file"
+                                >
+                                    <X size={12} />
+                                </button>
+                            )}
                             <button
                                 onClick={(e) => {
                                     e.stopPropagation();
@@ -183,7 +197,8 @@ const CorrelationSidebar = () => {
         clearAllFilters,
         hoveredCallId,
         hoveredCorrelation,
-        setHoveredCorrelation
+        setHoveredCorrelation,
+        removeFile
     } = useLogContext();
 
     const [expandedSections, setExpandedSections] = useState({
@@ -282,6 +297,7 @@ const CorrelationSidebar = () => {
                         hoveredCallId={hoveredCallId}
                         hoveredCorrelation={hoveredCorrelation}
                         setHoveredCorrelation={setHoveredCorrelation}
+                        onRemoveItem={removeFile}
                     />
                 )}
 

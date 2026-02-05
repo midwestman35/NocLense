@@ -115,6 +115,7 @@ interface LogContextType extends LogState {
     }) => Promise<LogEntry[]>;
     clearAllData: () => Promise<void>;
     enableIndexedDBMode: () => Promise<void>;
+    removeFile: (fileName: string) => Promise<void>;
 }
 
 const LogContext = createContext<LogContextType | null>(null);
@@ -921,6 +922,73 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         }
     }, []);
     
+    // Function to remove logs from a specific file
+    const removeFile = useCallback(async (fileName: string) => {
+        if (useIndexedDBMode) {
+            // Remove from IndexedDB
+            try {
+                await dbManager.deleteLogsByFileName(fileName);
+                // Update total count
+                const newCount = await dbManager.getTotalCount();
+                setTotalLogCount(newCount);
+                
+                // If no logs left, clear everything
+                if (newCount === 0) {
+                    await clearAllData();
+                    return;
+                }
+                
+                // Reload correlation data
+                const [fileNamesSet] = await Promise.all([
+                    dbManager.getUniqueValues('fileName')
+                ]);
+                
+                // Update correlation data state
+                setCorrelationDataState(prev => ({
+                    ...prev,
+                    fileNames: Array.from(fileNamesSet).sort()
+                }));
+                
+                // Remove file from counts
+                setCorrelationCountsState(prev => {
+                    const next = { ...prev };
+                    delete next[`file:${fileName}`];
+                    return next;
+                });
+                
+                // Remove from active correlations if filtering by this file
+                setActiveCorrelations(prev => prev.filter(c => !(c.type === 'file' && c.value === fileName)));
+                
+                // Reload indexed logs
+                const metadata = await dbManager.getMetadata();
+                if (metadata) {
+                    const reloadedLogs = await dbManager.getLogsByTimestampRange(
+                        metadata.dateRange.min,
+                        metadata.dateRange.max,
+                        5000
+                    );
+                    setIndexedDBLogs(reloadedLogs.sort((a, b) => a.timestamp - b.timestamp));
+                }
+            } catch (error) {
+                console.error('Failed to remove file from IndexedDB:', error);
+            }
+        } else {
+            // Remove from in-memory logs
+            setLogs(prev => {
+                const filtered = prev.filter(log => log.fileName !== fileName);
+                // If no logs left, clear everything
+                if (filtered.length === 0) {
+                    clearAllData();
+                    return [];
+                }
+                return filtered;
+            });
+            
+            // Remove from active correlations if filtering by this file
+            setActiveCorrelations(prev => prev.filter(c => !(c.type === 'file' && c.value === fileName)));
+        }
+    }, [useIndexedDBMode, clearAllData]);
+    
     const value = useMemo(() => ({
         logs: useIndexedDBMode ? indexedDBLogs : logs,
         setLogs: enhancedSetLogs,
@@ -996,7 +1064,8 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         totalLogCount,
         loadLogsFromIndexedDB,
         clearAllData,
-        enableIndexedDBMode
+        enableIndexedDBMode,
+        removeFile
     }), [
         // Only include values that actually change and affect consumers
         logs,
@@ -1045,7 +1114,8 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         setOnlyCorrelation,
         toggleFavorite,
         loadLogsFromIndexedDB,
-        enhancedSetLogs
+        enhancedSetLogs,
+        removeFile
     ]);
 
     return (

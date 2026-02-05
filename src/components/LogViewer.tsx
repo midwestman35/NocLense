@@ -107,6 +107,8 @@ const LogHeader = () => {
                 )}
             </div>
 
+            <div>SIP</div>
+
             <div>Message</div>
         </div>
     );
