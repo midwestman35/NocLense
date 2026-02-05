@@ -12,6 +12,27 @@ interface ChangelogEntry {
 // Latest changelog entries - update this when new features are added
 const changelogEntries: ChangelogEntry[] = [
   {
+    version: '1.6.0',
+    date: '2026-02-05',
+    features: [
+      '📊 SIP Column - New dedicated column showing SIP methods/response codes with color-coded badges',
+      '🗑️ Individual File Removal - X button to remove specific log files without clearing all data',
+      '✂️ Message Truncation - Messages truncate at 150 chars for cleaner display; full message on click',
+      '🔍 Case-Insensitive Levels - Parser handles [error], [Error], [ERROR] identically',
+      '🏷️ Level Aliases - Recognizes CRITICAL, FATAL, SEVERE → ERROR; WARNING → WARN; TRACE → DEBUG',
+      '📋 JSON Level Extraction - Detects error levels from JSON payload fields (level, severity, exception)',
+      '⚠️ SIP Error Detection - SIP 4xx marked as WARN, 5xx/6xx as ERROR (including Homer exports)'
+    ],
+    changes: [
+      '📐 6-column layout: Expand | Timestamp | Level | Service | SIP | Message',
+      '🧹 Reduced visual noise - Compact Call-IDs, subtle cncID/messageID dots, removed generic LOG badge'
+    ],
+    fixes: [
+      '🔧 Homer SIP exports now correctly detect ERROR/WARN levels from response codes',
+      '🔧 Logs using CRITICAL, FATAL, etc. or lowercase levels now captured by ERROR filter'
+    ]
+  },
+  {
     version: '1.5.2',
     date: '2026-01-29',
     fixes: [
