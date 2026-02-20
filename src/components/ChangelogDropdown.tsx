@@ -12,6 +12,28 @@ interface ChangelogEntry {
 // Latest changelog entries - update this when new features are added
 const changelogEntries: ChangelogEntry[] = [
   {
+    version: '1.7.0',
+    date: '2026-02-07',
+    features: [
+      '🤖 AI Assistant - Chat interface for log analysis (Cmd/Ctrl+K)',
+      '⚙️ AI Settings - Configure Gemini API key, model (3 Flash/Pro), usage limits',
+      '📊 Analyze Visible Logs - One-click analysis of filtered logs from toolbar',
+      '💡 Explain with AI - Contextual analysis for selected logs in details panel',
+      '🔗 Correlation Analysis - Analyze by Call-ID, Report ID from sidebar',
+      '📝 Smart Prompts - Error analysis, pattern recognition, call flow, timeline',
+      '🆕 Gemini 3 Support - Default model Gemini 3 Flash; auto-migration from deprecated models'
+    ],
+    changes: [
+      '🛡️ Comprehensive error handling for API keys, rate limits, model 404s',
+      '📋 Empty logs UX - Disabled AI buttons with tooltips when no logs loaded'
+    ],
+    fixes: [
+      '🔧 Fixed 404 model errors - Deprecated 1.5/2.0 models now default to Gemini 3',
+      '🔧 Malformed AI responses handled gracefully',
+      '🔁 Retry with exponential backoff for transient network failures'
+    ]
+  },
+  {
     version: '1.6.0',
     date: '2026-02-05',
     features: [

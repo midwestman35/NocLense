@@ -4,6 +4,7 @@ import { getStructuredFields, type FieldEntry } from '../../utils/structuredFiel
 import { format } from 'date-fns';
 import { Download, Filter, X, LocateFixed, ChevronDown, ChevronRight, Copy } from 'lucide-react';
 import type { LogEntry } from '../../types';
+import AIButton from '../AIButton';
 
 const LARGE_JSON_BYTES = 50 * 1024;
 const PAYLOAD_PREVIEW_LINES = 80;
@@ -108,6 +109,7 @@ export default function LogDetailsPanel({ log, onClose, onJumpToLog }: {
   onJumpToLog: () => void;
 }) {
   const {
+    logs,
     toggleCorrelation,
     setActiveCorrelations,
     activeCorrelations,
@@ -117,6 +119,13 @@ export default function LogDetailsPanel({ log, onClose, onJumpToLog }: {
 
   const fields = useMemo(() => getStructuredFields(log), [log]);
   const showSummary = log.type === 'JSON' && log.json && (log.messageType || log.cncID || log.messageID || log.reportId);
+  const aiContextLogs = useMemo(() => {
+    const index = logs.findIndex((entry) => entry.id === log.id);
+    if (index === -1) return [log];
+    const start = Math.max(0, index - 5);
+    const end = Math.min(logs.length, index + 6);
+    return logs.slice(start, end);
+  }, [logs, log]);
 
   const hasSessionContext = !!(log.cncID || log.messageID);
   const sessionItems = useMemo(() => {
@@ -209,6 +218,14 @@ export default function LogDetailsPanel({ log, onClose, onJumpToLog }: {
             <LocateFixed size={12} />
             Jump To
           </button>
+          <AIButton
+            variant="secondary"
+            size="sm"
+            promptType="custom"
+            customPrompt="Explain this error and suggest troubleshooting steps. Reference the relevant log IDs where possible."
+            logs={aiContextLogs}
+            label="Explain with AI"
+          />
           <button
             onClick={onClose}
             className="text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-2 py-1 rounded hover:bg-[var(--bg-light)]"

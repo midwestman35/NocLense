@@ -3,6 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { useLogContext } from '../contexts/LogContext';
 import LogRow from './LogRow';
 import { ArrowUp, ArrowDown, Filter } from 'lucide-react';
+import AIButton from './AIButton';
 import serviceMappings from '../../public/service-mappings.json';
 
 const LogHeader = () => {
@@ -262,6 +263,18 @@ const LogViewer = () => {
 
     return (
         <div className="flex-grow flex flex-col h-full w-full bg-slate-900 overflow-hidden">
+            <div className="px-3 py-2 border-b border-slate-700 bg-slate-800/80 flex items-center justify-between">
+                <div className="text-xs text-slate-400">
+                    Analyze currently filtered logs with AI.
+                </div>
+                <AIButton
+                    variant="secondary"
+                    size="sm"
+                    logs={filteredLogs}
+                    promptType="analyze"
+                    label="Analyze Visible Logs"
+                />
+            </div>
             <LogHeader />
 
             <div

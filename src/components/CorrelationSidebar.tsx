@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useLogContext, type CorrelationItem } from '../contexts/LogContext';
 import { Hash, User, Phone, Monitor, ChevronRight, ChevronDown, Filter, X, ArrowUpAZ, ArrowDown, FileText, Ban, Activity, MessageSquare } from 'lucide-react';
 import clsx from 'clsx';
+import AIButton from './AIButton';
 
 type SortMode = 'alpha' | 'count';
 
@@ -187,6 +188,7 @@ const SectionHeader = ({ title, icon: Icon, expanded, onToggle }: { title: strin
 
 const CorrelationSidebar = () => {
     const {
+        logs,
         correlationData,
         activeCorrelations,
         toggleCorrelation,
@@ -215,6 +217,31 @@ const CorrelationSidebar = () => {
     const [sortMode, setSortMode] = useState<SortMode>('count');
     const [showAllCallIds, setShowAllCallIds] = useState(false);
     const [sidebarWidth, setSidebarWidth] = useState(320);
+
+    const getCorrelationLogs = (item: CorrelationItem): typeof logs => {
+        return logs.filter((log) => {
+            switch (item.type) {
+                case 'report':
+                    return log.reportId === item.value;
+                case 'operator':
+                    return log.operatorId === item.value;
+                case 'extension':
+                    return log.extensionId === item.value;
+                case 'station':
+                    return log.stationId === item.value;
+                case 'callId':
+                    return log.callId === item.value;
+                case 'file':
+                    return log.fileName === item.value;
+                case 'cncID':
+                    return log.cncID === item.value;
+                case 'messageID':
+                    return log.messageID === item.value;
+                default:
+                    return false;
+            }
+        });
+    };
 
     const toggleSection = (section: keyof typeof expandedSections) => {
         setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
@@ -388,6 +415,34 @@ const CorrelationSidebar = () => {
                     />
                 )}
             </div>
+
+            {activeCorrelations.length > 0 && (
+                <div className="px-3 py-2 border-t border-[var(--border-color)] bg-[var(--bg-light)]/30">
+                    <div className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)] mb-2">
+                        Analyze Active Filters
+                    </div>
+                    <div className="space-y-2 max-h-40 overflow-y-auto">
+                        {activeCorrelations.slice(0, 4).map((item) => {
+                            const scopedLogs = getCorrelationLogs(item);
+                            return (
+                                <div key={`${item.type}:${item.value}:${item.excluded ? 'excluded' : 'included'}`} className="flex items-center justify-between gap-2">
+                                    <span className="text-[10px] text-[var(--text-secondary)] truncate">
+                                        {item.type}: {item.value}
+                                    </span>
+                                    <AIButton
+                                        variant="secondary"
+                                        size="sm"
+                                        promptType="custom"
+                                        customPrompt={`Analyze logs for ${item.type}: ${item.value}. Identify key patterns, errors, and probable root causes.`}
+                                        logs={scopedLogs}
+                                        label="Analyze"
+                                    />
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
 
             <div className="mt-auto px-4 py-2 border-t border-[var(--border-color)] text-[10px] text-[var(--text-secondary)] text-center bg-[var(--bg-light)]/30">
                 {activeCorrelations.length > 0 ? (

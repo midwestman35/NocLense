@@ -1,0 +1,297 @@
+/**
+ * Maximum daily requests for Gemini API free tier.
+ * Used as default limit so users don't accidentally exceed without awareness.
+ * See: https://ai.google.dev/gemini-api/docs/rate-limits
+ */
+export const GEMINI_FREE_TIER_DAILY_LIMIT = 1500;
+
+/**
+ * AI Integration Type Definitions
+ * 
+ * Purpose:
+ * TypeScript type definitions for Google Gemini AI integration in NocLense.
+ * These types define the structure for AI messages, configuration, requests, responses,
+ * and usage tracking.
+ * 
+ * Architecture Decision:
+ * Separate AI types from core log types to maintain clear separation of concerns.
+ * This allows AI features to evolve independently and makes the API contract explicit.
+ * 
+ * Key Types:
+ * - AIMessage: Chat conversation messages
+ * - AIConfig: User configuration (API key, model, limits)
+ * - AIAnalysisRequest/Response: Request/response structures for log analysis
+ * - AIUsageStats: API usage tracking for quota management
+ * 
+ * @module types/ai
+ */
+
+import type { LogEntry } from '../types';
+
+/**
+ * Represents a message in the AI conversation
+ * 
+ * Why: Enables chat-style interaction with conversation history.
+ * This allows users to ask follow-up questions and maintain context across queries.
+ * 
+ * Design decisions:
+ * - id: Unique identifier for React key prop and message tracking
+ * - role: Distinguishes user queries from AI responses
+ * - timestamp: Enables chronological ordering and time-based filtering
+ * - logIds: Optional association with specific logs provides context for the conversation
+ */
+export interface AIMessage {
+  /** Unique identifier for this message */
+  id: string;
+  /** Role of the message sender */
+  role: 'user' | 'assistant';
+  /** Message content (user query or AI response) */
+  content: string;
+  /** Unix timestamp in milliseconds */
+  timestamp: number;
+  /** Optional: Associated log IDs that were analyzed in this conversation */
+  logIds?: number[];
+}
+
+/**
+ * Configuration for AI service
+ * 
+ * Why: Allows users to control API usage, costs, and model selection.
+ * This gives users control over their API consumption and enables different
+ * quality/speed trade-offs via model selection.
+ * 
+ * Design decisions:
+ * - apiKey: Required for API access (stored securely with warnings)
+ * - model: Different models offer different speed/quality trade-offs
+ * - dailyRequestLimit: Allows users to set lower limits than free tier for budget control
+ * - enabled: Privacy control - users can disable AI features entirely
+ */
+export interface AIConfig {
+  /** Google Gemini API key (required for AI features) */
+  apiKey: string;
+  /** Gemini model to use */
+  model: 'gemini-3-flash-preview' | 'gemini-3-pro-preview' | 'gemini-2.0-flash' | 'gemini-1.5-pro';
+  /** 
+   * Maximum requests per day (free tier limit is 1,500 RPD)
+   * Allows users to set lower limit for budget control
+   */
+  dailyRequestLimit: number;
+  /** Enable/disable AI features (respects user privacy preferences) */
+  enabled: boolean;
+}
+
+/**
+ * Request structure for analyzing logs with AI
+ * 
+ * Why: Structured request format ensures all necessary context is provided.
+ * Separates user query from log data and options for better organization.
+ * 
+ * Design decisions:
+ * - query: User's question or analysis request
+ * - logs: Pre-filtered logs to analyze (not all logs, just relevant ones)
+ * - focusLogId: Optional focus on specific log for detailed analysis
+ * - includeCorrelations: Whether to include correlated logs for context
+ */
+export interface AIAnalysisRequest {
+  /** User's question or analysis request */
+  query: string;
+  /** Pre-filtered logs to analyze (should be relevant subset, not all logs) */
+  logs: LogEntry[];
+  /** Optional: Focus analysis on specific log ID */
+  focusLogId?: number;
+  /** Whether to include correlated logs for additional context */
+  includeCorrelations?: boolean;
+  /** Maximum tokens to use for context (default: 100,000) */
+  maxContextTokens?: number;
+}
+
+/**
+ * Response structure from AI analysis
+ * 
+ * Why: Structured response enables consistent UI rendering and parsing.
+ * Separates content from metadata for better handling.
+ * 
+ * Design decisions:
+ * - content: Main response text (markdown formatted)
+ * - logReferences: Specific log IDs referenced in the response
+ * - confidence: Optional confidence score (if API provides)
+ * - tokensUsed: Track token usage for quota management
+ */
+export interface AIAnalysisResponse {
+  /** AI response content (markdown formatted for rich display) */
+  content: string;
+  /** Log IDs referenced in the response (for linking back to logs) */
+  logReferences: number[];
+  /** Optional confidence score (0-1) if provided by API */
+  confidence?: number;
+  /** Number of tokens used for this request (for usage tracking) */
+  tokensUsed: number;
+  /** Model used for this response */
+  model: string;
+}
+
+/**
+ * API usage statistics for quota management
+ * 
+ * Why: Track API usage to prevent quota exhaustion and provide user feedback.
+ * Free tier has limits (15 RPM, 1,500 RPD) that must be monitored.
+ * 
+ * Design decisions:
+ * - requestsToday: Track daily usage (resets at midnight UTC)
+ * - requestsThisMinute: Track per-minute usage (for rate limiting)
+ * - totalTokensUsed: Cumulative token usage for cost estimation
+ * - lastReset: Timestamp of last reset (for accurate tracking)
+ */
+export interface AIUsageStats {
+  /** Number of requests made today (resets at midnight UTC) */
+  requestsToday: number;
+  /** Number of requests in current minute (for rate limiting) */
+  requestsThisMinute: number;
+  /** Total tokens used across all requests */
+  totalTokensUsed: number;
+  /** Timestamp of last daily reset (milliseconds) */
+  lastDailyReset: number;
+  /** Timestamp of last minute reset (milliseconds) */
+  lastMinuteReset: number;
+}
+
+/**
+ * Options for building log context for LLM
+ * 
+ * Why: Provides fine-grained control over context building process.
+ * Different analysis scenarios need different context strategies.
+ * 
+ * Design decisions:
+ * - focusLogId: Center context around specific log
+ * - maxTokens: Hard limit to prevent exceeding API limits
+ * - includeSurrounding: How many logs before/after errors to include
+ * - prioritizeErrors: Whether to prioritize ERROR/WARN logs
+ */
+export interface ContextOptions {
+  /** Optional: Focus context around specific log ID */
+  focusLogId?: number;
+  /** Maximum tokens to use for context (default: 100,000) */
+  maxTokens?: number;
+  /** Number of surrounding logs to include before/after errors (default: 5) */
+  includeSurrounding?: number;
+  /** Whether to prioritize ERROR and WARN level logs (default: true) */
+  prioritizeErrors?: boolean;
+  /** Whether to include log payloads (default: true, set false for privacy) */
+  includePayloads?: boolean;
+}
+
+/**
+ * Error types for AI service
+ * 
+ * Why: Custom error classes enable type-safe error handling and user-friendly messages.
+ * Different error types require different handling strategies.
+ */
+export class InvalidApiKeyError extends Error {
+  constructor(message: string = 'Invalid API key. Please check your settings.') {
+    super(message);
+    this.name = 'InvalidApiKeyError';
+  }
+}
+
+export class RateLimitError extends Error {
+  public readonly resetTime?: number;
+  constructor(
+    message: string = 'Rate limit exceeded. Please try again later.',
+    resetTime?: number
+  ) {
+    super(message);
+    this.name = 'RateLimitError';
+    this.resetTime = resetTime;
+  }
+}
+
+export class QuotaExceededError extends Error {
+  constructor(message: string = 'Daily quota exceeded. Free tier allows 1,500 requests per day.') {
+    super(message);
+    this.name = 'QuotaExceededError';
+  }
+}
+
+export class TokenLimitExceededError extends Error {
+  public readonly maxTokens?: number;
+  public readonly requestedTokens?: number;
+  constructor(
+    message: string = 'Context too large. Please select fewer logs.',
+    maxTokens?: number,
+    requestedTokens?: number
+  ) {
+    super(message);
+    this.name = 'TokenLimitExceededError';
+    this.maxTokens = maxTokens;
+    this.requestedTokens = requestedTokens;
+  }
+}
+
+export class NetworkError extends Error {
+  constructor(message: string = 'Network error. Please check your connection.') {
+    super(message);
+    this.name = 'NetworkError';
+  }
+}
+
+/**
+ * Model information for display and selection
+ * 
+ * Why: Provides metadata about available models for UI display.
+ * Helps users understand trade-offs between models.
+ */
+export interface AIModelInfo {
+  /** Model identifier */
+  id: 'gemini-3-flash-preview' | 'gemini-3-pro-preview' | 'gemini-2.0-flash' | 'gemini-1.5-pro';
+  /** Display name */
+  name: string;
+  /** Description of model capabilities */
+  description: string;
+  /** Speed characteristic */
+  speed: 'fast' | 'medium' | 'slow';
+  /** Quality characteristic */
+  quality: 'good' | 'excellent';
+  /** Context window size in tokens */
+  contextWindow: number;
+}
+
+/**
+ * Predefined model information
+ * 
+ * Why: Centralized model metadata for consistent UI display.
+ * Makes it easy to add new models or update descriptions.
+ */
+export const AI_MODELS: Record<string, AIModelInfo> = {
+  'gemini-3-flash-preview': {
+    id: 'gemini-3-flash-preview',
+    name: 'Gemini 3 Flash',
+    description: 'Recommended: Fast, high quality, latest model',
+    speed: 'fast',
+    quality: 'excellent',
+    contextWindow: 1000000,
+  },
+  'gemini-3-pro-preview': {
+    id: 'gemini-3-pro-preview',
+    name: 'Gemini 3 Pro',
+    description: 'Most capable model for complex analysis',
+    speed: 'medium',
+    quality: 'excellent',
+    contextWindow: 1000000,
+  },
+  'gemini-2.0-flash': {
+    id: 'gemini-2.0-flash',
+    name: 'Gemini 2.0 Flash',
+    description: 'May be unavailable for new users; prefer Gemini 3',
+    speed: 'fast',
+    quality: 'excellent',
+    contextWindow: 1000000,
+  },
+  'gemini-1.5-pro': {
+    id: 'gemini-1.5-pro',
+    name: 'Gemini 1.5 Pro',
+    description: 'Higher quality, best for complex analysis',
+    speed: 'medium',
+    quality: 'excellent',
+    contextWindow: 1000000,
+  },
+} as const;

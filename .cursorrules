@@ -1,0 +1,353 @@
+# NocLense Cursor Rules
+
+## Project Overview
+NocLense is an advanced log viewer and analyzer for telecommunications and VoIP systems, specializing in SIP log analysis, call flow visualization, and correlation-based troubleshooting.
+
+## Core Technologies
+- **Frontend**: React 19, TypeScript
+- **Styling**: Tailwind CSS
+- **State Management**: React Context API
+- **Build Tool**: Vite
+- **Desktop**: Electron
+- **Storage**: IndexedDB (for large log files)
+
+## Project Structure
+```
+src/
+  components/      # React components
+  contexts/        # Context providers (LogContext, etc.)
+  services/        # Business logic and utilities
+  types/           # TypeScript type definitions
+  utils/           # Helper functions
+  store/           # LocalStorage management
+```
+
+## General Coding Standards
+
+### TypeScript
+- Use strict mode
+- No `any` types (use `unknown` if truly dynamic)
+- Explicit return types for exported functions
+- Use interfaces for object shapes, types for unions/primitives
+
+### React Patterns
+- Functional components only
+- Use hooks (useState, useEffect, useMemo, useCallback)
+- Context API for global state
+- Memoize expensive operations
+- Keep components focused (single responsibility)
+
+### Naming Conventions
+- Components: PascalCase (e.g., `LogViewer.tsx`)
+- Hooks: `use` prefix (e.g., `useLogContext`)
+- Context: `[Name]Context` (e.g., `LogContext`)
+- Services: `[name]Service` (e.g., `parserService`)
+- Utils: camelCase (e.g., `formatTimestamp`)
+- Constants: UPPER_SNAKE_CASE
+
+### File Organization
+- One component per file
+- Co-locate types with usage
+- Group related utilities
+- Keep files under 500 lines (split if larger)
+
+### Comments
+- Use JSDoc for public APIs
+- Explain "why" not "what"
+- Comment complex logic
+- Keep comments up-to-date
+
+## NocLense-Specific Patterns
+
+### LogEntry Structure
+Refer to `src/types.ts` for the canonical `LogEntry` interface.
+Key fields:
+- `id`: Unique identifier
+- `timestamp`: Unix timestamp
+- `level`: 'INFO' | 'DEBUG' | 'ERROR' | 'WARN'
+- `component`: Source component path
+- `message`: Log message
+- `isSip`: Boolean for SIP logs
+- `callId`, `reportId`, etc.: Correlation fields
+
+### State Management
+- Use `LogContext` for all log-related state
+- Access via `useLogContext()` hook
+- Never duplicate log state in components
+- Use `useMemo` for expensive filtering/sorting
+
+### Performance Considerations
+- NocLense handles 100,000+ log files
+- Use IndexedDB mode for large files (via `useIndexedDBMode`)
+- Virtualize long lists (react-virtual)
+- Memoize filtered/sorted data
+- Avoid re-renders with `useCallback` for event handlers
+
+### Correlation System
+- Users correlate logs by: callId, reportId, operatorId, extensionId, stationId, fileName
+- Correlations are faceted: AND between types, OR within type
+- Exclusion correlations also supported
+- Reference `LogContext.tsx` for implementation
+
+### Error Handling
+- Never crash the app
+- Show user-friendly error messages
+- Log detailed errors to console
+- Graceful degradation for feature failures
+
+## Styling Guidelines
+
+### Tailwind CSS
+- Use Tailwind utility classes
+- Follow existing color scheme (defined in `theme.css`)
+- Responsive design (mobile-first)
+- Dark mode support (if applicable)
+
+### Component Styling Patterns
+Reference existing components for consistency:
+- `FilterBar.tsx`: Toolbar patterns
+- `LogViewer.tsx`: Main layout
+- `Button.tsx`: Button variants
+
+### Accessibility
+- Semantic HTML
+- ARIA labels where needed
+- Keyboard navigation
+- Focus management
+
+## Testing
+
+### Test Requirements
+- Unit tests for services/utilities
+- Integration tests for complex components
+- Edge case coverage
+- Performance testing for large datasets
+
+### Test File Structure
+- Co-locate tests: `__tests__/[name].test.ts`
+- Use descriptive test names
+- Mock external dependencies
+- Use test data generators for LogEntry
+
+## Git Commit Standards
+- Clear, descriptive commit messages
+- Reference issues/features
+- Group related changes
+- Don't commit WIP code
+
+---
+
+# =============================================================================
+# LLM INTEGRATION RULES (Google Gemini AI)
+# =============================================================================
+
+## Context & Purpose
+This project integrates Google Gemini AI for intelligent log analysis.
+The AI features help users understand errors, identify patterns, and troubleshoot issues.
+
+## Architecture Principles
+
+### 1. Separation of Concerns
+- **Services** (llmService, logContextBuilder) handle business logic
+- **Contexts** (AIContext) manage state
+- **Components** render UI only
+- Never mix API calls directly in components
+
+### 2. Error Handling Philosophy
+- External API calls can fail - always have fallbacks
+- Show user-friendly messages (not raw API errors)
+- Log detailed errors to console for debugging
+- Never crash the app due to AI failures
+
+### 3. Privacy First
+- AI features are opt-in (require user consent)
+- Clearly communicate what data is sent externally
+- Provide data sanitization options
+- API keys stored with security warnings
+
+### 4. Performance
+- AI features must not block core log viewing functionality
+- Lazy load AI components (only when enabled)
+- Memoize expensive operations (context building)
+- Use streaming for better perceived performance
+
+## Coding Standards for AI Features
+
+### Type Safety
+- No `any` types in AI code (use `unknown` if dynamic)
+- All API responses must be validated before use
+- Explicit types for all function parameters and returns
+
+### Comments (MANDATORY)
+Every AI-related file/function must have:
+1. **File header**: Purpose, architecture decision, dependencies
+2. **Function JSDoc**: @param, @returns, @throws, @example
+3. **Why comments**: Explain reasoning for non-obvious decisions
+4. **Security notes**: Flag privacy/security considerations
+
+Example:
+```typescript
+/**
+ * Builds optimized context from logs for LLM analysis
+ * 
+ * Why this approach?
+ * - Prioritizes errors (most relevant for troubleshooting)
+ * - Includes temporal context (what led to errors)
+ * - Respects token limits (100k max to leave room for response)
+ * 
+ * @param logs - Pre-filtered logs to analyze
+ * @param options - Context options (focus log, max tokens, etc.)
+ * @returns Formatted markdown context ready for LLM
+ */
+```
+
+### Error Handling Pattern
+```typescript
+try {
+  const response = await geminiAPI.call();
+  return response;
+} catch (error) {
+  // ALWAYS log detailed error for debugging
+  console.error('Gemini API error:', error);
+  
+  // Classify error type for user-appropriate message
+  if (error instanceof RateLimitError) {
+    throw new UserFacingError('Rate limit exceeded. Try again in 1 minute.');
+  } else if (error instanceof InvalidApiKeyError) {
+    throw new UserFacingError('Invalid API key. Check settings.');
+  } else {
+    // Generic fallback
+    throw new UserFacingError('AI analysis failed. Check your connection.');
+  }
+}
+```
+
+### Context Builder Rules
+When building context for LLM:
+1. **Prioritize by log level**: ERROR > WARN > INFO > DEBUG
+2. **Include surrounding context**: 5 logs before/after each error
+3. **Truncate long payloads**: Keep first/last 200 chars only
+4. **Remove duplicates**: Keep first occurrence + count
+5. **Format for readability**: Use markdown with clear sections
+6. **Stay under token limit**: Target 10k tokens, max 100k
+
+### Prompt Engineering Rules
+When creating or modifying prompts:
+1. **Give AI a role**: "You are a telecommunications expert..."
+2. **Provide context**: System type, log format, time range
+3. **Be specific**: Request structured output (bullets, numbered lists)
+4. **Add constraints**: "Reference log IDs", "Be concise"
+5. **Include examples**: Show desired response format
+6. **Test thoroughly**: Validate with various log scenarios
+
+## Testing Requirements
+
+### Must Test
+- [ ] Invalid API key handling
+- [ ] Rate limit scenarios
+- [ ] Network failures
+- [ ] Empty log context
+- [ ] 10,000+ logs (performance)
+- [ ] Various error types
+- [ ] Streaming responses
+- [ ] Context building with edge cases
+
+### Test File Location
+- Unit tests: `src/services/__tests__/[service].test.ts`
+- Integration tests: `src/contexts/__tests__/[context].test.tsx`
+- Component tests: `src/components/__tests__/[component].test.tsx`
+
+## UI/UX Guidelines for AI Features
+
+1. **Discoverability**: AI buttons should be obvious but not intrusive
+2. **Feedback**: Always show loading states during API calls
+3. **Errors**: Clear, actionable error messages (not technical jargon)
+4. **Context**: Show users what logs are being analyzed
+5. **Streaming**: Display responses incrementally (don't buffer entire response)
+6. **Accessibility**: All AI features keyboard navigable, screen reader compatible
+
+## Integration Points
+
+When adding AI to existing components:
+1. Import AIButton or AIAssistantPanel
+2. Pass currently filtered/selected logs
+3. Add loading/error states
+4. Don't modify existing component logic (add alongside)
+5. Make AI features clearly optional (disable gracefully if not configured)
+
+## Security Checklist
+
+Before committing AI code:
+- [ ] No hardcoded API keys
+- [ ] API key not logged to console
+- [ ] Security warnings shown to users
+- [ ] Data sanitization available (even if optional)
+- [ ] Error messages don't leak sensitive info
+- [ ] HTTPS enforced for API calls
+
+## Performance Checklist
+
+Before committing AI code:
+- [ ] Expensive operations memoized
+- [ ] Components lazy loaded
+- [ ] Large log sets sampled (not all sent to API)
+- [ ] Context building doesn't block UI
+- [ ] No memory leaks in streaming responses
+
+## Common Mistakes to Avoid
+
+❌ **Don't**: Call Gemini API directly from components
+✅ **Do**: Use AIContext and llmService
+
+❌ **Don't**: Send all 100,000 logs to API
+✅ **Do**: Sample intelligently, prioritize errors
+
+❌ **Don't**: Show raw API errors to users
+✅ **Do**: Translate to user-friendly messages
+
+❌ **Don't**: Hardcode prompts in components
+✅ **Do**: Use prompt templates from promptTemplates.ts
+
+❌ **Don't**: Assume API calls succeed
+✅ **Do**: Implement comprehensive error handling
+
+❌ **Don't**: Store API keys insecurely without warning
+✅ **Do**: Show security notice, plan Electron secure storage
+
+## File Naming Conventions
+
+- Services: `[name]Service.ts` (e.g., llmService.ts)
+- Context: `[Name]Context.tsx` (e.g., AIContext.tsx)
+- Components: `[Name].tsx` (e.g., AIAssistantPanel.tsx)
+- Types: `ai.ts` (in src/types/)
+- Tests: `[name].test.ts` or `[Name].test.tsx`
+- Utils: `[name].ts` (e.g., tokenCounter.ts)
+
+## When in Doubt
+
+1. Check existing patterns in LogContext.tsx (state management)
+2. Follow error handling in FileUploader.tsx (external data)
+3. Match styling in FilterBar.tsx (toolbars)
+4. Refer to LLM_INTEGRATION_IMPLEMENTATION_PLAN.md for AI-specific decisions
+
+## Code Review Checklist
+
+Before marking AI work as complete:
+- [ ] All functions have JSDoc comments
+- [ ] Complex logic has "Why" comments
+- [ ] Tests written and passing
+- [ ] Error handling comprehensive
+- [ ] Performance measured (document in comments)
+- [ ] Accessibility validated
+- [ ] Security checklist completed
+- [ ] Manual testing checklist completed
+
+---
+
+## Implementation Reference
+
+For detailed implementation guidance, refer to:
+- `LLM_INTEGRATION_IMPLEMENTATION_PLAN.md` - Complete phase-by-phase plan
+- `src/contexts/LogContext.tsx` - State management patterns
+- `src/types.ts` - Core type definitions
+- `src/components/FilterBar.tsx` - UI component patterns

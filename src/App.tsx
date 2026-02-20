@@ -1,5 +1,6 @@
 import { useRef, useState, useEffect } from 'react';
 import { LogProvider, useLogContext } from './contexts/LogContext';
+import { AIProvider } from './contexts/AIContext';
 import FileUploader from './components/FileUploader';
 import FilterBar from './components/FilterBar';
 import LogViewer from './components/LogViewer';
@@ -10,6 +11,8 @@ import ExportModal from './components/export/ExportModal';
 import ChangelogDropdown from './components/ChangelogDropdown';
 import { Download, FolderOpen, X, AlertTriangle, Filter, Moon, Sun, Flame, ArrowLeft } from 'lucide-react';
 import LogDetailsPanel from './components/log/LogDetailsPanel';
+import AIAssistantPanel from './components/AIAssistantPanel';
+import AISettingsPanel from './components/AISettingsPanel';
 import { parseLogFile } from './utils/parser';
 import { validateFile } from './utils/fileUtils';
 import clsx from 'clsx';
@@ -42,6 +45,8 @@ const MainLayout = () => {
   const [fileError, setFileError] = useState<string | null>(null);
   const [fileWarning, setFileWarning] = useState<string | null>(null);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isAIAssistantOpen, setIsAIAssistantOpen] = useState(false);
+  const [isAISettingsOpen, setIsAISettingsOpen] = useState(false);
 
   // Theme State
   const [theme, setTheme] = useState<'light' | 'dark' | 'red'>('dark');
@@ -64,6 +69,26 @@ const MainLayout = () => {
   const [timelineHeight, setTimelineHeight] = useState(128);
 
   const selectedLog = selectedLogId ? filteredLogs.find(l => l.id === selectedLogId) || logs.find(l => l.id === selectedLogId) : null;
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const isShortcut = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k';
+      if (!isShortcut) return;
+
+      const target = event.target as HTMLElement | null;
+      const isTypingTarget =
+        target?.tagName === 'INPUT' ||
+        target?.tagName === 'TEXTAREA' ||
+        target?.isContentEditable;
+      if (isTypingTarget) return;
+
+      event.preventDefault();
+      setIsAIAssistantOpen(true);
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -267,6 +292,23 @@ const MainLayout = () => {
             />
           </div>
 
+          <div className="flex items-center gap-2 mr-2">
+            <button
+              onClick={() => setIsAIAssistantOpen(true)}
+              className="px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all text-sm font-semibold border border-white/10"
+              title="Open AI Assistant (Cmd/Ctrl + K)"
+            >
+              AI Assistant
+            </button>
+            <button
+              onClick={() => setIsAISettingsOpen(true)}
+              className="px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all text-sm font-semibold border border-white/10"
+              title="Open AI Settings"
+            >
+              AI Settings
+            </button>
+          </div>
+
           {/* Theme Toggle */}
           <div className="flex items-center bg-white/10 rounded-lg p-1 border border-white/20">
             <button
@@ -405,14 +447,39 @@ const MainLayout = () => {
         </div>
       </div>
       <ExportModal isOpen={isExportModalOpen} onClose={() => setIsExportModalOpen(false)} />
+
+      {isAIAssistantOpen && (
+        <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4">
+          <div className="w-full max-w-5xl h-[85vh] bg-[var(--card-bg)] rounded-lg border border-[var(--border-color)] shadow-[var(--shadow-lg)] overflow-hidden">
+            <AIAssistantPanel
+              onClose={() => setIsAIAssistantOpen(false)}
+              logs={filteredLogs}
+              onOpenSettings={() => {
+                setIsAIAssistantOpen(false);
+                setIsAISettingsOpen(true);
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {isAISettingsOpen && (
+        <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4">
+          <div className="w-full max-w-3xl h-[85vh] bg-[var(--card-bg)] rounded-lg border border-[var(--border-color)] shadow-[var(--shadow-lg)] overflow-hidden">
+            <AISettingsPanel onClose={() => setIsAISettingsOpen(false)} />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
 const App = () => (
-  <LogProvider>
-    <MainLayout />
-  </LogProvider>
+  <AIProvider>
+    <LogProvider>
+      <MainLayout />
+    </LogProvider>
+  </AIProvider>
 );
 
 export default App;

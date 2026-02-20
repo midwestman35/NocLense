@@ -5,6 +5,35 @@ All notable changes to the NocLense (LogScrub) project will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - 2026-02-07
+
+### Added - AI-Powered Log Analysis (Google Gemini 3)
+- ✅ **AI Assistant** - Chat interface for asking questions about your logs; accessible via header button or Cmd/Ctrl+K
+- ✅ **AI Settings Panel** - Configure API key, model selection (Gemini 3 Flash/Pro), usage stats, and daily limits
+- ✅ **Analyze Visible Logs** - One-click analysis of filtered logs from the LogViewer toolbar
+- ✅ **Explain with AI** - Contextual analysis for selected logs in the details panel (log + 5 before/after)
+- ✅ **Correlation Analysis** - Analyze logs by Call-ID, Report ID, or other correlations from the sidebar
+- ✅ **Prompt Templates** - Smart prompt engineering for error analysis, pattern recognition, call flow, and timeline analysis
+- ✅ **Gemini 3 Support** - Default model set to Gemini 3 Flash; Gemini 3 Pro available for complex analysis
+- ✅ **Usage Tracking** - Daily request counter and quota warnings (free tier: 1,500 requests/day)
+- ✅ **Model Migration** - Automatic upgrade from deprecated Gemini 1.5/2.0 models to Gemini 3
+
+### Changed
+- **Error Handling** - Comprehensive handling for invalid keys, rate limits, network errors, model unavailability, and empty logs
+- **API Key Validation** - Test & Save validates keys against Gemini API before storing
+- **Empty Logs UX** - AI buttons disabled with tooltip when no logs loaded; context indicator shows log count or sampling notice for large sets
+
+### Fixed
+- **404 Model Errors** - Detects deprecated/unavailable models (1.5-flash, 2.0-flash) and surfaces actionable message; defaults to Gemini 3 Flash
+- **Malformed Responses** - Graceful handling of empty or invalid AI responses
+- **Retry Logic** - Exponential backoff for transient network failures; no retry for auth/quota errors
+
+### Security & Privacy
+- Opt-in AI features (require enable toggle)
+- API key stored in localStorage with security warning
+- Privacy notice explains what data is sent to Google
+- No hardcoded keys; API key never logged to console
+
 ## [1.6.0] - 2026-02-05
 
 ### Added - UI Improvements & Enhanced Error Detection

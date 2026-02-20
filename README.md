@@ -9,6 +9,7 @@ LogScrub is a modern, high-performance log analysis tool designed specifically f
 -   **SIP/VoIP Awareness**: Automatic highlighting of SIP methods (INVITE, BYE, etc.) and coloring based on call flow.
 -   **Detailed Inspection**: Expand any log row to view the full JSON payload or raw message content.
 -   **Smart Filtering**: One-click noise reduction.
+-   **AI-Powered Analysis** *(Beta)*: Analyze logs with Google Gemini 3. Ask questions, get error explanations, and correlate patterns. Requires a free [Google AI Studio](https://aistudio.google.com) API key.
 
 ### 🔍 Smart Filter
 
@@ -28,11 +29,12 @@ Disable the Smart Filter if you need to trace every single packet or debug low-l
     -   Use the **Search Bar** to filter by Call-ID, component name, or message text.
     -   Use the **Timeline** at the bottom to jump to specific points in time.
     -   Click on any log row to see its full details.
+4.  **AI Analysis** *(Optional)*: Click **AI Settings** to add your Google Gemini API key, enable AI features, then use **AI Assistant** (or Cmd/Ctrl+K), **Analyze Visible Logs**, or **Explain with AI** on selected logs.
 
 ## Development
 
 This project is built with:
--   React 18
+-   React 19
 -   TypeScript
 -   Vite
 -   Tailwind CSS
