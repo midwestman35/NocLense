@@ -26,7 +26,6 @@ type EmbeddingTaskType = 'RETRIEVAL_QUERY' | 'RETRIEVAL_DOCUMENT';
 export class EmbeddingService {
   private client: GoogleGenerativeAI | null = null;
   private model: GenerativeModel | null = null;
-  private modelId: string = 'text-embedding-004';
   private static readonly MAX_BATCH_SIZE = 100;
 
   /**
@@ -43,7 +42,6 @@ export class EmbeddingService {
       throw new Error(`Model "${modelId}" is not an embedding-compatible model.`);
     }
     this.client = new GoogleGenerativeAI(apiKey);
-    this.modelId = modelId;
     this.model = this.client.getGenerativeModel({ model: modelId });
   }
 

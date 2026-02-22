@@ -29,10 +29,6 @@ import {
   NetworkError,
 } from '../../types/ai';
 
-const sharedCacheManagerMock = {
-  create: vi.fn().mockResolvedValue({ name: 'cachedContents/mock-cache-1' }),
-};
-
 // Mock @google/generative-ai
 vi.mock('@google/generative-ai', () => {
   const mockGenerateContent = vi.fn();
@@ -49,23 +45,14 @@ vi.mock('@google/generative-ai', () => {
     getGenerativeModelFromCachedContent: vi.fn(() => mockModel),
   };
 
-  // Return a class constructor, not a function
   class MockGoogleGenerativeAI {
-    constructor(apiKey: string) {
-      // Store apiKey if needed for tests
+    constructor(_apiKey: string) {
       return mockClient;
-    }
-  }
-
-  class MockGoogleAICacheManager {
-    constructor(apiKey: string) {
-      return sharedCacheManagerMock;
     }
   }
   
   return {
     GoogleGenerativeAI: MockGoogleGenerativeAI,
-    GoogleAICacheManager: MockGoogleAICacheManager,
   };
 });
 

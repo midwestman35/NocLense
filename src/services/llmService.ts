@@ -29,7 +29,7 @@
  * @module services/llmService
  */
 
-import { GoogleGenerativeAI, GoogleAICacheManager, type GenerativeModel } from '@google/generative-ai';
+import { GoogleGenerativeAI, type GenerativeModel } from '@google/generative-ai';
 import {
   GEMINI_FREE_TIER_DAILY_LIMIT,
   InvalidApiKeyError,
@@ -71,22 +71,9 @@ export class GeminiService {
   
   // Usage tracking
   private totalTokensUsed: number = 0;
-
-  // Prompt caching state
-  private cacheManager: GoogleAICacheManager | null = null;
-  private cachedContentName: string | null = null;
-  private cachedModelId: string | null = null;
-  private cacheCreatedAt: number = 0;
   
   // Configuration
   private dailyRequestLimit: number = GEMINI_FREE_TIER_DAILY_LIMIT;
-  private static readonly CACHE_TTL_SECONDS = 3600;
-  private static readonly CACHE_RENEWAL_BUFFER_SECONDS = 60;
-  private static readonly CACHE_COMPATIBLE_MODELS = new Set([
-    // Conservative compatibility set; unsupported models fall back to uncached prompts.
-    'gemini-1.5-pro',
-    'gemini-1.5-flash',
-  ]);
   private static readonly SYSTEM_ROLE_TEXT = `You are an expert in telecommunications and VoIP log analysis, specializing in SIP, call flow troubleshooting, and network issues.
 
 INSTRUCTIONS:
@@ -568,89 +555,23 @@ RESPONSE:`;
   /**
    * Return a cached-content-backed model when available.
    *
-   * Why: Caching is a cost optimization and not required for correctness.
-   * If cache creation/retrieval fails, we degrade gracefully to normal prompts.
+   * Note: Context caching via GoogleAICacheManager is not available in the
+   * @google/generative-ai client SDK. This method always returns null so
+   * uncached prompts are used. Caching may be available in the server SDK.
    *
-   * @param modelId - Active model id for this request
-   * @returns Cached model instance or null
+   * @returns Cached model instance or null (always null for client SDK)
    */
-  private async getCachedModelIfAvailable(modelId: string): Promise<GenerativeModel | null> {
-    if (!this.client || !this.currentApiKey) {
-      return null;
-    }
-    if (!this.isCacheCompatibleModel(modelId)) {
-      return null;
-    }
-
-    const hasCachedModelFactory =
-      typeof (this.client as unknown as { getGenerativeModelFromCachedContent?: unknown }).getGenerativeModelFromCachedContent === 'function';
-    if (!hasCachedModelFactory) {
-      return null;
-    }
-
-    const now = Date.now();
-    const ageSeconds = (now - this.cacheCreatedAt) / 1000;
-    const isCacheFresh =
-      this.cachedContentName &&
-      this.cachedModelId === modelId &&
-      ageSeconds < (GeminiService.CACHE_TTL_SECONDS - GeminiService.CACHE_RENEWAL_BUFFER_SECONDS);
-
-    try {
-      if (!this.cacheManager) {
-        this.cacheManager = new GoogleAICacheManager(this.currentApiKey);
-      }
-
-      if (!isCacheFresh) {
-        const cache = await this.cacheManager.create({
-          model: `models/${modelId}`,
-          contents: [
-            {
-              role: 'user',
-              parts: [{ text: GeminiService.SYSTEM_ROLE_TEXT }],
-            },
-          ],
-          ttlSeconds: GeminiService.CACHE_TTL_SECONDS,
-        });
-
-        this.cachedContentName = cache.name;
-        this.cachedModelId = modelId;
-        this.cacheCreatedAt = now;
-      }
-
-      if (!this.cachedContentName) {
-        return null;
-      }
-
-      const cacheHandle = { name: this.cachedContentName };
-      return (this.client as unknown as {
-        getGenerativeModelFromCachedContent: (cache: { name: string }) => GenerativeModel;
-      }).getGenerativeModelFromCachedContent(cacheHandle);
-    } catch (error) {
-      // Why: cache support can differ by model/tier; log and continue without cache.
-      console.error('Gemini cache unavailable, falling back to uncached prompts:', error);
-      return null;
-    }
+  private async getCachedModelIfAvailable(_modelId: string): Promise<GenerativeModel | null> {
+    return null;
   }
 
   /**
    * Reset prompt cache state.
    *
-   * Why: API key or model changes require cache invalidation to avoid stale handles.
+   * No-op: caching is disabled in client SDK. Kept for API compatibility.
    */
   private resetPromptCache(): void {
-    this.cacheManager = null;
-    this.cachedContentName = null;
-    this.cachedModelId = null;
-    this.cacheCreatedAt = 0;
-  }
-
-  /**
-   * Check whether model is known to support Gemini context caching.
-   *
-   * Why: avoids avoidable cache API calls for incompatible preview models.
-   */
-  private isCacheCompatibleModel(modelId: string): boolean {
-    return GeminiService.CACHE_COMPATIBLE_MODELS.has(modelId);
+    // Caching not supported in @google/generative-ai client; no state to reset
   }
   
   /**
