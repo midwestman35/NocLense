@@ -59,7 +59,6 @@ export class GeminiService {
   private client: GoogleGenerativeAI | null = null;
   private model: GenerativeModel | null = null;
   private currentModelId: string = 'gemini-3-flash-preview';
-  private currentApiKey: string | null = null;
   
   // Rate limiting state
   // Why: Free tier has 15 RPM, 1,500 RPD limits - must track to avoid quota errors
@@ -74,14 +73,6 @@ export class GeminiService {
   
   // Configuration
   private dailyRequestLimit: number = GEMINI_FREE_TIER_DAILY_LIMIT;
-  private static readonly SYSTEM_ROLE_TEXT = `You are an expert in telecommunications and VoIP log analysis, specializing in SIP, call flow troubleshooting, and network issues.
-
-INSTRUCTIONS:
-- Provide clear, actionable insights
-- Reference specific log entries when relevant
-- Use markdown formatting for readability
-- Be concise but thorough
-- If uncertain, say so clearly`;
   
   /**
    * Get singleton instance
@@ -118,7 +109,6 @@ INSTRUCTIONS:
     }
     
     this.client = new GoogleGenerativeAI(apiKey);
-    this.currentApiKey = apiKey;
     this.currentModelId = model;
     this.model = this.client.getGenerativeModel({ model });
     this.resetPromptCache();
