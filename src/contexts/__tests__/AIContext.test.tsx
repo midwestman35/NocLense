@@ -36,12 +36,19 @@ import {
 } from '../../types/ai';
 import type { LogEntry } from '../../types';
 
+const mockEmbeddingService = {
+  initialize: vi.fn(),
+  retrieveTopKByQuery: vi.fn(),
+  indexLogFile: vi.fn(),
+};
+
 // Mock GeminiService
 vi.mock('../../services/llmService', () => {
   const mockService = {
     initialize: vi.fn(),
     validateApiKey: vi.fn(),
     analyzeLog: vi.fn(),
+    analyzeHierarchical: vi.fn(),
     setDailyRequestLimit: vi.fn(),
     getUsageStats: vi.fn(),
   };
@@ -57,13 +64,42 @@ vi.mock('../../services/llmService', () => {
 vi.mock('../../services/logContextBuilder', () => {
   // Return a class constructor, not a function
   class MockLogContextBuilder {
+    HIERARCHICAL_THRESHOLD = 5000;
+
     buildContext(logs: LogEntry[]) {
       return `Context for ${logs.length} logs`;
+    }
+
+    buildHierarchicalContext(logs: LogEntry[]) {
+      return [
+        { timeWindow: 'window-1', context: `Chunk context for ${logs.length} logs` },
+      ];
     }
   }
   
   return {
     LogContextBuilder: MockLogContextBuilder,
+  };
+});
+
+// Mock EmbeddingService
+vi.mock('../../services/embeddingService', () => {
+  class MockEmbeddingService {
+    initialize(apiKey: string) {
+      return mockEmbeddingService.initialize(apiKey);
+    }
+
+    retrieveTopKByQuery(query: string, logs: LogEntry[], k: number) {
+      return mockEmbeddingService.retrieveTopKByQuery(query, logs, k);
+    }
+
+    indexLogFile(logs: LogEntry[]) {
+      return mockEmbeddingService.indexLogFile(logs);
+    }
+  }
+
+  return {
+    EmbeddingService: MockEmbeddingService,
   };
 });
 
@@ -115,6 +151,17 @@ describe('AIContext', () => {
       tokensUsed: 100,
       model: 'gemini-3-flash-preview',
     });
+    mockService.analyzeHierarchical.mockResolvedValue({
+      content: 'Hierarchical response',
+      logReferences: [10, 11],
+      tokensUsed: 200,
+      model: 'gemini-3-flash-preview',
+    });
+    mockEmbeddingService.initialize.mockReset();
+    mockEmbeddingService.retrieveTopKByQuery.mockReset();
+    mockEmbeddingService.indexLogFile.mockReset();
+    mockEmbeddingService.retrieveTopKByQuery.mockResolvedValue([]);
+    mockEmbeddingService.indexLogFile.mockResolvedValue(undefined);
   });
   
   afterEach(() => {
@@ -536,6 +583,84 @@ describe('AIContext', () => {
         expect(mockService.analyzeLog).toHaveBeenCalled();
         expect(result.current.conversationHistory.length).toBe(2); // User + Assistant
       });
+    });
+
+    it('should use hierarchical analysis for very large log selections', async () => {
+      localStorageMock['noclense_ai_api_key'] = 'test-key';
+      localStorageMock['noclense_ai_enabled'] = 'true';
+
+      const largeLogs: LogEntry[] = Array.from({ length: 5001 }, (_, i) => ({
+        id: i + 1,
+        timestamp: Date.now() + i * 1000,
+        rawTimestamp: new Date(Date.now() + i * 1000).toISOString(),
+        level: i % 2 === 0 ? 'ERROR' : 'INFO',
+        component: 'test',
+        displayComponent: 'test',
+        message: `Message ${i}`,
+        displayMessage: `Message ${i}`,
+        payload: '',
+        type: 'LOG',
+        isSip: false,
+      }));
+
+      const { result } = renderHook(() => useAI(), {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(result.current.apiKeyConfigured).toBe(true);
+        expect(result.current.isEnabled).toBe(true);
+      });
+
+      await act(async () => {
+        await result.current.askQuestion('large request', undefined, largeLogs);
+      });
+
+      await waitFor(() => {
+        expect(mockService.analyzeHierarchical).toHaveBeenCalledTimes(1);
+      });
+      expect(mockService.analyzeLog).not.toHaveBeenCalled();
+    });
+
+    it('should use embedding retrieval branch for medium-large log selections', async () => {
+      localStorageMock['noclense_ai_api_key'] = 'test-key';
+      localStorageMock['noclense_ai_enabled'] = 'true';
+
+      const mediumLogs: LogEntry[] = Array.from({ length: 1200 }, (_, i) => ({
+        id: i + 1,
+        timestamp: Date.now() + i,
+        rawTimestamp: new Date(Date.now() + i).toISOString(),
+        level: i % 3 === 0 ? 'ERROR' : 'INFO',
+        component: 'test',
+        displayComponent: 'test',
+        message: `Message ${i}`,
+        displayMessage: `Message ${i}`,
+        payload: '',
+        type: 'LOG',
+        isSip: false,
+      }));
+
+      mockEmbeddingService.retrieveTopKByQuery.mockResolvedValue([mediumLogs[0], mediumLogs[1]]);
+
+      const { result } = renderHook(() => useAI(), {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(result.current.apiKeyConfigured).toBe(true);
+        expect(result.current.isEnabled).toBe(true);
+      });
+
+      await act(async () => {
+        await result.current.askQuestion('retrieve relevant logs', undefined, mediumLogs);
+      });
+
+      await waitFor(() => {
+        expect(mockEmbeddingService.initialize).toHaveBeenCalledWith('test-key');
+        expect(mockEmbeddingService.retrieveTopKByQuery).toHaveBeenCalled();
+        expect(mockService.analyzeLog).toHaveBeenCalled();
+      });
+      expect(mockService.analyzeHierarchical).not.toHaveBeenCalled();
     });
     
     it('should handle InvalidApiKeyError', async () => {

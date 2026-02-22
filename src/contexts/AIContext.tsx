@@ -42,6 +42,7 @@
 import { createContext, useContext, useState, useMemo, useEffect, useCallback, type ReactNode } from 'react';
 import { GeminiService } from '../services/llmService';
 import { LogContextBuilder } from '../services/logContextBuilder';
+import { EmbeddingService } from '../services/embeddingService';
 import { buildPromptFromTemplate } from '../services/promptTemplates';
 import {
   type AIMessage,
@@ -423,6 +424,7 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
   // Why: Singleton pattern ensures single API client
   const geminiService = useMemo(() => GeminiService.getInstance(), []);
   const contextBuilder = useMemo(() => new LogContextBuilder(), []);
+  const embeddingService = useMemo(() => new EmbeddingService(), []);
   
   // Initialize GeminiService when API key is available
   // Why: Lazy initialization - only create API client when needed
@@ -602,24 +604,65 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
       setConversationHistory(prev => [...prev, userMessage]);
 
       let context = '';
+      let response: {
+        content: string;
+        logReferences: number[];
+        tokensUsed: number;
+        model: string;
+      };
       const logsForPrompt = logs ?? [];
       const engineeredQuery = buildPromptFromTemplate(query, logsForPrompt);
       if (logs && logs.length > 0) {
         try {
-          context = contextBuilder.buildContext(logs, {
-            maxTokens: 100000,
-            prioritizeErrors: true,
-            includeSurrounding: 5,
-          });
+          const isHierarchical = logs.length > contextBuilder.HIERARCHICAL_THRESHOLD;
+          if (isHierarchical) {
+            const chunks = contextBuilder.buildHierarchicalContext(logs, {
+              maxTokens: 100000,
+              prioritizeErrors: true,
+              includeSurrounding: 5,
+            });
+            response = await geminiService.analyzeHierarchical(engineeredQuery, chunks, { model });
+          } else {
+            let logsForContext = logs;
+
+            // Why: retrieval trims medium-large selections to semantically relevant logs.
+            if (apiKey && logs.length > 1000) {
+              try {
+                embeddingService.initialize(apiKey);
+                const candidates = logs.filter(log => log.level === 'ERROR' || log.level === 'WARN' || log.level === 'INFO');
+                const retrieved = await embeddingService.retrieveTopKByQuery(
+                  engineeredQuery,
+                  candidates.length > 0 ? candidates : logs,
+                  250
+                );
+                if (retrieved.length > 0) {
+                  logsForContext = retrieved;
+                }
+                // Background indexing for future queries; non-blocking by design.
+                embeddingService.indexLogFile(logs).catch((indexError) => {
+                  console.error('Background embedding index failed:', indexError);
+                });
+              } catch (embeddingError) {
+                console.error('Embedding retrieval unavailable, using standard context selection:', embeddingError);
+              }
+            }
+
+            context = contextBuilder.buildContext(logsForContext, {
+              maxTokens: 100000,
+              prioritizeErrors: true,
+              includeSurrounding: 5,
+            });
+            response = await geminiService.analyzeLog(engineeredQuery, context, { model });
+          }
         } catch (e) {
           console.error('Failed to build context:', e);
           setError('Failed to prepare logs for analysis. Please try again.');
           setIsLoading(false);
           return;
         }
+      } else {
+        response = await geminiService.analyzeLog(engineeredQuery, context, { model });
       }
-
-      const response = await geminiService.analyzeLog(engineeredQuery, context, { model });
 
       const assistantMessage: AIMessage = {
         id: `assistant-${Date.now()}`,
@@ -660,7 +703,7 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [model, geminiService, contextBuilder]);
+  }, [model, geminiService, contextBuilder, embeddingService, apiKey]);
 
   /**
    * Phase 7: User consented - save choice, hide modal, execute pending request if any

@@ -178,6 +178,18 @@ export interface ContextOptions {
   prioritizeErrors?: boolean;
   /** Whether to include log payloads (default: true, set false for privacy) */
   includePayloads?: boolean;
+  /** User query used by retrieval-based context selection */
+  query?: string;
+  /** Enable embedding retrieval for context selection */
+  useEmbeddingRetrieval?: boolean;
+}
+
+/**
+ * One hierarchical context chunk for two-pass analysis.
+ */
+export interface HierarchicalContextChunk {
+  timeWindow: string;
+  context: string;
 }
 
 /**

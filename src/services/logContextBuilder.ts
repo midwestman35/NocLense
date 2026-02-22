@@ -41,6 +41,49 @@ import type { ContextOptions } from '../types/ai';
  * - Easier to optimize and refine
  */
 export class LogContextBuilder {
+  public readonly HIERARCHICAL_THRESHOLD = 5000;
+  private static readonly SIP_FAILURE_SIGNALS = new Set([
+    // SIP 4xx client errors
+    '400', '401', '403', '404', '408', '480', '481', '482', '483', '484', '485',
+    '486', '487', '488', '491', '493',
+    // SIP 5xx server errors
+    '500', '502', '503', '504', '513',
+    // SIP 6xx global failures
+    '600', '603', '604', '606',
+    // SIP methods (high value for call-flow debugging)
+    'invite', 'bye', 'cancel', 'register', 'options', 'refer', 'notify', 'subscribe',
+    // Connection/transport failure terms
+    'timeout', 'timed out', 'unreachable', 'refused', 'failed', 'failure', 'rejected',
+    'unavailable', 'not found', 'forbidden', 'unauthorized',
+    // Media/RTP terms
+    'sdp', 'rtp', 'codec', 'media', 'ice', 'stun', 'turn',
+    // VoIP-specific operational terms
+    'registration', 'auth', 'authentication', 'dialog', 'transaction',
+  ]);
+
+  private static readonly KEY_SIP_HEADERS = [
+    'SIP/2.0',
+    'INVITE',
+    'BYE',
+    'CANCEL',
+    'REGISTER',
+    'OPTIONS',
+    'REFER',
+    'NOTIFY',
+    'Call-ID',
+    'CSeq',
+    'From',
+    'To',
+    'Via',
+    'Contact',
+    'Authorization',
+    'WWW-Authenticate',
+    'Reason',
+    'Warning',
+    'Content-Type',
+    'Content-Length',
+  ];
+
   /**
    * Build optimized context from logs
    * 
@@ -93,6 +136,51 @@ export class LogContextBuilder {
     
     // Format as markdown
     return this.formatLogsAsMarkdown(selectedLogs, includePayloads);
+  }
+
+  /**
+   * Build time-window chunks for two-pass hierarchical analysis.
+   *
+   * Why: very large log sets can exceed practical single-shot context limits.
+   * Chunking preserves coverage while keeping each analysis call bounded.
+   *
+   * @param logs - Full log set
+   * @param options - Context construction options
+   * @returns Ordered context chunks by time window
+   */
+  public buildHierarchicalContext(
+    logs: LogEntry[],
+    options: ContextOptions = {}
+  ): Array<{ timeWindow: string; context: string }> {
+    if (logs.length === 0) {
+      return [];
+    }
+
+    const sortedLogs = [...logs].sort((a, b) => a.timestamp - b.timestamp);
+    const windowMs = 15 * 60 * 1000; // 15-minute windows
+    const minTs = sortedLogs[0].timestamp;
+    const maxTs = sortedLogs[sortedLogs.length - 1].timestamp;
+    const chunks: Array<{ timeWindow: string; context: string }> = [];
+
+    for (let windowStart = minTs; windowStart <= maxTs; windowStart += windowMs) {
+      const windowEnd = windowStart + windowMs;
+      const windowLogs = sortedLogs.filter(
+        log => log.timestamp >= windowStart && log.timestamp < windowEnd
+      );
+      if (windowLogs.length === 0) {
+        continue;
+      }
+
+      const startStr = new Date(windowStart).toISOString();
+      const endStr = new Date(Math.min(windowEnd, maxTs)).toISOString();
+      const context = this.buildContext(windowLogs, {
+        ...options,
+        maxTokens: Math.floor((options.maxTokens ?? 100000) / 4),
+      });
+      chunks.push({ timeWindow: `${startStr} -> ${endStr}`, context });
+    }
+
+    return chunks;
   }
   
   /**
@@ -150,6 +238,7 @@ export class LogContextBuilder {
    */
   private prioritizeLogs(logs: LogEntry[], maxTokens: number): LogEntry[] {
     const errors: LogEntry[] = [];
+    const sipSignalWarnings: LogEntry[] = [];
     const warnings: LogEntry[] = [];
     const info: LogEntry[] = [];
     
@@ -158,15 +247,23 @@ export class LogContextBuilder {
       if (log.level === 'ERROR') {
         errors.push(log);
       } else if (log.level === 'WARN') {
-        warnings.push(log);
+        if (this.hasSipFailureSignal(log)) {
+          sipSignalWarnings.push(log);
+        } else {
+          warnings.push(log);
+        }
       } else if (log.level === 'INFO') {
-        info.push(log);
+        if (this.hasSipFailureSignal(log)) {
+          sipSignalWarnings.push(log);
+        } else {
+          info.push(log);
+        }
       }
       // Skip DEBUG logs (too verbose for AI analysis)
     }
     
-    // Start with errors and warnings
-    let selected: LogEntry[] = [...errors, ...warnings];
+    // Start with errors, SIP-significant warn/info logs, then warnings
+    let selected: LogEntry[] = [...errors, ...sipSignalWarnings, ...warnings];
     
     // Add surrounding context for errors
     selected = this.addSurroundingContext(logs, selected, 5);
@@ -179,6 +276,25 @@ export class LogContextBuilder {
     
     // Trim to token limit
     return this.selectLogsByTokenLimit(selected, maxTokens, true);
+  }
+
+  /**
+   * Detect SIP/VoIP failure signals in log text.
+   *
+   * Why: SIP failure logs can be WARN/INFO but are often more diagnostically
+   * important than generic WARN logs.
+   *
+   * @param log - Log entry to inspect
+   * @returns True if the log includes SIP failure indicators
+   */
+  private hasSipFailureSignal(log: LogEntry): boolean {
+    const text = `${log.message} ${log.component ?? ''}`.toLowerCase();
+    for (const signal of LogContextBuilder.SIP_FAILURE_SIGNALS) {
+      if (text.includes(signal)) {
+        return true;
+      }
+    }
+    return false;
   }
   
   /**
@@ -306,8 +422,9 @@ export class LogContextBuilder {
     const seen = new Map<string, { log: LogEntry; count: number }>();
     
     for (const log of logs) {
-      // Create key from level, component, and message (ignore timestamp)
-      const key = `${log.level}|${log.component}|${log.message}`;
+      // Normalize variable fields so semantically identical messages dedupe together.
+      const normalizedMessage = this.normalizeMessageForDedup(log.message);
+      const key = `${log.level}|${log.component}|${normalizedMessage}`;
       
       if (seen.has(key)) {
         seen.get(key)!.count++;
@@ -323,6 +440,24 @@ export class LogContextBuilder {
       // Using a custom property (we'll handle this in formatting)
       return { ...log, _duplicateCount: count > 1 ? count : undefined } as LogEntry & { _duplicateCount?: number };
     });
+  }
+
+  /**
+   * Normalize variable values in messages for template-style deduplication.
+   *
+   * Why: SIP errors frequently differ only by endpoint/IDs/timestamps, which
+   * should not prevent duplicate collapsing.
+   *
+   * @param message - Raw log message
+   * @returns Normalized message suitable for deduplication keying
+   */
+  private normalizeMessageForDedup(message: string): string {
+    return message
+      .replace(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d{1,5})?\b/g, '<ADDR>')
+      .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, '<UUID>')
+      .replace(/z9hG4bK[a-zA-Z0-9]+/g, '<BRANCH>')
+      .replace(/\b\d{5,}\b/g, '<NUM>')
+      .replace(/\b[0-9a-f]{4,16}\b/gi, '<HEX>');
   }
   
   /**
@@ -474,10 +609,76 @@ export class LogContextBuilder {
     if (payload.length <= maxLength) {
       return payload;
     }
-    
-    const start = payload.substring(0, 200);
-    const end = payload.substring(payload.length - 200);
-    return `${start}\n... [truncated ${payload.length - 400} characters] ...\n${end}`;
+
+    const isSipPayload = /^(SIP\/2\.0|INVITE|BYE|CANCEL|REGISTER|OPTIONS|REFER|NOTIFY|SUBSCRIBE|PRACK|UPDATE|ACK)/m
+      .test(payload.substring(0, 100));
+
+    if (isSipPayload) {
+      return this.extractSipPayload(payload);
+    }
+
+    // Keep full head lines so the model receives parseable structured fragments.
+    const lines = payload.split('\n');
+    const headLines: string[] = [];
+    let headChars = 0;
+
+    for (const line of lines) {
+      if (headChars + line.length > 200) {
+        break;
+      }
+      headLines.push(line);
+      headChars += line.length + 1;
+    }
+
+    const head = headLines.join('\n');
+    const omittedChars = payload.length - maxLength;
+    return `${head}\n... [truncated ${omittedChars} characters] ...`;
+  }
+
+  /**
+   * Extract high-signal SIP headers from payload to reduce token usage.
+   *
+   * Why: SIP diagnostics rely on request/status lines and a small set of headers.
+   * Keeping the full SDP tail is expensive and rarely improves root-cause quality.
+   *
+   * @param payload - SIP payload text
+   * @returns Compact SIP-focused payload summary
+   */
+  private extractSipPayload(payload: string): string {
+    const lines = payload.split('\n');
+    const extracted: string[] = [];
+
+    if (lines.length > 0) {
+      extracted.push(lines[0].trim());
+    }
+
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (line === '') {
+        break;
+      }
+
+      const isKeyHeader = LogContextBuilder.KEY_SIP_HEADERS.some(
+        header => line.startsWith(`${header}:`) || line.startsWith(`${header} `)
+      );
+
+      if (isKeyHeader) {
+        extracted.push(line.length > 120 ? `${line.substring(0, 120)}...` : line);
+      }
+
+      if (extracted.length >= 12) {
+        break;
+      }
+    }
+
+    const headerBoundary = lines.findIndex(line => line.trim() === '');
+    const totalHeaders = headerBoundary > 0 ? headerBoundary : lines.length;
+    const omittedHeaders = totalHeaders - extracted.length;
+    if (omittedHeaders > 0) {
+      extracted.push(`[+${omittedHeaders} headers omitted]`);
+    }
+
+    return extracted.join('\n');
   }
   
   /**

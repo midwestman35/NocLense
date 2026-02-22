@@ -6,7 +6,7 @@
 import type { LogEntry } from '../types';
 
 const DB_NAME = 'NocLenseDB';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const STORE_NAME = 'logs';
 const METADATA_STORE = 'metadata';
 
@@ -63,6 +63,17 @@ class IndexedDBManager {
                         const store = tx.objectStore(STORE_NAME);
                         if (!store.indexNames.contains('cncID')) store.createIndex('cncID', 'cncID', { unique: false });
                         if (!store.indexNames.contains('messageID')) store.createIndex('messageID', 'messageID', { unique: false });
+                    }
+                }
+
+                // V3: add embedding status index for retrieval augmentation
+                if (oldVersion < 3) {
+                    const tx = (event.target as IDBOpenDBRequest).transaction;
+                    if (tx) {
+                        const store = tx.objectStore(STORE_NAME);
+                        if (!store.indexNames.contains('hasEmbedding')) {
+                            store.createIndex('hasEmbedding', 'hasEmbedding', { unique: false });
+                        }
                     }
                 }
 
@@ -401,6 +412,63 @@ class IndexedDBManager {
             const request = store.clear();
             
             request.onsuccess = () => resolve();
+            request.onerror = () => reject(request.error);
+        });
+    }
+
+    /**
+     * Persist embedding vector for a log entry.
+     *
+     * Why: allows retrieval augmentation across sessions without recomputing
+     * embeddings for already-indexed logs.
+     */
+    async updateLogEmbedding(id: number, embedding: number[]): Promise<void> {
+        const db = await this.getDB();
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction([STORE_NAME], 'readwrite');
+            const store = transaction.objectStore(STORE_NAME);
+            const request = store.get(id);
+
+            request.onsuccess = () => {
+                const log = request.result as LogEntry | undefined;
+                if (!log) {
+                    resolve();
+                    return;
+                }
+                const updated: LogEntry = {
+                    ...log,
+                    embedding,
+                    hasEmbedding: true,
+                };
+                const putRequest = store.put(updated);
+                putRequest.onsuccess = () => resolve();
+                putRequest.onerror = () => reject(putRequest.error);
+            };
+            request.onerror = () => reject(request.error);
+        });
+    }
+
+    /**
+     * Fetch logs that already have embeddings.
+     */
+    async getLogsWithEmbeddings(limit?: number): Promise<LogEntry[]> {
+        const db = await this.getDB();
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction([STORE_NAME], 'readonly');
+            const store = transaction.objectStore(STORE_NAME);
+            const index = store.index('hasEmbedding');
+            const request = index.openCursor(IDBKeyRange.only(true));
+            const results: LogEntry[] = [];
+
+            request.onsuccess = (event) => {
+                const cursor = (event.target as IDBRequest<IDBCursorWithValue>).result;
+                if (cursor && (!limit || results.length < limit)) {
+                    results.push(cursor.value as LogEntry);
+                    cursor.continue();
+                } else {
+                    resolve(results);
+                }
+            };
             request.onerror = () => reject(request.error);
         });
     }

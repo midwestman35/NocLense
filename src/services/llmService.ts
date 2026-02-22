@@ -29,7 +29,7 @@
  * @module services/llmService
  */
 
-import { GoogleGenerativeAI, type GenerativeModel } from '@google/generative-ai';
+import { GoogleGenerativeAI, GoogleAICacheManager, type GenerativeModel } from '@google/generative-ai';
 import {
   GEMINI_FREE_TIER_DAILY_LIMIT,
   InvalidApiKeyError,
@@ -38,6 +38,7 @@ import {
   TokenLimitExceededError,
   NetworkError,
   type AIUsageStats,
+  type HierarchicalContextChunk,
 } from '../types/ai';
 
 /**
@@ -58,6 +59,7 @@ export class GeminiService {
   private client: GoogleGenerativeAI | null = null;
   private model: GenerativeModel | null = null;
   private currentModelId: string = 'gemini-3-flash-preview';
+  private currentApiKey: string | null = null;
   
   // Rate limiting state
   // Why: Free tier has 15 RPM, 1,500 RPD limits - must track to avoid quota errors
@@ -69,9 +71,30 @@ export class GeminiService {
   
   // Usage tracking
   private totalTokensUsed: number = 0;
+
+  // Prompt caching state
+  private cacheManager: GoogleAICacheManager | null = null;
+  private cachedContentName: string | null = null;
+  private cachedModelId: string | null = null;
+  private cacheCreatedAt: number = 0;
   
   // Configuration
   private dailyRequestLimit: number = GEMINI_FREE_TIER_DAILY_LIMIT;
+  private static readonly CACHE_TTL_SECONDS = 3600;
+  private static readonly CACHE_RENEWAL_BUFFER_SECONDS = 60;
+  private static readonly CACHE_COMPATIBLE_MODELS = new Set([
+    // Conservative compatibility set; unsupported models fall back to uncached prompts.
+    'gemini-1.5-pro',
+    'gemini-1.5-flash',
+  ]);
+  private static readonly SYSTEM_ROLE_TEXT = `You are an expert in telecommunications and VoIP log analysis, specializing in SIP, call flow troubleshooting, and network issues.
+
+INSTRUCTIONS:
+- Provide clear, actionable insights
+- Reference specific log entries when relevant
+- Use markdown formatting for readability
+- Be concise but thorough
+- If uncertain, say so clearly`;
   
   /**
    * Get singleton instance
@@ -108,8 +131,10 @@ export class GeminiService {
     }
     
     this.client = new GoogleGenerativeAI(apiKey);
+    this.currentApiKey = apiKey;
     this.currentModelId = model;
     this.model = this.client.getGenerativeModel({ model });
+    this.resetPromptCache();
     
     // Reset rate limiting on new initialization (user may have changed API key)
     this.resetRateLimits();
@@ -282,27 +307,40 @@ export class GeminiService {
     // Check rate limits before making request
     this.checkRateLimits();
     
-    // Estimate tokens (rough: 1 token ≈ 4 characters)
-    // Why: Prevent sending requests that will fail due to token limits
-    const estimatedTokens = Math.ceil((query.length + context.length) / 4);
-    const maxTokens = options?.maxTokens || 100000;
-    
-    if (estimatedTokens > maxTokens) {
-      throw new TokenLimitExceededError(
-        `Context too large (estimated ${estimatedTokens} tokens, max ${maxTokens}). Please select fewer logs.`,
-        maxTokens,
-        estimatedTokens
-      );
-    }
-    
     try {
       // Build prompt with context
-      const prompt = this.buildPrompt(query, context);
-      
-      // Use specified model or current model
-      const modelToUse = options?.model 
+      const selectedModelId = options?.model || this.currentModelId;
+      const defaultModel = options?.model
         ? this.client.getGenerativeModel({ model: options.model })
         : this.model;
+      const cachedModel = await this.getCachedModelIfAvailable(selectedModelId);
+
+      // Why: when prompt cache is available, avoid resending static role/instruction text.
+      const modelToUse = cachedModel ?? defaultModel;
+      const prompt = cachedModel
+        ? this.buildPromptWithoutRole(query, context)
+        : this.buildPrompt(query, context);
+
+      const maxTokens = options?.maxTokens ?? 100000;
+
+      // Use exact model-side token counting when available.
+      // Why: character heuristics can materially under/over-estimate structured SIP context.
+      const tokenCountResult =
+        typeof modelToUse.countTokens === 'function'
+          ? await this.makeApiCallWithRetry(() => modelToUse.countTokens(prompt))
+          : null;
+
+      const exactTokens =
+        tokenCountResult?.totalTokens ??
+        Math.ceil(prompt.length / 4);
+
+      if (exactTokens > maxTokens) {
+        throw new TokenLimitExceededError(
+          `Context too large (${exactTokens.toLocaleString()} tokens, limit ${maxTokens.toLocaleString()}). Please select fewer logs.`,
+          maxTokens,
+          exactTokens
+        );
+      }
       
       // Make API call with retry logic
       const result = await this.makeApiCallWithRetry(
@@ -327,7 +365,9 @@ export class GeminiService {
 
       // Track usage
       this.incrementRateLimits();
-      const tokensUsed = estimatedTokens + Math.ceil(text.length / 4); // Rough estimate
+      const tokensUsed =
+        result.response.usageMetadata?.totalTokenCount ??
+        (exactTokens + Math.ceil(text.length / 4));
       this.totalTokensUsed += tokensUsed;
       
       // Extract log references from response (if any)
@@ -343,6 +383,68 @@ export class GeminiService {
       // Classify and re-throw with user-friendly message
       throw this.handleApiError(error);
     }
+  }
+
+  /**
+   * Analyze very large datasets via two-pass hierarchical summarization.
+   *
+   * Why: keeps each model call bounded while preserving global timeline coverage.
+   *
+   * @param query - User's analysis question
+   * @param chunks - Time-window context chunks
+   * @param options - Optional model/token options
+   * @returns Final synthesized analysis response
+   */
+  public async analyzeHierarchical(
+    query: string,
+    chunks: HierarchicalContextChunk[],
+    options?: {
+      model?: string;
+      temperature?: number;
+      maxTokens?: number;
+    }
+  ): Promise<{
+    content: string;
+    logReferences: number[];
+    tokensUsed: number;
+    model: string;
+  }> {
+    if (chunks.length === 0) {
+      return this.analyzeLog(query, 'No logs available for analysis.', options);
+    }
+
+    const chunkSummaries: string[] = [];
+    const maxCallsPerMinute = 14; // keep headroom under 15 RPM free-tier limit
+    let callsInWindow = 0;
+    let windowStart = Date.now();
+
+    for (const chunk of chunks) {
+      if (callsInWindow >= maxCallsPerMinute) {
+        const elapsed = Date.now() - windowStart;
+        const waitMs = Math.max(0, 60000 - elapsed);
+        if (waitMs > 0) {
+          await this.sleep(waitMs);
+        }
+        callsInWindow = 0;
+        windowStart = Date.now();
+      }
+
+      const chunkPrompt = `Summarize this time-window of logs for later synthesis.
+Focus on key failures, protocol events, and probable causes.
+User question: ${query}
+Time window: ${chunk.timeWindow}`;
+
+      const chunkResult = await this.analyzeLog(chunkPrompt, chunk.context, options);
+      chunkSummaries.push(`### ${chunk.timeWindow}\n${chunkResult.content}`);
+      callsInWindow++;
+    }
+
+    const synthesisContext = chunkSummaries.join('\n\n');
+    const synthesisQuery = `Synthesize all time-window summaries into one final answer for the user's request.
+Highlight root-cause timeline, repeated patterns, and concrete remediation steps.
+Original user question: ${query}`;
+
+    return this.analyzeLog(synthesisQuery, synthesisContext, options);
   }
   
   /**
@@ -374,10 +476,15 @@ export class GeminiService {
     this.checkRateLimits();
     
     try {
-      const prompt = this.buildPrompt(query, context);
-      const modelToUse = options?.model 
+      const selectedModelId = options?.model || this.currentModelId;
+      const defaultModel = options?.model
         ? this.client.getGenerativeModel({ model: options.model })
         : this.model;
+      const cachedModel = await this.getCachedModelIfAvailable(selectedModelId);
+      const modelToUse = cachedModel ?? defaultModel;
+      const prompt = cachedModel
+        ? this.buildPromptWithoutRole(query, context)
+        : this.buildPrompt(query, context);
       
       // Stream response - use retry for transient failures (per .cursorrules)
       const result = await this.makeApiCallWithRetry(
@@ -433,6 +540,117 @@ INSTRUCTIONS:
 - If uncertain, say so clearly
 
 RESPONSE:`;
+  }
+
+  /**
+   * Build the dynamic prompt section used when static role text is cached.
+   *
+   * Why: Context caching stores stable instruction text once and sends only
+   * query/context deltas on each request.
+   *
+   * @param query - User's question
+   * @param context - Formatted log context
+   * @returns Dynamic prompt for cached model calls
+   */
+  private buildPromptWithoutRole(query: string, context: string): string {
+    return `CONTEXT:
+The following logs are from a telecommunications/VoIP system. Analyze them to answer the user's question.
+
+LOGS:
+${context}
+
+USER QUESTION:
+${query}
+
+RESPONSE:`;
+  }
+
+  /**
+   * Return a cached-content-backed model when available.
+   *
+   * Why: Caching is a cost optimization and not required for correctness.
+   * If cache creation/retrieval fails, we degrade gracefully to normal prompts.
+   *
+   * @param modelId - Active model id for this request
+   * @returns Cached model instance or null
+   */
+  private async getCachedModelIfAvailable(modelId: string): Promise<GenerativeModel | null> {
+    if (!this.client || !this.currentApiKey) {
+      return null;
+    }
+    if (!this.isCacheCompatibleModel(modelId)) {
+      return null;
+    }
+
+    const hasCachedModelFactory =
+      typeof (this.client as unknown as { getGenerativeModelFromCachedContent?: unknown }).getGenerativeModelFromCachedContent === 'function';
+    if (!hasCachedModelFactory) {
+      return null;
+    }
+
+    const now = Date.now();
+    const ageSeconds = (now - this.cacheCreatedAt) / 1000;
+    const isCacheFresh =
+      this.cachedContentName &&
+      this.cachedModelId === modelId &&
+      ageSeconds < (GeminiService.CACHE_TTL_SECONDS - GeminiService.CACHE_RENEWAL_BUFFER_SECONDS);
+
+    try {
+      if (!this.cacheManager) {
+        this.cacheManager = new GoogleAICacheManager(this.currentApiKey);
+      }
+
+      if (!isCacheFresh) {
+        const cache = await this.cacheManager.create({
+          model: `models/${modelId}`,
+          contents: [
+            {
+              role: 'user',
+              parts: [{ text: GeminiService.SYSTEM_ROLE_TEXT }],
+            },
+          ],
+          ttlSeconds: GeminiService.CACHE_TTL_SECONDS,
+        });
+
+        this.cachedContentName = cache.name;
+        this.cachedModelId = modelId;
+        this.cacheCreatedAt = now;
+      }
+
+      if (!this.cachedContentName) {
+        return null;
+      }
+
+      const cacheHandle = { name: this.cachedContentName };
+      return (this.client as unknown as {
+        getGenerativeModelFromCachedContent: (cache: { name: string }) => GenerativeModel;
+      }).getGenerativeModelFromCachedContent(cacheHandle);
+    } catch (error) {
+      // Why: cache support can differ by model/tier; log and continue without cache.
+      console.error('Gemini cache unavailable, falling back to uncached prompts:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Reset prompt cache state.
+   *
+   * Why: API key or model changes require cache invalidation to avoid stale handles.
+   */
+  private resetPromptCache(): void {
+    this.cacheManager = null;
+    this.cachedContentName = null;
+    this.cachedModelId = null;
+    this.cacheCreatedAt = 0;
+  }
+
+  /**
+   * Check whether model is known to support Gemini context caching.
+   *
+   * Why: avoids avoidable cache API calls for incompatible preview models.
+   */
+  private isCacheCompatibleModel(modelId: string): boolean {
+    return GeminiService.CACHE_COMPATIBLE_MODELS.has(modelId);
   }
   
   /**
@@ -518,6 +736,13 @@ RESPONSE:`;
     
     // If we get here, all retries failed
     throw lastError;
+  }
+
+  /**
+   * Sleep utility for rate-limit friendly batching.
+   */
+  private async sleep(ms: number): Promise<void> {
+    await new Promise(resolve => setTimeout(resolve, ms));
   }
   
   /**

@@ -34,6 +34,9 @@ export interface LogEntry {
     _componentLower?: string; // Pre-computed lowercase component
     _payloadLower?: string; // Pre-computed lowercase payload
     _callIdLower?: string; // Pre-computed lowercase callId
+    // Tier 3: optional embedding state for retrieval-augmented context selection
+    embedding?: number[];
+    hasEmbedding?: boolean;
 }
 
 export interface LogState {

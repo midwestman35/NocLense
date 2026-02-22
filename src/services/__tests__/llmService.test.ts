@@ -29,19 +29,26 @@ import {
   NetworkError,
 } from '../../types/ai';
 
+const sharedCacheManagerMock = {
+  create: vi.fn().mockResolvedValue({ name: 'cachedContents/mock-cache-1' }),
+};
+
 // Mock @google/generative-ai
 vi.mock('@google/generative-ai', () => {
   const mockGenerateContent = vi.fn();
   const mockGenerateContentStream = vi.fn();
+  const mockCountTokens = vi.fn().mockResolvedValue({ totalTokens: 100 });
   const mockModel = {
     generateContent: mockGenerateContent,
     generateContentStream: mockGenerateContentStream,
+    countTokens: mockCountTokens,
   };
   
   const mockClient = {
     getGenerativeModel: vi.fn(() => mockModel),
+    getGenerativeModelFromCachedContent: vi.fn(() => mockModel),
   };
-  
+
   // Return a class constructor, not a function
   class MockGoogleGenerativeAI {
     constructor(apiKey: string) {
@@ -49,9 +56,16 @@ vi.mock('@google/generative-ai', () => {
       return mockClient;
     }
   }
+
+  class MockGoogleAICacheManager {
+    constructor(apiKey: string) {
+      return sharedCacheManagerMock;
+    }
+  }
   
   return {
     GoogleGenerativeAI: MockGoogleGenerativeAI,
+    GoogleAICacheManager: MockGoogleAICacheManager,
   };
 });
 
@@ -233,7 +247,11 @@ describe('GeminiService', () => {
     });
     
     it('should throw TokenLimitExceededError for context exceeding token limit', async () => {
-      const largeContext = 'x'.repeat(500000); // ~125k tokens (exceeds 100k limit)
+      const { GoogleGenerativeAI } = await import('@google/generative-ai');
+      const mockClient = new (GoogleGenerativeAI as any)('test-key');
+      const mockModel = mockClient.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      mockModel.countTokens = vi.fn().mockResolvedValue({ totalTokens: 150000 });
+      const largeContext = 'x'.repeat(500000);
       
       await expect(
         service.analyzeLog('query', largeContext, { maxTokens: 100000 })
@@ -247,9 +265,13 @@ describe('GeminiService', () => {
       const mockResponse = {
         response: {
           text: () => 'This is an AI analysis response.',
+          usageMetadata: {
+            totalTokenCount: 321,
+          },
         },
       };
       mockModel.generateContent = vi.fn().mockResolvedValue(mockResponse);
+      mockModel.countTokens = vi.fn().mockResolvedValue({ totalTokens: 120 });
       
       const result = await service.analyzeLog(
         'Why did these errors occur?',
@@ -259,7 +281,27 @@ describe('GeminiService', () => {
       expect(result.content).toBe('This is an AI analysis response.');
       expect(result.logReferences).toBeDefined();
       expect(result.tokensUsed).toBeGreaterThan(0);
+      expect(result.tokensUsed).toBe(321);
+      expect(mockModel.countTokens).toHaveBeenCalled();
       expect(result.model).toBe('gemini-3-flash-preview');
+    });
+
+    it('should skip cache creation for cache-incompatible models', async () => {
+      const { GoogleGenerativeAI } = await import('@google/generative-ai');
+      const mockClient = new (GoogleGenerativeAI as any)('test-key');
+      const mockModel = mockClient.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      mockModel.countTokens = vi.fn().mockResolvedValue({ totalTokens: 120 });
+      mockModel.generateContent = vi.fn().mockResolvedValue({
+        response: {
+          text: () => 'response',
+          usageMetadata: { totalTokenCount: 222 },
+        },
+      });
+
+      await service.analyzeLog('query', 'context');
+
+      expect(sharedCacheManagerMock.create).not.toHaveBeenCalled();
+      expect(mockModel.generateContent).toHaveBeenCalled();
     });
     
     it('should extract log references from response', async () => {
@@ -363,6 +405,36 @@ describe('GeminiService', () => {
       );
       
       expect(receivedChunks).toEqual(['Hello', ' ', 'world', '!']);
+    });
+  });
+
+  describe('analyzeHierarchical', () => {
+    beforeEach(() => {
+      service.initialize('test-api-key-12345678901234567890');
+    });
+
+    it('should summarize chunks then synthesize final response', async () => {
+      const { GoogleGenerativeAI } = await import('@google/generative-ai');
+      const mockClient = new (GoogleGenerativeAI as any)('test-key');
+      const mockModel = mockClient.getGenerativeModel({ model: 'gemini-1.5-flash' });
+
+      mockModel.countTokens = vi.fn().mockResolvedValue({ totalTokens: 100 });
+      mockModel.generateContent = vi.fn()
+        .mockResolvedValueOnce({ response: { text: () => 'chunk summary 1', usageMetadata: { totalTokenCount: 110 } } })
+        .mockResolvedValueOnce({ response: { text: () => 'chunk summary 2', usageMetadata: { totalTokenCount: 120 } } })
+        .mockResolvedValueOnce({ response: { text: () => 'final synthesis', usageMetadata: { totalTokenCount: 130 } } });
+
+      const result = await service.analyzeHierarchical(
+        'What failed?',
+        [
+          { timeWindow: 'w1', context: 'error a' },
+          { timeWindow: 'w2', context: 'error b' },
+        ],
+        { model: 'gemini-3-flash-preview' }
+      );
+
+      expect(result.content).toBe('final synthesis');
+      expect(mockModel.generateContent).toHaveBeenCalledTimes(3);
     });
   });
   

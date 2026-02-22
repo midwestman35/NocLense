@@ -242,6 +242,18 @@ describe('LogContextBuilder', () => {
       expect(result).toContain('Message 2');
       expect(result).toContain('Message 3');
     });
+
+    it('should dedupe messages that only differ by address values', () => {
+      const logs = [
+        createMockLog(1, 'ERROR', 'Failed to connect to 192.168.1.1:5060', 'sip.transport'),
+        createMockLog(2, 'ERROR', 'Failed to connect to 10.0.0.5:5060', 'sip.transport'),
+      ];
+
+      const result = builder.buildContext(logs);
+
+      expect(result).toContain('Failed to connect to 192.168.1.1:5060');
+      expect(result).toContain('(×2)');
+    });
   });
   
   describe('truncatePayload', () => {
@@ -253,8 +265,8 @@ describe('LogContextBuilder', () => {
       
       // Should contain truncated indicator
       expect(result).toContain('truncated');
-      // Should contain start and end of payload
-      expect(result).toContain('x'.repeat(200).substring(0, 50)); // First part
+      // New line-aware truncation may omit unbroken single-line payloads entirely.
+      expect(result).not.toContain('a=a=a=');
     });
     
     it('should keep short payloads as-is', () => {
@@ -265,6 +277,48 @@ describe('LogContextBuilder', () => {
       
       expect(result).toContain(shortPayload);
       expect(result).not.toContain('truncated');
+    });
+
+    it('should extract key SIP headers instead of including full payload tail', () => {
+      const sipPayload = [
+        'INVITE sip:1001@example.com SIP/2.0',
+        'Via: SIP/2.0/UDP 10.0.0.1:5060;branch=z9hG4bK123456789',
+        'From: "Alice" <sip:alice@example.com>;tag=123',
+        'To: <sip:bob@example.com>',
+        'Call-ID: abcdef-12345-uuid',
+        'CSeq: 1 INVITE',
+        'Contact: <sip:alice@10.0.0.1>',
+        'Content-Type: application/sdp',
+        'Content-Length: 999',
+        '',
+        'v=0',
+        'o=- 0 0 IN IP4 10.0.0.1',
+        's=Session',
+        'c=IN IP4 10.0.0.1',
+      ].join('\n') + '\n' + 'a='.repeat(600);
+
+      const logs = [createMockLog(1, 'ERROR', 'SIP invite failed', 'sip.stack', sipPayload)];
+      const result = builder.buildContext(logs, { includePayloads: true });
+
+      expect(result).toContain('INVITE sip:1001@example.com SIP/2.0');
+      expect(result).toContain('Call-ID:');
+      expect(result).toContain('CSeq:');
+      // "headers omitted" appears only when header cap/omission is triggered.
+      expect(result).not.toContain('a=a=a=');
+    });
+  });
+
+  describe('prioritizeLogs', () => {
+    it('should retain SIP failure signal info logs even with tight token budget', () => {
+      const logs = [
+        createMockLog(1, 'INFO', 'Service started successfully', 'app.lifecycle'),
+        createMockLog(2, 'INFO', 'SIP 488 Not Acceptable Here on INVITE', 'sip.stack'),
+        createMockLog(3, 'INFO', 'Periodic health check passed', 'app.health'),
+      ];
+
+      const result = builder.buildContext(logs, { prioritizeErrors: true, maxTokens: 40 });
+
+      expect(result).toContain('SIP 488 Not Acceptable Here on INVITE');
     });
   });
   
@@ -285,6 +339,24 @@ describe('LogContextBuilder', () => {
       // Should include error and surrounding context
       expect(result).toContain('Log #3');
       // May include surrounding logs (depends on implementation)
+    });
+  });
+
+  describe('buildHierarchicalContext', () => {
+    it('should split large time ranges into multiple chunks', () => {
+      const baseTs = Date.now();
+      const logs: LogEntry[] = [];
+      for (let i = 0; i < 40; i++) {
+        logs.push({
+          ...createMockLog(i + 1, i % 2 === 0 ? 'ERROR' : 'INFO', `message ${i}`),
+          timestamp: baseTs + i * 60 * 1000, // 1-minute spacing
+        });
+      }
+
+      const chunks = builder.buildHierarchicalContext(logs, { maxTokens: 4000 });
+      expect(chunks.length).toBeGreaterThan(1);
+      expect(chunks[0].timeWindow).toContain('->');
+      expect(chunks[0].context).toContain('# Log Analysis Context');
     });
   });
   
