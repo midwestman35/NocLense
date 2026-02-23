@@ -48,7 +48,7 @@ export class ClaudeProvider implements LLMProvider {
           'anthropic-dangerous-direct-browser-access': 'true',
         },
         body: JSON.stringify({
-          model: 'claude-3-5-haiku-latest',
+          model: 'claude-3-5-sonnet-latest',
           max_tokens: 8,
           messages: [{ role: 'user', content: 'ping' }],
         }),
@@ -57,13 +57,15 @@ export class ClaudeProvider implements LLMProvider {
         return true;
       }
 
+      const body = await response.text();
+      // Log status and response for debugging (no API key); explains 401 vs 404 vs other.
+      console.warn('[Claude validation]', { status: response.status, body: body.slice(0, 500) });
+
       // Why: only classify explicit auth failures as invalid keys.
-      // Other statuses should surface operational details (quota/network/model access).
       if (response.status === 401 || response.status === 403) {
         return false;
       }
 
-      const body = await response.text();
       throw this.mapHttpError(response.status, body);
     } catch (error) {
       const message = error instanceof Error ? error.message.toLowerCase() : '';
@@ -236,6 +238,11 @@ INSTRUCTIONS:
     const lower = body.toLowerCase();
     if (status === 401 || status === 403) {
       return new InvalidApiKeyError('Invalid API key. Please check your settings.');
+    }
+    if (status === 404) {
+      return new Error(
+        'Anthropic API returned 404 (endpoint or model not found). Check API version and model name.'
+      );
     }
     if (lower.includes('dangerous-direct-browser-access') || lower.includes('browser')) {
       return new NetworkError(
