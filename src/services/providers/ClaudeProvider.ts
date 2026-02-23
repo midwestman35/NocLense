@@ -45,6 +45,7 @@ export class ClaudeProvider implements LLMProvider {
           'content-type': 'application/json',
           'x-api-key': apiKey,
           'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
         },
         body: JSON.stringify({
           model: 'claude-3-5-haiku-latest',
@@ -65,6 +66,10 @@ export class ClaudeProvider implements LLMProvider {
       const body = await response.text();
       throw this.mapHttpError(response.status, body);
     } catch (error) {
+      const message = error instanceof Error ? error.message.toLowerCase() : '';
+      if (message.includes('failed to fetch') || message.includes('network') || message.includes('cors')) {
+        throw new NetworkError('Unable to reach Anthropic API. Check connection, firewall, or CORS/browser restrictions.');
+      }
       if (error instanceof Error) {
         throw error;
       }
@@ -183,6 +188,7 @@ INSTRUCTIONS:
           'content-type': 'application/json',
           'x-api-key': this.apiKey as string,
           'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
         },
         body: JSON.stringify({
           model: options?.model ?? this.currentModelId,
@@ -215,6 +221,10 @@ INSTRUCTIONS:
         model: options?.model ?? this.currentModelId,
       };
     } catch (error) {
+      const message = error instanceof Error ? error.message.toLowerCase() : '';
+      if (message.includes('failed to fetch') || message.includes('network') || message.includes('cors')) {
+        throw new NetworkError('Unable to reach Anthropic API. Check connection, firewall, or CORS/browser restrictions.');
+      }
       if (error instanceof Error) {
         throw error;
       }
@@ -226,6 +236,11 @@ INSTRUCTIONS:
     const lower = body.toLowerCase();
     if (status === 401 || status === 403) {
       return new InvalidApiKeyError('Invalid API key. Please check your settings.');
+    }
+    if (lower.includes('dangerous-direct-browser-access') || lower.includes('browser')) {
+      return new NetworkError(
+        'Anthropic blocked this browser request. Ensure browser access is enabled and try again.'
+      );
     }
     if (status === 429) {
       return new RateLimitError('Too many requests. Please wait and try again.', Date.now() + 60000);

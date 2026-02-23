@@ -127,10 +127,11 @@ export default function AISettingsPanel({ onClose }: AISettingsPanelProps) {
         setValidationMessage({ type: 'success', text: 'API key validated successfully!' });
         setApiKeyInput(''); // Clear input after successful save
       } else {
-        // Phase 6: Actionable message with link to guide (per .cursorrules)
+        // Why: setApiKey() can fail for reasons beyond invalid credentials.
+        // Keep this message generic; details are shown in the context error panel.
         setValidationMessage({
           type: 'error',
-          text: `Invalid API key. Get a key for ${providerInfo.name} and try again.`,
+          text: `API key test failed for ${providerInfo.name}. Review details below and try again.`,
         });
       }
     } catch (e) {

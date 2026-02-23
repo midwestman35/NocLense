@@ -553,7 +553,8 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
       } else if (e instanceof RateLimitError || e instanceof QuotaExceededError || e instanceof NetworkError) {
         setError(e.message);
       } else {
-        setError('Failed to validate API key. Please check your connection and try again.');
+        const details = e instanceof Error ? e.message : '';
+        setError(details || 'Failed to validate API key. Please check your connection and try again.');
       }
       return false;
     }
