@@ -245,12 +245,12 @@ export default function AISettingsPanel({ onClose }: AISettingsPanelProps) {
                     <span>{validationMessage.text}</span>
                     {validationMessage.type === 'error' && (
                       <a
-                        href="https://ai.google.dev"
+                        href={providerInfo.helpUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="ml-1 text-[var(--accent-blue)] hover:underline inline-flex items-center gap-0.5"
                       >
-                        Get key
+                        Get {providerInfo.name} key
                         <ExternalLink size={10} />
                       </a>
                     )}

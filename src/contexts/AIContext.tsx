@@ -548,7 +548,13 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
       return true;
     } catch (e) {
       console.error('API key validation error:', e);
-      setError('Failed to validate API key. Please check your connection and try again.');
+      if (e instanceof InvalidApiKeyError) {
+        setError('Invalid API key. Please check your API key and try again.');
+      } else if (e instanceof RateLimitError || e instanceof QuotaExceededError || e instanceof NetworkError) {
+        setError(e.message);
+      } else {
+        setError('Failed to validate API key. Please check your connection and try again.');
+      }
       return false;
     }
   }, [activeProviderService, dailyRequestLimit, model, provider]);

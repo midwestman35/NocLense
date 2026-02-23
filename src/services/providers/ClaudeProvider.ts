@@ -52,9 +52,23 @@ export class ClaudeProvider implements LLMProvider {
           messages: [{ role: 'user', content: 'ping' }],
         }),
       });
-      return response.ok;
-    } catch {
-      return false;
+      if (response.ok) {
+        return true;
+      }
+
+      // Why: only classify explicit auth failures as invalid keys.
+      // Other statuses should surface operational details (quota/network/model access).
+      if (response.status === 401 || response.status === 403) {
+        return false;
+      }
+
+      const body = await response.text();
+      throw this.mapHttpError(response.status, body);
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new NetworkError('Unable to validate Claude API key due to a network error.');
     }
   }
 
