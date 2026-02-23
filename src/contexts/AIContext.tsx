@@ -40,14 +40,18 @@
  */
 
 import { createContext, useContext, useState, useMemo, useEffect, useCallback, type ReactNode } from 'react';
-import { GeminiService } from '../services/llmService';
 import { LogContextBuilder } from '../services/logContextBuilder';
 import { EmbeddingService } from '../services/embeddingService';
 import { buildPromptFromTemplate } from '../services/promptTemplates';
+import { providerRegistry } from '../services/providers/providerRegistry';
 import {
+  type AIProviderId,
   type AIMessage,
   type AIConfig,
   type AIUsageStats,
+  AI_MODELS,
+  DEFAULT_AI_PROVIDER,
+  DEFAULT_MODELS_BY_PROVIDER,
   GEMINI_FREE_TIER_DAILY_LIMIT,
   InvalidApiKeyError,
   RateLimitError,
@@ -63,6 +67,7 @@ import QuotaExceededModal from '../components/QuotaExceededModal';
 // Why: Centralized keys prevent typos and make it easy to change storage strategy
 const STORAGE_KEY_API_KEY = 'noclense_ai_api_key';
 const STORAGE_KEY_MODEL = 'noclense_ai_model';
+const STORAGE_KEY_PROVIDER = 'noclense_ai_provider';
 const STORAGE_KEY_ENABLED = 'noclense_ai_enabled';
 const STORAGE_KEY_USAGE_STATS = 'noclense_ai_usage_stats';
 const STORAGE_KEY_DAILY_LIMIT = 'noclense_ai_daily_limit';
@@ -70,7 +75,7 @@ const STORAGE_KEY_CONSENT = 'noclense_ai_consent';
 
 // Default values
 // Why: Use free tier max as default so users don't exceed without awareness
-const DEFAULT_MODEL: AIConfig['model'] = 'gemini-3-flash-preview';
+const DEFAULT_MODEL: AIConfig['model'] = DEFAULT_MODELS_BY_PROVIDER[DEFAULT_AI_PROVIDER];
 const DEFAULT_DAILY_LIMIT = GEMINI_FREE_TIER_DAILY_LIMIT;
 const DEFAULT_ENABLED = false; // Opt-in by default for privacy
 
@@ -82,9 +87,41 @@ const DEFAULT_ENABLED = false; // Opt-in by default for privacy
  * 
  * @returns API key or null if not set
  */
-function loadApiKey(): string | null {
+function getApiKeyStorageKey(provider: AIProviderId): string {
+  return `${STORAGE_KEY_API_KEY}_${provider}`;
+}
+
+function loadProvider(): AIProviderId {
   try {
-    return localStorage.getItem(STORAGE_KEY_API_KEY);
+    const saved = localStorage.getItem(STORAGE_KEY_PROVIDER);
+    if (saved === 'gemini' || saved === 'claude' || saved === 'codex') {
+      return saved;
+    }
+  } catch (e) {
+    console.error('Failed to load provider from localStorage:', e);
+  }
+  return DEFAULT_AI_PROVIDER;
+}
+
+function saveProvider(provider: AIProviderId): void {
+  try {
+    localStorage.setItem(STORAGE_KEY_PROVIDER, provider);
+  } catch (e) {
+    console.error('Failed to save provider to localStorage:', e);
+  }
+}
+
+function loadApiKey(provider: AIProviderId): string | null {
+  try {
+    const providerKey = localStorage.getItem(getApiKeyStorageKey(provider));
+    if (providerKey) {
+      return providerKey;
+    }
+    // Backward compatibility: legacy single-provider key maps to Gemini.
+    if (provider === 'gemini') {
+      return localStorage.getItem(STORAGE_KEY_API_KEY);
+    }
+    return null;
   } catch (e) {
     console.error('Failed to load API key from localStorage:', e);
     return null;
@@ -99,9 +136,12 @@ function loadApiKey(): string | null {
  * 
  * @param apiKey - API key to save
  */
-function saveApiKey(apiKey: string): void {
+function saveApiKey(provider: AIProviderId, apiKey: string): void {
   try {
-    localStorage.setItem(STORAGE_KEY_API_KEY, apiKey);
+    localStorage.setItem(getApiKeyStorageKey(provider), apiKey);
+    if (provider === 'gemini') {
+      localStorage.setItem(STORAGE_KEY_API_KEY, apiKey);
+    }
   } catch (e) {
     console.error('Failed to save API key to localStorage:', e);
   }
@@ -114,20 +154,20 @@ function saveApiKey(apiKey: string): void {
  * 
  * @returns Model ID or default
  */
-function loadModel(): AIConfig['model'] {
+function loadModel(provider: AIProviderId): AIConfig['model'] {
   try {
     const saved = localStorage.getItem(STORAGE_KEY_MODEL);
-    if (saved === 'gemini-3-flash-preview' || saved === 'gemini-3-pro-preview') return saved;
-    if (saved === 'gemini-1.5-pro') return saved;
-    // Migrate deprecated models to Gemini 3 (2.0-flash, 1.5-flash no longer available to new users)
-    if (saved === 'gemini-2.0-flash' || saved === 'gemini-1.5-flash') {
-      saveModel('gemini-3-flash-preview');
+    if (saved && AI_MODELS[saved]?.provider === provider) {
+      return saved;
+    }
+    if (provider === 'gemini' && saved === 'gemini-1.5-flash') {
+      saveModel('gemini', 'gemini-3-flash-preview');
       return 'gemini-3-flash-preview';
     }
   } catch (e) {
     console.error('Failed to load model from localStorage:', e);
   }
-  return DEFAULT_MODEL;
+  return DEFAULT_MODELS_BY_PROVIDER[provider] ?? DEFAULT_MODEL;
 }
 
 /**
@@ -135,7 +175,7 @@ function loadModel(): AIConfig['model'] {
  * 
  * @param model - Model ID to save
  */
-function saveModel(model: AIConfig['model']): void {
+function saveModel(_provider: AIProviderId, model: AIConfig['model']): void {
   try {
     localStorage.setItem(STORAGE_KEY_MODEL, model);
   } catch (e) {
@@ -323,6 +363,8 @@ interface AIContextType {
   isEnabled: boolean;
   /** Whether API key is configured */
   apiKeyConfigured: boolean;
+  /** Active AI provider */
+  provider: AIProviderId;
   /** Currently selected model */
   model: AIConfig['model'];
   /** Conversation history (user + assistant messages) */
@@ -349,6 +391,8 @@ interface AIContextType {
   setApiKey: (key: string) => Promise<boolean>;
   /** Set model preference */
   setModel: (model: AIConfig['model']) => void;
+  /** Set active provider */
+  setProvider: (provider: AIProviderId) => void;
   /** Clear conversation history */
   clearHistory: () => void;
   /** Clear current error (dismiss error banner) */
@@ -401,8 +445,13 @@ export const useAI = (): AIContextType => {
 export const AIProvider = ({ children }: { children: ReactNode }) => {
   // Initialize state from localStorage
   // Why: Restore user preferences and config across sessions
-  const [apiKey, setApiKeyState] = useState<string | null>(() => loadApiKey());
-  const [model, setModelState] = useState<AIConfig['model']>(() => loadModel());
+  const [provider, setProviderState] = useState<AIProviderId>(() => loadProvider());
+  const [apiKeys, setApiKeysState] = useState<Partial<Record<AIProviderId, string>>>(() => ({
+    gemini: loadApiKey('gemini') ?? undefined,
+    claude: loadApiKey('claude') ?? undefined,
+    codex: loadApiKey('codex') ?? undefined,
+  }));
+  const [model, setModelState] = useState<AIConfig['model']>(() => loadModel(loadProvider()));
   const [isEnabled, setIsEnabledState] = useState<boolean>(() => loadEnabled());
   const [dailyRequestLimit, setDailyRequestLimitState] = useState<number>(() => loadDailyLimit());
   const [usageStats, setUsageStatsState] = useState<AIUsageStats>(() => loadUsageStats());
@@ -422,23 +471,24 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
   
   // Get GeminiService instance
   // Why: Singleton pattern ensures single API client
-  const geminiService = useMemo(() => GeminiService.getInstance(), []);
+  const activeProviderService = useMemo(() => providerRegistry.getProvider(provider), [provider]);
   const contextBuilder = useMemo(() => new LogContextBuilder(), []);
   const embeddingService = useMemo(() => new EmbeddingService(), []);
+  const apiKey = apiKeys[provider] ?? null;
   
-  // Initialize GeminiService when API key is available
+  // Initialize active provider service when API key is available
   // Why: Lazy initialization - only create API client when needed
   useEffect(() => {
     if (apiKey && isEnabled) {
       try {
-        geminiService.initialize(apiKey, model);
-        geminiService.setDailyRequestLimit(dailyRequestLimit);
+        activeProviderService.initialize(apiKey, model);
+        activeProviderService.setDailyRequestLimit(dailyRequestLimit);
       } catch (e) {
-        console.error('Failed to initialize GeminiService:', e);
+        console.error('Failed to initialize AI provider service:', e);
         setError('Failed to initialize AI service. Please check your API key.');
       }
     }
-  }, [apiKey, model, isEnabled, dailyRequestLimit, geminiService]);
+  }, [apiKey, model, isEnabled, dailyRequestLimit, activeProviderService]);
   
   // Persist usage stats to localStorage when they change
   // Why: Keep usage tracking persistent across sessions
@@ -480,7 +530,7 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
     try {
       // Validate API key by making test request
       // Why: Prevents saving invalid keys that would fail later
-      const isValid = await geminiService.validateApiKey(key);
+      const isValid = await activeProviderService.validateApiKey(key);
       
       if (!isValid) {
         setError('Invalid API key. Please check your API key and try again.');
@@ -488,12 +538,12 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
       }
       
       // Save API key
-      saveApiKey(key);
-      setApiKeyState(key);
+      saveApiKey(provider, key);
+      setApiKeysState(prev => ({ ...prev, [provider]: key }));
       
       // Initialize service with new key
-      geminiService.initialize(key, model);
-      geminiService.setDailyRequestLimit(dailyRequestLimit);
+      activeProviderService.initialize(key, model);
+      activeProviderService.setDailyRequestLimit(dailyRequestLimit);
       
       return true;
     } catch (e) {
@@ -501,7 +551,7 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
       setError('Failed to validate API key. Please check your connection and try again.');
       return false;
     }
-  }, [geminiService, model, dailyRequestLimit]);
+  }, [activeProviderService, dailyRequestLimit, model, provider]);
   
   /**
    * Set model preference
@@ -511,19 +561,42 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
    * @param newModel - Model ID to use
    */
   const setModel = useCallback((newModel: AIConfig['model']): void => {
-    saveModel(newModel);
+    saveModel(provider, newModel);
     setModelState(newModel);
     
     // Reinitialize service with new model if API key is set
     if (apiKey && isEnabled) {
       try {
-        geminiService.initialize(apiKey, newModel);
+        activeProviderService.initialize(apiKey, newModel);
       } catch (e) {
         console.error('Failed to reinitialize with new model:', e);
         setError('Failed to switch model. Please try again.');
       }
     }
-  }, [apiKey, isEnabled, geminiService]);
+  }, [activeProviderService, apiKey, isEnabled, provider]);
+
+  /**
+   * Switch active provider and load provider-scoped defaults.
+   */
+  const setProvider = useCallback((newProvider: AIProviderId): void => {
+    saveProvider(newProvider);
+    setProviderState(newProvider);
+    setError(null);
+    const nextModel = loadModel(newProvider);
+    setModelState(nextModel);
+
+    const nextApiKey = loadApiKey(newProvider);
+    if (nextApiKey && isEnabled) {
+      try {
+        const nextProviderService = providerRegistry.getProvider(newProvider);
+        nextProviderService.initialize(nextApiKey, nextModel);
+        nextProviderService.setDailyRequestLimit(dailyRequestLimit);
+      } catch (e) {
+        console.error('Failed to initialize selected provider:', e);
+        setError('Failed to initialize provider. Verify API key and model settings.');
+      }
+    }
+  }, [dailyRequestLimit, isEnabled]);
   
   /**
    * Set daily request limit
@@ -544,12 +617,12 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
     // Update service limit
     if (apiKey && isEnabled) {
       try {
-        geminiService.setDailyRequestLimit(limit);
+        activeProviderService.setDailyRequestLimit(limit);
       } catch (e) {
         console.error('Failed to set daily limit:', e);
       }
     }
-  }, [apiKey, isEnabled, geminiService]);
+  }, [activeProviderService, apiKey, isEnabled]);
   
   /**
    * Enable or disable AI features
@@ -565,14 +638,14 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
     // Initialize service if enabling and API key is set
     if (enabled && apiKey) {
       try {
-        geminiService.initialize(apiKey, model);
-        geminiService.setDailyRequestLimit(dailyRequestLimit);
+        activeProviderService.initialize(apiKey, model);
+        activeProviderService.setDailyRequestLimit(dailyRequestLimit);
       } catch (e) {
         console.error('Failed to initialize AI service:', e);
         setError('Failed to enable AI features. Please check your API key.');
       }
     }
-  }, [apiKey, model, dailyRequestLimit, geminiService]);
+  }, [activeProviderService, apiKey, dailyRequestLimit, model]);
   
   /**
    * Execute AI analysis request (internal)
@@ -621,12 +694,12 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
               prioritizeErrors: true,
               includeSurrounding: 5,
             });
-            response = await geminiService.analyzeHierarchical(engineeredQuery, chunks, { model });
+            response = await activeProviderService.analyzeHierarchical(engineeredQuery, chunks, { model });
           } else {
             let logsForContext = logs;
 
             // Why: retrieval trims medium-large selections to semantically relevant logs.
-            if (apiKey && logs.length > 1000) {
+            if (provider === 'gemini' && apiKey && logs.length > 1000) {
               try {
                 embeddingService.initialize(apiKey);
                 const candidates = logs.filter(log => log.level === 'ERROR' || log.level === 'WARN' || log.level === 'INFO');
@@ -652,7 +725,7 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
               prioritizeErrors: true,
               includeSurrounding: 5,
             });
-            response = await geminiService.analyzeLog(engineeredQuery, context, { model });
+            response = await activeProviderService.analyzeLog(engineeredQuery, context, { model });
           }
         } catch (e) {
           console.error('Failed to build context:', e);
@@ -661,7 +734,7 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
           return;
         }
       } else {
-        response = await geminiService.analyzeLog(engineeredQuery, context, { model });
+        response = await activeProviderService.analyzeLog(engineeredQuery, context, { model });
       }
 
       const assistantMessage: AIMessage = {
@@ -703,7 +776,7 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [model, geminiService, contextBuilder, embeddingService, apiKey]);
+  }, [activeProviderService, apiKey, contextBuilder, embeddingService, model, provider]);
 
   /**
    * Phase 7: User consented - save choice, hide modal, execute pending request if any
@@ -825,6 +898,7 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
     // State
     isEnabled,
     apiKeyConfigured: !!apiKey,
+    provider,
     model,
     conversationHistory,
     isLoading,
@@ -838,6 +912,7 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
     askQuestion,
     setApiKey,
     setModel,
+    setProvider,
     clearHistory,
     clearError,
     getUsageStats,
@@ -849,6 +924,7 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
   }), [
     isEnabled,
     apiKey,
+    provider,
     model,
     conversationHistory,
     isLoading,
@@ -861,6 +937,7 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
     askQuestion,
     setApiKey,
     setModel,
+    setProvider,
     clearHistory,
     clearError,
     getUsageStats,

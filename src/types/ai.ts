@@ -6,6 +6,16 @@
 export const GEMINI_FREE_TIER_DAILY_LIMIT = 1500;
 
 /**
+ * Supported LLM providers.
+ */
+export type AIProviderId = 'gemini' | 'claude' | 'codex';
+
+/**
+ * Default provider used for first-run and migration paths.
+ */
+export const DEFAULT_AI_PROVIDER: AIProviderId = 'gemini';
+
+/**
  * AI Integration Type Definitions
  * 
  * Purpose:
@@ -67,10 +77,14 @@ export interface AIMessage {
  * - enabled: Privacy control - users can disable AI features entirely
  */
 export interface AIConfig {
-  /** Google Gemini API key (required for AI features) */
+  /** Active provider API key (required for AI features) */
   apiKey: string;
-  /** Gemini model to use */
-  model: 'gemini-3-flash-preview' | 'gemini-3-pro-preview' | 'gemini-2.0-flash' | 'gemini-1.5-pro';
+  /** Selected LLM provider */
+  provider: AIProviderId;
+  /** Model id for the selected provider */
+  model: string;
+  /** Optional provider-scoped API key map (for multi-provider setups) */
+  providerApiKeys?: Partial<Record<AIProviderId, string>>;
   /** 
    * Maximum requests per day (free tier limit is 1,500 RPD)
    * Allows users to set lower limit for budget control
@@ -254,7 +268,9 @@ export class NetworkError extends Error {
  */
 export interface AIModelInfo {
   /** Model identifier */
-  id: 'gemini-3-flash-preview' | 'gemini-3-pro-preview' | 'gemini-2.0-flash' | 'gemini-1.5-pro';
+  id: string;
+  /** Provider identifier */
+  provider: AIProviderId;
   /** Display name */
   name: string;
   /** Description of model capabilities */
@@ -262,10 +278,48 @@ export interface AIModelInfo {
   /** Speed characteristic */
   speed: 'fast' | 'medium' | 'slow';
   /** Quality characteristic */
-  quality: 'good' | 'excellent';
+  quality: 'good' | 'excellent' | 'best';
   /** Context window size in tokens */
   contextWindow: number;
 }
+
+/**
+ * Provider metadata for UI selection/help links.
+ */
+export interface AIProviderInfo {
+  id: AIProviderId;
+  name: string;
+  keyLabel: string;
+  helpUrl: string;
+  privacyNoticeName: string;
+}
+
+/**
+ * Known providers and UX metadata.
+ */
+export const AI_PROVIDERS: Record<AIProviderId, AIProviderInfo> = {
+  gemini: {
+    id: 'gemini',
+    name: 'Google Gemini',
+    keyLabel: 'Google Gemini API Key',
+    helpUrl: 'https://ai.google.dev',
+    privacyNoticeName: 'Google',
+  },
+  claude: {
+    id: 'claude',
+    name: 'Anthropic Claude',
+    keyLabel: 'Anthropic API Key',
+    helpUrl: 'https://console.anthropic.com',
+    privacyNoticeName: 'Anthropic',
+  },
+  codex: {
+    id: 'codex',
+    name: 'OpenAI (Codex)',
+    keyLabel: 'OpenAI API Key',
+    helpUrl: 'https://platform.openai.com/api-keys',
+    privacyNoticeName: 'OpenAI',
+  },
+} as const;
 
 /**
  * Predefined model information
@@ -276,6 +330,7 @@ export interface AIModelInfo {
 export const AI_MODELS: Record<string, AIModelInfo> = {
   'gemini-3-flash-preview': {
     id: 'gemini-3-flash-preview',
+    provider: 'gemini',
     name: 'Gemini 3 Flash',
     description: 'Recommended: Fast, high quality, latest model',
     speed: 'fast',
@@ -284,6 +339,7 @@ export const AI_MODELS: Record<string, AIModelInfo> = {
   },
   'gemini-3-pro-preview': {
     id: 'gemini-3-pro-preview',
+    provider: 'gemini',
     name: 'Gemini 3 Pro',
     description: 'Most capable model for complex analysis',
     speed: 'medium',
@@ -292,6 +348,7 @@ export const AI_MODELS: Record<string, AIModelInfo> = {
   },
   'gemini-2.0-flash': {
     id: 'gemini-2.0-flash',
+    provider: 'gemini',
     name: 'Gemini 2.0 Flash',
     description: 'May be unavailable for new users; prefer Gemini 3',
     speed: 'fast',
@@ -300,10 +357,63 @@ export const AI_MODELS: Record<string, AIModelInfo> = {
   },
   'gemini-1.5-pro': {
     id: 'gemini-1.5-pro',
+    provider: 'gemini',
     name: 'Gemini 1.5 Pro',
     description: 'Higher quality, best for complex analysis',
     speed: 'medium',
     quality: 'excellent',
     contextWindow: 1000000,
   },
+  'claude-3-5-sonnet-latest': {
+    id: 'claude-3-5-sonnet-latest',
+    provider: 'claude',
+    name: 'Claude 3.5 Sonnet',
+    description: 'Balanced Claude model for high-quality reasoning',
+    speed: 'medium',
+    quality: 'excellent',
+    contextWindow: 200000,
+  },
+  'claude-3-5-haiku-latest': {
+    id: 'claude-3-5-haiku-latest',
+    provider: 'claude',
+    name: 'Claude 3.5 Haiku',
+    description: 'Faster Claude model for quick analysis',
+    speed: 'fast',
+    quality: 'good',
+    contextWindow: 200000,
+  },
+  'gpt-4.1': {
+    id: 'gpt-4.1',
+    provider: 'codex',
+    name: 'GPT-4.1',
+    description: 'High-capability OpenAI model for complex analysis',
+    speed: 'medium',
+    quality: 'best',
+    contextWindow: 128000,
+  },
+  'gpt-4.1-mini': {
+    id: 'gpt-4.1-mini',
+    provider: 'codex',
+    name: 'GPT-4.1 Mini',
+    description: 'Faster OpenAI model for routine analysis',
+    speed: 'fast',
+    quality: 'good',
+    contextWindow: 128000,
+  },
 } as const;
+
+/**
+ * Provider default models.
+ */
+export const DEFAULT_MODELS_BY_PROVIDER: Record<AIProviderId, string> = {
+  gemini: 'gemini-3-flash-preview',
+  claude: 'claude-3-5-sonnet-latest',
+  codex: 'gpt-4.1-mini',
+};
+
+/**
+ * Helper to return only models for one provider.
+ */
+export function getModelsForProvider(provider: AIProviderId): AIModelInfo[] {
+  return Object.values(AI_MODELS).filter((model) => model.provider === provider);
+}

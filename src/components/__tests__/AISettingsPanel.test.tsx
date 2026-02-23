@@ -34,6 +34,7 @@ const mockUseAI = useAI as ReturnType<typeof vi.fn>;
 describe('AISettingsPanel', () => {
   const mockSetApiKey = vi.fn();
   const mockSetModel = vi.fn();
+  const mockSetProvider = vi.fn();
   const mockSetEnabled = vi.fn();
   const mockSetDailyRequestLimit = vi.fn();
 
@@ -43,6 +44,7 @@ describe('AISettingsPanel', () => {
     mockUseAI.mockReturnValue({
       isEnabled: false,
       apiKeyConfigured: false,
+      provider: 'gemini',
       model: 'gemini-3-flash-preview',
       usageStats: {
         requestsToday: 0,
@@ -55,6 +57,7 @@ describe('AISettingsPanel', () => {
       error: null,
       setApiKey: mockSetApiKey,
       setModel: mockSetModel,
+      setProvider: mockSetProvider,
       setEnabled: mockSetEnabled,
       setDailyRequestLimit: mockSetDailyRequestLimit,
     });
@@ -174,6 +177,15 @@ describe('AISettingsPanel', () => {
     fireEvent.click(proModel.closest('label')!);
     
     expect(mockSetModel).toHaveBeenCalledWith('gemini-1.5-pro');
+  });
+
+  it('allows provider selection', () => {
+    render(<AISettingsPanel />);
+
+    const claudeProvider = screen.getByText('Anthropic Claude');
+    fireEvent.click(claudeProvider.closest('label')!);
+
+    expect(mockSetProvider).toHaveBeenCalledWith('claude');
   });
 
   it('allows enabling/disabling AI features', () => {

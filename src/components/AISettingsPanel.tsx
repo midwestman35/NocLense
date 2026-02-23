@@ -46,7 +46,12 @@
 import { useState, useCallback } from 'react';
 import { useAI } from '../contexts/AIContext';
 import { Eye, EyeOff, ExternalLink, AlertTriangle, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
-import { AI_MODELS, GEMINI_FREE_TIER_DAILY_LIMIT, type AIConfig } from '../types/ai';
+import {
+  AI_PROVIDERS,
+  GEMINI_FREE_TIER_DAILY_LIMIT,
+  getModelsForProvider,
+  type AIConfig,
+} from '../types/ai';
 
 interface AISettingsPanelProps {
   /** Callback when panel should be closed */
@@ -66,12 +71,14 @@ export default function AISettingsPanel({ onClose }: AISettingsPanelProps) {
   const {
     isEnabled,
     apiKeyConfigured,
+    provider,
     model,
     usageStats,
     dailyRequestLimit,
     error,
     setApiKey,
     setModel,
+    setProvider,
     setEnabled,
     setDailyRequestLimit,
   } = useAI();
@@ -82,6 +89,8 @@ export default function AISettingsPanel({ onClose }: AISettingsPanelProps) {
   const [showApiKey, setShowApiKey] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
   const [validationMessage, setValidationMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const providerInfo = AI_PROVIDERS[provider];
+  const providerModels = getModelsForProvider(provider);
 
   // Phase 6.2: Clear validation message when user starts typing (better feedback loop)
   const handleApiKeyChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -121,7 +130,7 @@ export default function AISettingsPanel({ onClose }: AISettingsPanelProps) {
         // Phase 6: Actionable message with link to guide (per .cursorrules)
         setValidationMessage({
           type: 'error',
-          text: 'Invalid API key. Get a free key at Google AI Studio and try again.',
+          text: `Invalid API key. Get a key for ${providerInfo.name} and try again.`,
         });
       }
     } catch (e) {
@@ -130,7 +139,7 @@ export default function AISettingsPanel({ onClose }: AISettingsPanelProps) {
     } finally {
       setIsValidating(false);
     }
-  }, [apiKeyInput, setApiKey]);
+  }, [apiKeyInput, providerInfo.name, setApiKey]);
 
   /**
    * Handle model selection change
@@ -181,7 +190,7 @@ export default function AISettingsPanel({ onClose }: AISettingsPanelProps) {
           <div className="space-y-3">
             <div>
               <label htmlFor="api-key" className="block text-xs text-[var(--text-secondary)] mb-1">
-                Google Gemini API Key
+                {providerInfo.keyLabel}
               </label>
               <div className="flex gap-2">
                 <div className="flex-1 relative">
@@ -252,12 +261,12 @@ export default function AISettingsPanel({ onClose }: AISettingsPanelProps) {
               {/* Get API key link */}
               <div className="mt-2">
                 <a
-                  href="https://ai.google.dev"
+                  href={providerInfo.helpUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-xs text-[var(--accent-blue)] hover:underline flex items-center gap-1"
                 >
-                  Get free API key from Google AI Studio
+                  Get API key for {providerInfo.name}
                   <ExternalLink size={12} />
                 </a>
               </div>
@@ -280,11 +289,40 @@ export default function AISettingsPanel({ onClose }: AISettingsPanelProps) {
           </div>
         </section>
 
+        {/* Provider Selection Section */}
+        <section>
+          <h3 className="text-sm font-semibold mb-2 text-[var(--text-primary)]">Provider Selection</h3>
+          <div className="space-y-2">
+            {Object.values(AI_PROVIDERS).map((providerOption) => (
+              <label
+                key={providerOption.id}
+                className={`flex items-start gap-3 p-3 rounded border cursor-pointer transition-colors ${
+                  provider === providerOption.id
+                    ? 'border-[var(--accent-blue)] bg-[var(--accent-blue)]/10'
+                    : 'border-[var(--border-color)] hover:bg-[var(--bg-light)]'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="provider"
+                  value={providerOption.id}
+                  checked={provider === providerOption.id}
+                  onChange={() => setProvider(providerOption.id)}
+                  className="mt-1"
+                />
+                <div className="flex-1">
+                  <div className="font-medium text-sm">{providerOption.name}</div>
+                </div>
+              </label>
+            ))}
+          </div>
+        </section>
+
         {/* Model Selection Section */}
         <section>
           <h3 className="text-sm font-semibold mb-2 text-[var(--text-primary)]">Model Selection</h3>
           <div className="space-y-2">
-            {Object.values(AI_MODELS).map((modelInfo) => (
+            {providerModels.map((modelInfo) => (
               <label
                 key={modelInfo.id}
                 className={`flex items-start gap-3 p-3 rounded border cursor-pointer transition-colors ${
@@ -401,8 +439,8 @@ export default function AISettingsPanel({ onClose }: AISettingsPanelProps) {
                 <div>
                   <div className="font-semibold mb-1">Privacy Notice</div>
                   <div className="text-blue-200/80">
-                    When you use AI features, selected log data is sent to Google's Gemini API for analysis. 
-                    Only the logs you explicitly analyze are sent. No data is stored by Google beyond the API request.
+                    When you use AI features, selected log data is sent to the configured provider for analysis.
+                    Only the logs you explicitly analyze are sent. Provider processing and retention follow {providerInfo.name} policy.
                     You can disable AI features at any time.
                   </div>
                 </div>

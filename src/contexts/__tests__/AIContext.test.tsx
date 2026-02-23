@@ -188,6 +188,7 @@ describe('AIContext', () => {
       expect(result.current).toBeDefined();
       expect(result.current.isEnabled).toBe(false);
       expect(result.current.apiKeyConfigured).toBe(false);
+      expect(result.current.provider).toBe('gemini');
       expect(result.current.model).toBe('gemini-3-flash-preview');
       expect(result.current.conversationHistory).toEqual([]);
       expect(result.current.isLoading).toBe(false);
@@ -221,6 +222,7 @@ describe('AIContext', () => {
       expect(mockService.validateApiKey).toHaveBeenCalledWith('test-api-key-123');
       expect(mockService.initialize).toHaveBeenCalledWith('test-api-key-123', 'gemini-3-flash-preview');
       expect(localStorage.setItem).toHaveBeenCalledWith('noclense_ai_api_key', 'test-api-key-123');
+      expect(localStorage.setItem).toHaveBeenCalledWith('noclense_ai_api_key_gemini', 'test-api-key-123');
       expect(result.current.apiKeyConfigured).toBe(true);
     });
     
@@ -286,6 +288,31 @@ describe('AIContext', () => {
       expect(result.current.model).toBe('gemini-1.5-pro');
       expect(localStorage.setItem).toHaveBeenCalledWith('noclense_ai_model', 'gemini-1.5-pro');
       expect(mockService.initialize).toHaveBeenCalledWith('test-key', 'gemini-1.5-pro');
+    });
+  });
+
+  describe('Provider selection', () => {
+    it('should load provider preference from localStorage', () => {
+      localStorageMock['noclense_ai_provider'] = 'claude';
+
+      const { result } = renderHook(() => useAI(), {
+        wrapper: createWrapper(),
+      });
+
+      expect(result.current.provider).toBe('claude');
+    });
+
+    it('should switch provider and persist to localStorage', async () => {
+      const { result } = renderHook(() => useAI(), {
+        wrapper: createWrapper(),
+      });
+
+      await act(() => {
+        result.current.setProvider('codex');
+      });
+
+      expect(result.current.provider).toBe('codex');
+      expect(localStorage.setItem).toHaveBeenCalledWith('noclense_ai_provider', 'codex');
     });
   });
   

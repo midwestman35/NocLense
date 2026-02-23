@@ -9,10 +9,11 @@ import TimelineScrubber from './components/TimelineScrubber';
 import CorrelationSidebar from './components/CorrelationSidebar';
 import ExportModal from './components/export/ExportModal';
 import ChangelogDropdown from './components/ChangelogDropdown';
-import { Download, FolderOpen, X, AlertTriangle, Filter, Moon, Sun, Flame, ArrowLeft } from 'lucide-react';
+import { Download, FolderOpen, X, AlertTriangle, Filter, Moon, Sun, Flame, ArrowLeft, ClipboardCopy } from 'lucide-react';
 import LogDetailsPanel from './components/log/LogDetailsPanel';
 import AIAssistantPanel from './components/AIAssistantPanel';
 import AISettingsPanel from './components/AISettingsPanel';
+import CrashReportsPanel from './components/CrashReportsPanel';
 import { parseLogFile } from './utils/parser';
 import { validateFile } from './utils/fileUtils';
 import clsx from 'clsx';
@@ -47,6 +48,7 @@ const MainLayout = () => {
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isAIAssistantOpen, setIsAIAssistantOpen] = useState(false);
   const [isAISettingsOpen, setIsAISettingsOpen] = useState(false);
+  const [isCrashReportsOpen, setIsCrashReportsOpen] = useState(false);
 
   // Theme State
   const [theme, setTheme] = useState<'light' | 'dark' | 'red'>('dark');
@@ -196,6 +198,36 @@ const MainLayout = () => {
     setScrollTargetTimestamp(null);
   };
 
+  /**
+   * Copy most recent crash report to clipboard for quick support handoff.
+   *
+   * Why:
+   * - Fastest path for users/operators to share latest failure context.
+   * - Avoids opening the full crash panel for common triage workflows.
+   */
+  const handleCopyLatestCrashReport = async () => {
+    try {
+      const result = await window.electronAPI?.getCrashReports?.({ limit: 1 });
+      if (!result?.ok) {
+        setFileError(result?.error || 'Failed to load crash reports.');
+        return;
+      }
+
+      const latest = result.reports?.[0];
+      if (!latest) {
+        setFileWarning('No crash reports available yet.');
+        return;
+      }
+
+      await navigator.clipboard.writeText(JSON.stringify(latest, null, 2));
+      setFileWarning(`Copied latest crash report (${latest.reportId}) to clipboard.`);
+      setFileError(null);
+    } catch (error) {
+      console.error('Failed to copy latest crash report:', error);
+      setFileError('Failed to copy latest crash report.');
+    }
+  };
+
   return (
     <div className="flex flex-col h-screen overflow-hidden text-[var(--text-primary)]">
       {/* Header - Styled per NOC Tool */}
@@ -306,6 +338,21 @@ const MainLayout = () => {
               title="Open AI Settings"
             >
               AI Settings
+            </button>
+            <button
+              onClick={() => setIsCrashReportsOpen(true)}
+              className="px-3 py-2 bg-red-500/20 hover:bg-red-500/30 text-white rounded-lg transition-all text-sm font-semibold border border-red-300/30"
+              title="Open Crash Reports"
+            >
+              Crash Reports
+            </button>
+            <button
+              onClick={() => void handleCopyLatestCrashReport()}
+              className="px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all text-sm font-semibold border border-white/10 inline-flex items-center gap-2"
+              title="Copy latest crash report"
+            >
+              <ClipboardCopy size={14} />
+              Copy Latest Crash
             </button>
           </div>
 
@@ -467,6 +514,14 @@ const MainLayout = () => {
         <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4">
           <div className="w-full max-w-3xl h-[85vh] bg-[var(--card-bg)] rounded-lg border border-[var(--border-color)] shadow-[var(--shadow-lg)] overflow-hidden">
             <AISettingsPanel onClose={() => setIsAISettingsOpen(false)} />
+          </div>
+        </div>
+      )}
+
+      {isCrashReportsOpen && (
+        <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4">
+          <div className="w-full max-w-6xl h-[85vh] bg-[var(--card-bg)] rounded-lg border border-[var(--border-color)] shadow-[var(--shadow-lg)] overflow-hidden">
+            <CrashReportsPanel onClose={() => setIsCrashReportsOpen(false)} />
           </div>
         </div>
       )}
