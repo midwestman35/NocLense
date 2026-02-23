@@ -17,7 +17,7 @@ import { extractLogReferences } from './providerUtils';
 export class ClaudeProvider implements LLMProvider {
   public readonly providerId = 'claude' as const;
   private apiKey: string | null = null;
-  private currentModelId = 'claude-3-5-sonnet-latest';
+  private currentModelId = 'claude-sonnet-4-6';
   private dailyRequestLimit = 1500;
   private requestsToday = 0;
   private requestsThisMinute = 0;
@@ -25,7 +25,7 @@ export class ClaudeProvider implements LLMProvider {
   private lastDailyReset = Date.now();
   private totalTokensUsed = 0;
 
-  public initialize(apiKey: string, model: string = 'claude-3-5-sonnet-latest'): void {
+  public initialize(apiKey: string, model: string = 'claude-sonnet-4-6'): void {
     if (!apiKey || apiKey.trim().length < 10) {
       throw new InvalidApiKeyError('API key is required');
     }
@@ -48,7 +48,7 @@ export class ClaudeProvider implements LLMProvider {
           'anthropic-dangerous-direct-browser-access': 'true',
         },
         body: JSON.stringify({
-          model: 'claude-3-5-sonnet-latest',
+          model: 'claude-haiku-4-5',
           max_tokens: 8,
           messages: [{ role: 'user', content: 'ping' }],
         }),

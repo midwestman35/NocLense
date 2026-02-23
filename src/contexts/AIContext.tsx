@@ -164,6 +164,11 @@ function loadModel(provider: AIProviderId): AIConfig['model'] {
       saveModel('gemini', 'gemini-3-flash-preview');
       return 'gemini-3-flash-preview';
     }
+    if (provider === 'claude' && (saved === 'claude-3-5-sonnet-latest' || saved === 'claude-3-5-haiku-latest')) {
+      const next = saved === 'claude-3-5-haiku-latest' ? 'claude-haiku-4-5' : 'claude-sonnet-4-6';
+      saveModel('claude', next);
+      return next;
+    }
   } catch (e) {
     console.error('Failed to load model from localStorage:', e);
   }

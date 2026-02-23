@@ -364,22 +364,31 @@ export const AI_MODELS: Record<string, AIModelInfo> = {
     quality: 'excellent',
     contextWindow: 1000000,
   },
-  'claude-3-5-sonnet-latest': {
-    id: 'claude-3-5-sonnet-latest',
+  'claude-sonnet-4-6': {
+    id: 'claude-sonnet-4-6',
     provider: 'claude',
-    name: 'Claude 3.5 Sonnet',
-    description: 'Balanced Claude model for high-quality reasoning',
-    speed: 'medium',
+    name: 'Claude Sonnet 4.6',
+    description: 'Best combination of speed and intelligence',
+    speed: 'fast',
     quality: 'excellent',
     contextWindow: 200000,
   },
-  'claude-3-5-haiku-latest': {
-    id: 'claude-3-5-haiku-latest',
+  'claude-haiku-4-5': {
+    id: 'claude-haiku-4-5',
     provider: 'claude',
-    name: 'Claude 3.5 Haiku',
-    description: 'Faster Claude model for quick analysis',
+    name: 'Claude Haiku 4.5',
+    description: 'Fastest model with near-frontier intelligence',
     speed: 'fast',
     quality: 'good',
+    contextWindow: 200000,
+  },
+  'claude-opus-4-6': {
+    id: 'claude-opus-4-6',
+    provider: 'claude',
+    name: 'Claude Opus 4.6',
+    description: 'Most intelligent model for complex analysis',
+    speed: 'medium',
+    quality: 'best',
     contextWindow: 200000,
   },
   'gpt-4.1': {
@@ -407,7 +416,7 @@ export const AI_MODELS: Record<string, AIModelInfo> = {
  */
 export const DEFAULT_MODELS_BY_PROVIDER: Record<AIProviderId, string> = {
   gemini: 'gemini-3-flash-preview',
-  claude: 'claude-3-5-sonnet-latest',
+  claude: 'claude-sonnet-4-6',
   codex: 'gpt-4.1-mini',
 };
 

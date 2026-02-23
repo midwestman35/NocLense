@@ -14,7 +14,7 @@ describe('Provider registry', () => {
 
   it('Claude provider normalizes response shape', async () => {
     const provider = providerRegistry.getProvider('claude');
-    provider.initialize('test-claude-key-12345', 'claude-3-5-haiku-latest');
+    provider.initialize('test-claude-key-12345', 'claude-haiku-4-5');
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
