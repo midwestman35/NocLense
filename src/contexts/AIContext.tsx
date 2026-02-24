@@ -62,10 +62,14 @@ import {
 import type { LogEntry } from '../types';
 import ConsentModal from '../components/ConsentModal';
 import QuotaExceededModal from '../components/QuotaExceededModal';
+import {
+  loadApiKey as loadStoredApiKey,
+  saveApiKey as saveStoredApiKey,
+  migrateFromLocalStorage as migrateApiKeysFromLocalStorage,
+} from '../store/apiKeyStorage';
 
 // localStorage keys
 // Why: Centralized keys prevent typos and make it easy to change storage strategy
-const STORAGE_KEY_API_KEY = 'noclense_ai_api_key';
 const STORAGE_KEY_MODEL = 'noclense_ai_model';
 const STORAGE_KEY_PROVIDER = 'noclense_ai_provider';
 const STORAGE_KEY_ENABLED = 'noclense_ai_enabled';
@@ -78,18 +82,6 @@ const STORAGE_KEY_CONSENT = 'noclense_ai_consent';
 const DEFAULT_MODEL: AIConfig['model'] = DEFAULT_MODELS_BY_PROVIDER[DEFAULT_AI_PROVIDER];
 const DEFAULT_DAILY_LIMIT = GEMINI_FREE_TIER_DAILY_LIMIT;
 const DEFAULT_ENABLED = false; // Opt-in by default for privacy
-
-/**
- * Load API key from localStorage
- * 
- * Why: Persists API key across sessions
- * Security: API key is visible in dev tools - show warning to users
- * 
- * @returns API key or null if not set
- */
-function getApiKeyStorageKey(provider: AIProviderId): string {
-  return `${STORAGE_KEY_API_KEY}_${provider}`;
-}
 
 function loadProvider(): AIProviderId {
   try {
@@ -108,42 +100,6 @@ function saveProvider(provider: AIProviderId): void {
     localStorage.setItem(STORAGE_KEY_PROVIDER, provider);
   } catch (e) {
     console.error('Failed to save provider to localStorage:', e);
-  }
-}
-
-function loadApiKey(provider: AIProviderId): string | null {
-  try {
-    const providerKey = localStorage.getItem(getApiKeyStorageKey(provider));
-    if (providerKey) {
-      return providerKey;
-    }
-    // Backward compatibility: legacy single-provider key maps to Gemini.
-    if (provider === 'gemini') {
-      return localStorage.getItem(STORAGE_KEY_API_KEY);
-    }
-    return null;
-  } catch (e) {
-    console.error('Failed to load API key from localStorage:', e);
-    return null;
-  }
-}
-
-/**
- * Save API key to localStorage
- * 
- * Why: Persists API key across sessions
- * Security: Not fully secure (XSS risk) - warn users
- * 
- * @param apiKey - API key to save
- */
-function saveApiKey(provider: AIProviderId, apiKey: string): void {
-  try {
-    localStorage.setItem(getApiKeyStorageKey(provider), apiKey);
-    if (provider === 'gemini') {
-      localStorage.setItem(STORAGE_KEY_API_KEY, apiKey);
-    }
-  } catch (e) {
-    console.error('Failed to save API key to localStorage:', e);
   }
 }
 
@@ -451,11 +407,7 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
   // Initialize state from localStorage
   // Why: Restore user preferences and config across sessions
   const [provider, setProviderState] = useState<AIProviderId>(() => loadProvider());
-  const [apiKeys, setApiKeysState] = useState<Partial<Record<AIProviderId, string>>>(() => ({
-    gemini: loadApiKey('gemini') ?? undefined,
-    claude: loadApiKey('claude') ?? undefined,
-    codex: loadApiKey('codex') ?? undefined,
-  }));
+  const [apiKeys, setApiKeysState] = useState<Partial<Record<AIProviderId, string>>>({});
   const [model, setModelState] = useState<AIConfig['model']>(() => loadModel(loadProvider()));
   const [isEnabled, setIsEnabledState] = useState<boolean>(() => loadEnabled());
   const [dailyRequestLimit, setDailyRequestLimitState] = useState<number>(() => loadDailyLimit());
@@ -480,6 +432,39 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
   const contextBuilder = useMemo(() => new LogContextBuilder(), []);
   const embeddingService = useMemo(() => new EmbeddingService(), []);
   const apiKey = apiKeys[provider] ?? null;
+
+  // Load API keys using secure storage in Electron (with localStorage fallback).
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadPersistedApiKeys = async () => {
+      try {
+        await migrateApiKeysFromLocalStorage();
+        const [geminiKey, claudeKey, codexKey] = await Promise.all([
+          loadStoredApiKey('gemini'),
+          loadStoredApiKey('claude'),
+          loadStoredApiKey('codex'),
+        ]);
+
+        if (!cancelled) {
+          setApiKeysState((prev) => ({
+            ...prev,
+            gemini: geminiKey ?? prev.gemini ?? undefined,
+            claude: claudeKey ?? prev.claude ?? undefined,
+            codex: codexKey ?? prev.codex ?? undefined,
+          }));
+        }
+      } catch (e) {
+        console.error('Failed to load persisted API keys:', e);
+      }
+    };
+
+    loadPersistedApiKeys();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   
   // Initialize active provider service when API key is available
   // Why: Lazy initialization - only create API client when needed
@@ -543,7 +528,7 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
       }
       
       // Save API key
-      saveApiKey(provider, key);
+      await saveStoredApiKey(provider, key);
       setApiKeysState(prev => ({ ...prev, [provider]: key }));
       
       // Initialize service with new key
@@ -597,7 +582,7 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
     const nextModel = loadModel(newProvider);
     setModelState(nextModel);
 
-    const nextApiKey = loadApiKey(newProvider);
+    const nextApiKey = apiKeys[newProvider] ?? null;
     if (nextApiKey && isEnabled) {
       try {
         const nextProviderService = providerRegistry.getProvider(newProvider);
@@ -608,7 +593,7 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
         setError('Failed to initialize provider. Verify API key and model settings.');
       }
     }
-  }, [dailyRequestLimit, isEnabled]);
+  }, [apiKeys, dailyRequestLimit, isEnabled]);
   
   /**
    * Set daily request limit

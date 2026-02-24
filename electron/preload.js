@@ -17,6 +17,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   reportError: (payload) => ipcRenderer.invoke('app:report-error', payload),
   getCrashReports: (options) => ipcRenderer.invoke('app:get-crash-reports', options),
   openCrashLogLocation: () => ipcRenderer.invoke('app:open-crash-log-location'),
-  clearCrashReports: () => ipcRenderer.invoke('app:clear-crash-reports')
+  clearCrashReports: () => ipcRenderer.invoke('app:clear-crash-reports'),
+
+  // Secure storage bridge for API keys.
+  isSecureStorageAvailable: () => ipcRenderer.invoke('secure-storage:is-available'),
+  getSecureStorage: (key) => ipcRenderer.invoke('secure-storage:get', key),
+  setSecureStorage: (key, value) => ipcRenderer.invoke('secure-storage:set', key, value),
+  deleteSecureStorage: (key) => ipcRenderer.invoke('secure-storage:delete', key),
+  migrateToSecureStorage: (values) => ipcRenderer.invoke('secure-storage:migrate', values),
 });
 

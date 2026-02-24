@@ -29,6 +29,14 @@ vi.mock('../../contexts/AIContext', () => ({
   useAI: vi.fn(),
 }));
 
+// Mock apiKeyStorage - tests run in web/JSDOM (no Electron)
+vi.mock('../../store/apiKeyStorage', () => ({
+  getApiKeyStorageStatus: vi.fn().mockResolvedValue({
+    isElectron: false,
+    secureStorageAvailable: false,
+  }),
+}));
+
 const mockUseAI = useAI as ReturnType<typeof vi.fn>;
 
 describe('AISettingsPanel', () => {

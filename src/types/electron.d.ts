@@ -33,6 +33,11 @@ declare global {
       }>;
       openCrashLogLocation?: () => Promise<{ ok: boolean; error?: string }>;
       clearCrashReports?: () => Promise<{ ok: boolean; error?: string }>;
+      isSecureStorageAvailable?: () => Promise<{ ok: boolean; available: boolean; error?: string }>;
+      getSecureStorage?: (key: string) => Promise<{ ok: boolean; value?: string | null; error?: string }>;
+      setSecureStorage?: (key: string, value: string) => Promise<{ ok: boolean; error?: string }>;
+      deleteSecureStorage?: (key: string) => Promise<{ ok: boolean; error?: string }>;
+      migrateToSecureStorage?: (values: Record<string, string>) => Promise<{ ok: boolean; error?: string }>;
     };
   }
 }

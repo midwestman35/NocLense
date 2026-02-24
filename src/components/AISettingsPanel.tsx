@@ -43,9 +43,10 @@
  * @module components/AISettingsPanel
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useAI } from '../contexts/AIContext';
 import { Eye, EyeOff, ExternalLink, AlertTriangle, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
+import { getApiKeyStorageStatus } from '../store/apiKeyStorage';
 import {
   AI_PROVIDERS,
   GEMINI_FREE_TIER_DAILY_LIMIT,
@@ -89,8 +90,30 @@ export default function AISettingsPanel({ onClose }: AISettingsPanelProps) {
   const [showApiKey, setShowApiKey] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
   const [validationMessage, setValidationMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [isElectronRuntime, setIsElectronRuntime] = useState(false);
+  const [secureStorageAvailable, setSecureStorageAvailable] = useState(false);
   const providerInfo = AI_PROVIDERS[provider];
   const providerModels = getModelsForProvider(provider);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadStorageStatus = async () => {
+      const status = await getApiKeyStorageStatus();
+      if (!cancelled) {
+        setIsElectronRuntime(status.isElectron);
+        setSecureStorageAvailable(status.secureStorageAvailable);
+      }
+    };
+
+    loadStorageStatus().catch((e) => {
+      console.error('Failed to load API key storage status:', e);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Phase 6.2: Clear validation message when user starts typing (better feedback loop)
   const handleApiKeyChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -280,9 +303,12 @@ export default function AISettingsPanel({ onClose }: AISettingsPanelProps) {
                 <div>
                   <div className="font-semibold mb-1">Security Notice</div>
                   <div className="text-amber-200/80">
-                    API keys are stored in browser localStorage (not fully secure). 
-                    For production use, consider using Electron secure storage. 
-                    Never share your API key or commit it to version control.
+                    {secureStorageAvailable
+                      ? 'API keys are stored using Electron secure storage tied to your OS credentials.'
+                      : isElectronRuntime
+                        ? 'Secure storage is unavailable on this system, so API keys fall back to browser localStorage (less secure).'
+                        : 'API keys are stored in browser localStorage (not fully secure). For production use, run the Electron build to use secure storage.'}
+                    {' '}Never share your API key or commit it to version control.
                   </div>
                 </div>
               </div>

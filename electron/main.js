@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, safeStorage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const https = require('https');
@@ -6,12 +6,90 @@ const isDev = !app.isPackaged;
 
 let mainWindow;
 let crashLogFilePath = null;
+let secureStoreFilePath = null;
 
 function getCrashLogPath() {
   if (!crashLogFilePath) {
     crashLogFilePath = path.join(app.getPath('userData'), 'crash-reports.log');
   }
   return crashLogFilePath;
+}
+
+function getSecureStorePath() {
+  if (!secureStoreFilePath) {
+    secureStoreFilePath = path.join(app.getPath('userData'), 'noclense-secure-store.json');
+  }
+  return secureStoreFilePath;
+}
+
+function readSecureStore() {
+  const storePath = getSecureStorePath();
+  if (!fs.existsSync(storePath)) {
+    return {};
+  }
+
+  try {
+    const raw = fs.readFileSync(storePath, 'utf8');
+    if (!raw.trim()) {
+      return {};
+    }
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch (error) {
+    console.error('Failed reading secure store:', error);
+    return {};
+  }
+}
+
+function writeSecureStore(store) {
+  const storePath = getSecureStorePath();
+  try {
+    fs.writeFileSync(storePath, JSON.stringify(store, null, 2), 'utf8');
+    return true;
+  } catch (error) {
+    console.error('Failed writing secure store:', error);
+    return false;
+  }
+}
+
+function getSecureValue(key) {
+  if (!safeStorage.isEncryptionAvailable()) {
+    throw new Error('Secure storage encryption is not available on this system');
+  }
+
+  const store = readSecureStore();
+  const encryptedB64 = store[key];
+  if (!encryptedB64 || typeof encryptedB64 !== 'string') {
+    return null;
+  }
+
+  const encrypted = Buffer.from(encryptedB64, 'base64');
+  return safeStorage.decryptString(encrypted);
+}
+
+function setSecureValue(key, value) {
+  if (!safeStorage.isEncryptionAvailable()) {
+    throw new Error('Secure storage encryption is not available on this system');
+  }
+
+  const store = readSecureStore();
+  const encrypted = safeStorage.encryptString(value);
+  store[key] = encrypted.toString('base64');
+  const ok = writeSecureStore(store);
+  if (!ok) {
+    throw new Error('Failed to persist secure storage value');
+  }
+}
+
+function deleteSecureValue(key) {
+  const store = readSecureStore();
+  if (Object.prototype.hasOwnProperty.call(store, key)) {
+    delete store[key];
+    const ok = writeSecureStore(store);
+    if (!ok) {
+      throw new Error('Failed to delete secure storage value');
+    }
+  }
 }
 
 function rotateCrashLogIfNeeded(logPath) {
@@ -242,6 +320,98 @@ app.whenReady().then(() => {
     try {
       const logPath = getCrashLogPath();
       fs.writeFileSync(logPath, '', 'utf8');
+      return { ok: true };
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  });
+
+  ipcMain.handle('secure-storage:is-available', async () => {
+    try {
+      return {
+        ok: true,
+        available: safeStorage.isEncryptionAvailable(),
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        available: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  });
+
+  ipcMain.handle('secure-storage:get', async (_event, key) => {
+    try {
+      if (typeof key !== 'string' || key.trim().length === 0) {
+        throw new Error('secure-storage:get requires a non-empty key');
+      }
+      const value = getSecureValue(key);
+      return { ok: true, value };
+    } catch (error) {
+      return {
+        ok: false,
+        value: null,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  });
+
+  ipcMain.handle('secure-storage:set', async (_event, key, value) => {
+    try {
+      if (typeof key !== 'string' || key.trim().length === 0) {
+        throw new Error('secure-storage:set requires a non-empty key');
+      }
+      if (typeof value !== 'string') {
+        throw new Error('secure-storage:set requires a string value');
+      }
+      setSecureValue(key, value);
+      return { ok: true };
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  });
+
+  ipcMain.handle('secure-storage:delete', async (_event, key) => {
+    try {
+      if (typeof key !== 'string' || key.trim().length === 0) {
+        throw new Error('secure-storage:delete requires a non-empty key');
+      }
+      deleteSecureValue(key);
+      return { ok: true };
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  });
+
+  ipcMain.handle('secure-storage:migrate', async (_event, values) => {
+    try {
+      if (!values || typeof values !== 'object' || Array.isArray(values)) {
+        throw new Error('secure-storage:migrate requires a key-value object');
+      }
+      if (!safeStorage.isEncryptionAvailable()) {
+        throw new Error('Secure storage encryption is not available on this system');
+      }
+
+      for (const [key, value] of Object.entries(values)) {
+        if (typeof key !== 'string' || key.trim().length === 0) {
+          continue;
+        }
+        if (typeof value !== 'string' || value.length === 0) {
+          continue;
+        }
+        setSecureValue(key, value);
+      }
+
       return { ok: true };
     } catch (error) {
       return {
