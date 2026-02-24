@@ -1,15 +1,49 @@
-import { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { useLogContext } from '../contexts/LogContext';
 import type { LogEntry } from '../types';
 import { format } from 'date-fns';
-import { stc, getSipColorHex } from '../utils/colorUtils';
+import { getSipColorHex } from '../utils/colorUtils';
 import clsx from 'clsx';
+import {
+    drawTimeline,
+    type BucketData,
+    type LogWithLane,
+    type CallSegment,
+    type FileSegment,
+    LANE_H,
+    SESSIONS_TOP,
+} from '../utils/timelineCanvas';
+import { dbManager } from '../utils/indexedDB';
 
 interface TimelineScrubberProps {
     height?: number;
 }
 
-// No local stringToColor needed, use stc from colorUtils
+const MOUSE_DEBOUNCE_MS = 16; // one frame at 60fps
+
+/**
+ * Selective context subscription — only the 12 values TimelineScrubber actually uses.
+ * Future unrelated context additions (sortConfig, searchHistory, etc.) will not
+ * trigger timeline re-renders because they are not subscribed here.
+ */
+function useTimelineData() {
+    const ctx = useLogContext();
+    return {
+        logs: ctx.logs,
+        filteredLogs: ctx.filteredLogs,
+        selectedLogId: ctx.selectedLogId,
+        setSelectedLogId: ctx.setSelectedLogId,
+        visibleRange: ctx.visibleRange,
+        hasActiveFilters: ctx.hasActiveFilters,
+        setScrollTargetTimestamp: ctx.setScrollTargetTimestamp,
+        timelineEventFilters: ctx.timelineEventFilters,
+        setTimelineEventFilters: ctx.setTimelineEventFilters,
+        setHoveredCallId: ctx.setHoveredCallId,
+        hoveredCallId: ctx.hoveredCallId,
+        hoveredCorrelation: ctx.hoveredCorrelation,
+        useIndexedDBMode: ctx.useIndexedDBMode,
+    };
+}
 
 const TimelineScrubber: React.FC<TimelineScrubberProps> = ({ height = 80 }) => {
     const {
@@ -24,10 +58,28 @@ const TimelineScrubber: React.FC<TimelineScrubberProps> = ({ height = 80 }) => {
         setTimelineEventFilters,
         setHoveredCallId,
         hoveredCallId,
-        hoveredCorrelation
-    } = useLogContext();
+        hoveredCorrelation,
+        useIndexedDBMode,
+    } = useTimelineData();
 
-    // Full scope by default; use filtered logs only when filters are actually selected
+    // ── Refs ──────────────────────────────────────────────────────────────────
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const rafRef = useRef<number | null>(null);
+    // Stores current hit-test data so mouse handlers can read it without
+    // being recreated every time relevantLogs / callSegments change.
+    const hitDataRef = useRef<{ logs: LogWithLane[]; segments: CallSegment[] }>({
+        logs: [], segments: [],
+    });
+    // Stores latest draw options so the ResizeObserver can trigger a redraw
+    // with the current state without closing over stale values.
+    const drawOptsRef = useRef<Omit<Parameters<typeof drawTimeline>[0], 'canvas'>>({
+        minTime: 0, duration: 1, fileSegments: [], callSegments: [],
+        relevantLogs: [], visibleRange: { start: 0, end: 1 },
+        selectedLogId: null, hoveredCallId: null, densityBuckets: null, maxLanes: 0,
+    });
+    const mouseMoveTimestampRef = useRef<number>(0);
+
+    // ── Data computation (unchanged logic, same shape as before) ──────────────
     const MAX_TIMELINE_EVENTS = 10000;
     const sourceLogsRaw = hasActiveFilters ? filteredLogs : logs;
     const sourceLogs = useMemo(() => {
@@ -44,71 +96,59 @@ const TimelineScrubber: React.FC<TimelineScrubberProps> = ({ height = 80 }) => {
     }, [sourceLogsRaw, hasActiveFilters]);
 
     const { minTime, duration, relevantLogs, fileSegments, callSegments, maxLanes } = useMemo(() => {
-        if (!sourceLogs.length) return { minTime: 0, duration: 1, relevantLogs: [], fileSegments: [], callSegments: [], maxLanes: 0 };
+        if (!sourceLogs.length) {
+            return { minTime: 0, duration: 1, relevantLogs: [], fileSegments: [], callSegments: [], maxLanes: 0 };
+        }
 
         const minTime = sourceLogs[0].timestamp;
         const maxTime = sourceLogs[sourceLogs.length - 1].timestamp;
         const duration = maxTime - minTime || 1;
 
-        // 1. Filter interesting logs for markers (Errors & SIP Methods)
+        // Filter interesting logs for markers (Errors & SIP Methods)
         const relevantLogs = sourceLogs.filter(l => {
-            // Global Error filter (Levels)
             if (l.level === 'ERROR' && !timelineEventFilters.error) return false;
-
             if (l.isSip) {
                 const m = (l.sipMethod || '').toUpperCase();
-
                 if (m === 'OPTIONS') return timelineEventFilters.options;
                 if (/^[1]/.test(m)) return timelineEventFilters.provisional;
                 if (/^2/.test(m)) return timelineEventFilters.success;
                 if (/^[456]/.test(m)) return timelineEventFilters.error;
                 if (['REGISTER', 'NOTIFY', 'SUBSCRIBE', 'PUBLISH'].includes(m)) return timelineEventFilters.keepAlive;
-
-                // Fallback for general requests (INVITE, BYE, CANCEL, ACK, etc.)
                 return timelineEventFilters.requests;
             }
-
             return l.level === 'ERROR';
         });
 
-        // 2. Compute File Segments (gaps not rendered in compact view)
-        const fileSegments: { fileName: string, color: string, start: number, end: number, duration: number }[] = [];
-
+        // Compute File Segments
+        const fileSegments: FileSegment[] = [];
         if (sourceLogs.length > 0) {
-            let currentSegment = {
+            let cur = {
                 fileName: sourceLogs[0].fileName || 'Unknown',
                 color: sourceLogs[0].fileColor || '#64748b',
                 start: sourceLogs[0].timestamp,
                 end: sourceLogs[0].timestamp,
-                duration: 0
             };
-
             for (let i = 1; i < sourceLogs.length; i++) {
                 const log = sourceLogs[i];
                 const logFileName = log.fileName || 'Unknown';
-
-                if (logFileName !== currentSegment.fileName) {
-                    currentSegment.duration = currentSegment.end - currentSegment.start;
-                    fileSegments.push(currentSegment);
-
-                    currentSegment = {
+                if (logFileName !== cur.fileName) {
+                    fileSegments.push(cur);
+                    cur = {
                         fileName: logFileName,
                         color: log.fileColor || '#64748b',
                         start: log.timestamp,
                         end: log.timestamp,
-                        duration: 0
                     };
                 } else {
-                    currentSegment.end = log.timestamp;
+                    cur.end = log.timestamp;
                 }
             }
-            currentSegment.duration = currentSegment.end - currentSegment.start;
-            fileSegments.push(currentSegment);
+            fileSegments.push(cur);
         }
 
-        // 3. Compute Call Segments (Sessions) with Laning
-        const callGroups: Record<string, { start: number, end: number, count: number, id: string }> = {};
-        sourceLogs.forEach(log => {
+        // Compute Call Segments with laning
+        const callGroups: Record<string, { start: number; end: number; count: number; id: string }> = {};
+        for (const log of sourceLogs) {
             if (log.callId) {
                 if (!callGroups[log.callId]) {
                     callGroups[log.callId] = { start: log.timestamp, end: log.timestamp, count: 0, id: log.callId };
@@ -116,119 +156,189 @@ const TimelineScrubber: React.FC<TimelineScrubberProps> = ({ height = 80 }) => {
                 callGroups[log.callId].end = log.timestamp;
                 callGroups[log.callId].count++;
             }
-        });
-
-        // Phase 2 Optimization: Sort calls once
+        }
         const sortedCalls = Object.values(callGroups).sort((a, b) => a.start - b.start);
         const lanes: number[] = [];
-        const callSegments = sortedCalls.map(seg => {
+        const callSegments: CallSegment[] = sortedCalls.map(seg => {
             let laneIndex = 0;
-            // 2s buffer between calls in same lane
-            while (lanes[laneIndex] !== undefined && lanes[laneIndex] > seg.start - 2000) {
-                laneIndex++;
-            }
+            while (lanes[laneIndex] !== undefined && lanes[laneIndex] > seg.start - 2000) laneIndex++;
             lanes[laneIndex] = seg.end;
             return { ...seg, laneIndex };
         });
 
-        // Phase 2 Optimization: Use Map for O(1) lookup instead of O(n) find in loop
-        // This changes O(n²) to O(n) complexity - critical for large datasets
         const callIdToLaneMap = new Map<string, number>();
-        callSegments.forEach(seg => {
-            callIdToLaneMap.set(seg.id, (seg as any).laneIndex);
-        });
+        callSegments.forEach(seg => callIdToLaneMap.set(seg.id, seg.laneIndex));
 
-        const logsWithLanes = relevantLogs.map(log => {
-            const laneIndex = log.callId ? (callIdToLaneMap.get(log.callId) ?? 0) : 0;
-            return { ...log, laneIndex };
-        });
+        const logsWithLanes: LogWithLane[] = relevantLogs.map(log => ({
+            ...log,
+            laneIndex: log.callId ? (callIdToLaneMap.get(log.callId) ?? 0) : 0,
+        }));
 
         return { minTime, duration, relevantLogs: logsWithLanes, fileSegments, callSegments, maxLanes: lanes.length };
-    }, [sourceLogs, timelineEventFilters]); // Re-calc when filters change
+    }, [sourceLogs, timelineEventFilters]);
 
-    // Linear time mapping: full time range (first event → last event) maps to 0% → 100% width.
-    // This ensures events span from one side to the other instead of clustering by file segments.
-    const getPosition = (ts: number) => {
-        return ((ts - minTime) / duration) * 100;
-    };
-
-    const getWidth = (start: number, end: number) => {
-        const w = ((end - start) / duration) * 100;
-        return Math.max(w, 0.2);
-    };
-
-    const getColor = (log: LogEntry) => {
-        if (log.level === 'ERROR') return '#f43f5e'; // Rose-500
-        if (log.isSip) {
-            return getSipColorHex(log.sipMethod || null);
-        }
-        return '#94a3b8';
-    };
-
-    const isKeepAlive = (log: LogEntry) => {
-        const m = (log.sipMethod || '').toUpperCase();
-        return log.isSip && ['REGISTER', 'NOTIFY', 'SUBSCRIBE', 'PUBLISH'].includes(m);
-    };
-
-    const handleWheel = (e: React.WheelEvent) => {
-        // Compact view is always on; wheel zoom is disabled. Prevent wheel from scrolling the page when over the scrubber.
-        e.preventDefault();
-    };
-
-    const [hoveredEvent, setHoveredEvent] = useState<{ log: LogEntry; x: number; y: number } | null>(null);
-
-    // Phase 2 Optimization: Pre-index logs by callId for O(1) lookup instead of filtering on every hover
-    // This prevents filtering entire logs array every time hover changes
+    // Fix 2C: iterate sourceLogs (≤10k subsampled) instead of the raw logs array (up to 400k)
     const logsByCallId = useMemo(() => {
         const index = new Map<string, LogEntry[]>();
-        logs.forEach(log => {
+        sourceLogs.forEach(log => {
             if (log.callId && log.isSip) {
-                if (!index.has(log.callId)) {
-                    index.set(log.callId, []);
-                }
+                if (!index.has(log.callId)) index.set(log.callId, []);
                 index.get(log.callId)!.push(log);
             }
         });
-        // Sort each call's logs once
-        index.forEach((callLogs) => {
-            callLogs.sort((a, b) => a.timestamp - b.timestamp);
-        });
+        index.forEach(callLogs => callLogs.sort((a, b) => a.timestamp - b.timestamp));
         return index;
-    }, [logs]);
+    }, [sourceLogs]); // was [logs] — now correctly bounded to ≤10k entries
 
-    // Get related logs for the flow tooltip - Phase 2 Optimized: O(1) lookup instead of O(n) filter
+    // ── IDB bucket state (Tier 3 — heatmap for IndexedDB mode) ───────────────
+    const [idbBuckets, setIdbBuckets] = useState<BucketData[] | null>(null);
+    useEffect(() => {
+        if (!useIndexedDBMode) { setIdbBuckets(null); return; }
+        let cancelled = false;
+        dbManager.getTimestampBuckets(200).then(b => { if (!cancelled) setIdbBuckets(b); });
+        return () => { cancelled = true; };
+    }, [useIndexedDBMode, logs.length]); // re-fetch when files are added/removed
+
+    // ── Keep hit-test data current ────────────────────────────────────────────
+    useEffect(() => {
+        hitDataRef.current = { logs: relevantLogs, segments: callSegments };
+    }, [relevantLogs, callSegments]);
+
+    // ── Canvas drawing — RAF-scheduled, with ResizeObserver for layout changes ─
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        // Update the ref so ResizeObserver always draws with the latest state
+        drawOptsRef.current = {
+            minTime, duration, fileSegments, callSegments, relevantLogs,
+            visibleRange, selectedLogId, hoveredCallId, densityBuckets: idbBuckets, maxLanes,
+        };
+
+        const scheduleRedraw = () => {
+            if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+            rafRef.current = requestAnimationFrame(() => {
+                if (canvasRef.current) {
+                    drawTimeline({ canvas: canvasRef.current, ...drawOptsRef.current });
+                }
+                rafRef.current = null;
+            });
+        };
+
+        scheduleRedraw();
+
+        const observer = new ResizeObserver(scheduleRedraw);
+        observer.observe(canvas);
+
+        return () => {
+            observer.disconnect();
+            if (rafRef.current !== null) {
+                cancelAnimationFrame(rafRef.current);
+                rafRef.current = null;
+            }
+        };
+    }, [minTime, duration, fileSegments, callSegments, relevantLogs, visibleRange, selectedLogId, hoveredCallId, idbBuckets, maxLanes]);
+
+    // ── Hover state for tooltip overlay ──────────────────────────────────────
+    const [hoveredEvent, setHoveredEvent] = useState<{ log: LogWithLane; x: number; y: number } | null>(null);
+
     const relatedFlowLogs = useMemo(() => {
         if (!hoveredEvent || !hoveredEvent.log.callId) return [];
         return logsByCallId.get(hoveredEvent.log.callId) || [];
     }, [hoveredEvent, logsByCallId]);
-    const handleScrub = (e: React.MouseEvent<HTMLDivElement>) => {
-        if (e.buttons !== 1 && e.type !== 'click') return;
+
+    // ── Event handlers — all wrapped in useCallback (Fix 2A) ─────────────────
+    const handleWheel = useCallback((e: React.WheelEvent) => {
+        e.preventDefault();
+    }, []);
+
+    const handleCanvasMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+        // Fix 2B: debounce to ≤1 call per frame (16ms at 60fps)
+        const now = performance.now();
+        if (now - mouseMoveTimestampRef.current < MOUSE_DEBOUNCE_MS) return;
+        mouseMoveTimestampRef.current = now;
+
         const rect = e.currentTarget.getBoundingClientRect();
-        const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
-        const percentage = x / rect.width;
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        const w = rect.width;
+        const { logs: hitLogs, segments: hitSegments } = hitDataRef.current;
 
-        const targetTime = minTime + (percentage * duration);
+        // O(n) hit-test for nearest marker within ±4px on X axis (n ≤ 10,000)
+        let bestLog: LogWithLane | null = null;
+        let bestDist = 4;
+        for (const log of hitLogs) {
+            const lx = ((log.timestamp - minTime) / duration) * w;
+            const dist = Math.abs(mouseX - lx);
+            if (dist < bestDist) { bestDist = dist; bestLog = log; }
+        }
 
-        setScrollTargetTimestamp(targetTime);
-    };
+        if (bestLog) {
+            const lx = ((bestLog.timestamp - minTime) / duration) * w;
+            setHoveredEvent({ log: bestLog, x: (lx / w) * 100, y: SESSIONS_TOP + bestLog.laneIndex * LANE_H });
+            setHoveredCallId(bestLog.callId || null);
+        } else {
+            // Fallback: check if cursor is over a call session bar
+            let foundCallId: string | null = null;
+            for (const seg of hitSegments) {
+                const sx = ((seg.start - minTime) / duration) * w;
+                const sw = Math.max(((seg.end - seg.start) / duration) * w, 4);
+                const top = SESSIONS_TOP + seg.laneIndex * LANE_H;
+                if (mouseX >= sx && mouseX <= sx + sw && mouseY >= top && mouseY <= top + 20) {
+                    foundCallId = seg.id;
+                    break;
+                }
+            }
+            setHoveredCallId(foundCallId);
+            setHoveredEvent(null);
+        }
+    }, [minTime, duration, setHoveredCallId]);
 
+    const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const w = rect.width;
+        const { logs: hitLogs } = hitDataRef.current;
+
+        // Slightly wider hit radius for click (6px) vs hover (4px)
+        let bestLog: LogWithLane | null = null;
+        let bestDist = 6;
+        for (const log of hitLogs) {
+            const lx = ((log.timestamp - minTime) / duration) * w;
+            const dist = Math.abs(mouseX - lx);
+            if (dist < bestDist) { bestDist = dist; bestLog = log; }
+        }
+
+        if (bestLog) {
+            setSelectedLogId(bestLog.id === selectedLogId ? null : bestLog.id);
+        } else {
+            // No marker hit — scrub timeline to clicked position
+            setScrollTargetTimestamp(minTime + (mouseX / w) * duration);
+        }
+    }, [minTime, duration, selectedLogId, setSelectedLogId, setScrollTargetTimestamp]);
+
+    const handleCanvasMouseLeave = useCallback(() => {
+        setHoveredCallId(null);
+        setHoveredEvent(null);
+    }, [setHoveredCallId]);
+
+    // ── Early exit ────────────────────────────────────────────────────────────
     if (!logs.length) return null;
 
     const startTime = minTime;
     const endTime = minTime + duration;
+    const canvasHeight = Math.max(40, SESSIONS_TOP + maxLanes * LANE_H + 4);
 
     return (
         <div className="flex flex-col bg-slate-800 border-t border-slate-700 shrink-0 select-none" style={{ height }}>
             {/* Controls Bar */}
             <div className="flex items-center justify-between px-2 py-1 bg-slate-900/50 text-[10px] text-slate-400 border-b border-slate-700/50 shrink-0">
                 <div className="flex items-center gap-2">
-                    {/* Time Range - Instrument Look */}
                     <div className="flex items-center gap-1 font-mono bg-slate-950/40 px-2 py-0.5 rounded border border-slate-700/50 text-[#94a3b8] text-[9px] min-w-[140px] justify-center">
                         <span className="text-emerald-400/90">{format(new Date(startTime), 'HH:mm:ss')}</span>
                         <span className="opacity-20 mx-1">—</span>
                         <span className="text-emerald-400/90">{format(new Date(endTime), 'HH:mm:ss')}</span>
                     </div>
-
                 </div>
 
                 <div className="flex items-center gap-3 ml-4 border-l border-slate-700 pl-4 overflow-x-auto no-scrollbar">
@@ -265,110 +375,25 @@ const TimelineScrubber: React.FC<TimelineScrubberProps> = ({ height = 80 }) => {
                 </div>
             </div>
 
-
-            {/* Timeline Area with Scrolling */}
+            {/* Timeline Area */}
             <div
                 className="relative w-full flex-1 overflow-x-auto overflow-y-hidden group cursor-crosshair bg-slate-900/30 custom-scrollbar-h"
-                onMouseDown={handleScrub}
-                onMouseMove={handleScrub}
                 onWheel={handleWheel}
             >
                 <div
                     className="relative h-full"
-                    style={{
-                        width: '100%',
-                        minHeight: `${40 + (maxLanes * 22)}px`
-                    }}
+                    style={{ width: '100%', minHeight: `${canvasHeight}px` }}
                 >
-                    {/* 1. File Lane (Minimal Top Strip) */}
-                    <div className="absolute top-0 left-0 right-0 h-1.5 z-30 opacity-80">
-                        {fileSegments.map((seg, idx) => (
-                            <div
-                                key={idx}
-                                className="h-full border-r border-slate-900/20 box-border group/file"
-                                style={{
-                                    position: 'absolute',
-                                    left: `${getPosition(seg.start)}%`,
-                                    width: `${getWidth(seg.start, seg.end)}%`,
-                                    backgroundColor: seg.color,
-                                    minWidth: '2px'
-                                }}
-                                title={seg.fileName}
-                            >
-                                {/* File Label (Floating) */}
-                                <div className="absolute top-2 left-1 whitespace-nowrap bg-slate-900/80 text-white px-1 py-0.5 rounded text-[8px] font-bold opacity-0 group-hover/file:opacity-100 transition-opacity z-50 border border-slate-700 pointer-events-none">
-                                    {seg.fileName}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                    {/* Single canvas replaces all DOM marker/session layers */}
+                    <canvas
+                        ref={canvasRef}
+                        className="absolute inset-0 w-full h-full block"
+                        onMouseMove={handleCanvasMouseMove}
+                        onClick={handleCanvasClick}
+                        onMouseLeave={handleCanvasMouseLeave}
+                    />
 
-                    {/* 2. Gaps */}
-
-                    {/* 3. Call Sessions (Multi-track) */}
-                    <div className="absolute top-4 left-0 right-0 bottom-0 z-10">
-                        {callSegments.map((seg) => {
-                            const isSelected = hoveredCallId === seg.id || (hoveredCorrelation?.type === 'callId' && hoveredCorrelation.value === seg.id);
-                            return (
-                                <div
-                                    key={seg.id}
-                                    title={`Call: ${seg.id} (${seg.count} events)`}
-                                    className={clsx(
-                                        "absolute h-5 rounded-md transition-all border border-white/5 shadow-sm group/call flex items-center",
-                                        isSelected ? "opacity-100 z-50 ring-2 ring-yellow-400/50 bg-yellow-400/10" : "opacity-40 hover:opacity-70"
-                                    )}
-                                    style={{
-                                        left: `${getPosition(seg.start)}%`,
-                                        width: `${getWidth(seg.start, seg.end)}%`,
-                                        top: `${(seg as any).laneIndex * 22}px`,
-                                        backgroundColor: `${stc(seg.id)}55`
-                                    }}
-                                    onMouseEnter={() => setHoveredCallId(seg.id)}
-                                    onMouseLeave={() => setHoveredCallId(null)}
-                                >
-                                    <span className="text-[10px] text-white/90 px-1 truncate w-full block leading-none font-mono">
-                                        {seg.id}
-                                    </span>
-                                </div>
-                            );
-                        })}
-                    </div>
-
-                    {/* 4. Event Markers (Tall bars sticking up from lanes) */}
-                    <div className="absolute top-4 left-0 right-0 bottom-0 z-20 pointer-events-none">
-                        {relevantLogs.map(log => {
-                            const keepAlive = isKeepAlive(log);
-                            const laneTop = (log as any).laneIndex * 22;
-                            const isSelected = log.id === selectedLogId;
-
-                            return (
-                                <div
-                                    key={log.id}
-                                    className={clsx(
-                                        "absolute cursor-pointer pointer-events-auto transition-all",
-                                        keepAlive ? "h-2 w-1 rounded-full opacity-40 top-0.5" : "h-5 opacity-90 shadow-[0_0_5px_rgba(0,0,0,0.5)] w-[2px] hover:w-[4px] hover:z-50",
-                                        isSelected ? "z-[60] w-[4px] ring-2 ring-yellow-400 ring-offset-1 ring-offset-slate-900" : ""
-                                    )}
-                                    style={{
-                                        left: `${getPosition(log.timestamp)}%`,
-                                        top: `${laneTop}px`,
-                                        backgroundColor: isSelected ? '#fbbf24' : getColor(log), // Gold if selected
-                                    }}
-                                    onClick={(e) => { e.stopPropagation(); setSelectedLogId(log.id === selectedLogId ? null : log.id); }}
-                                    onMouseEnter={() => {
-                                        setHoveredCallId(log.callId || null);
-                                        setHoveredEvent({ log, x: getPosition(log.timestamp), y: laneTop });
-                                    }}
-                                    onMouseLeave={() => {
-                                        setHoveredCallId(null);
-                                        setHoveredEvent(null);
-                                    }}
-                                />
-                            );
-                        })}
-                    </div>
-
-                    {/* 5. Flow Tooltip */}
+                    {/* Flow Tooltip — React overlay positioned by hit-test result */}
                     {hoveredEvent && relatedFlowLogs.length > 0 && (
                         <div
                             className="absolute z-[100] bg-slate-900/95 border border-slate-700 rounded shadow-2xl p-2 pointer-events-none backdrop-blur-sm min-w-[200px]"
@@ -400,25 +425,17 @@ const TimelineScrubber: React.FC<TimelineScrubberProps> = ({ height = 80 }) => {
                                     </div>
                                 ))}
                             </div>
-                            {/* Connector line */}
-                            <div className="absolute -top-1.5 left-2 w-3 h-3 bg-slate-900 border-l border-t border-slate-700 transform rotate-45" style={{ left: hoveredEvent.x > 80 ? 'calc(100% - 12px)' : '8px' }} />
+                            {/* Connector arrow */}
+                            <div
+                                className="absolute -top-1.5 w-3 h-3 bg-slate-900 border-l border-t border-slate-700 transform rotate-45"
+                                style={{ left: hoveredEvent.x > 80 ? 'calc(100% - 12px)' : '8px' }}
+                            />
                         </div>
-                    )}
-
-                    {/* 5. Viewport Indicator */}
-                    {visibleRange.start > 0 && (
-                        <div
-                            className="absolute top-0 bottom-0 bg-white/5 border-x border-white/20 pointer-events-none z-10"
-                            style={{
-                                left: `${getPosition(visibleRange.start)}%`,
-                                width: `${Math.max(getPosition(visibleRange.end) - getPosition(visibleRange.start), 0.1)}%`
-                            }}
-                        />
                     )}
                 </div>
             </div>
-        </div >
+        </div>
     );
 };
 
-export default TimelineScrubber;
+export default React.memo(TimelineScrubber);

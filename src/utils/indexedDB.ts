@@ -550,6 +550,58 @@ class IndexedDBManager {
     }
 
     /**
+     * Get timestamp distribution bucketed across the full time range.
+     * Walks the timestamp index via cursor — never loads full LogEntry objects
+     * into JS arrays, so it stays off the GC radar even for 400k-row stores.
+     * Returns an array of `bucketCount` BucketData objects ordered by time.
+     */
+    async getTimestampBuckets(bucketCount: number): Promise<Array<{
+        bucketStart: number; bucketEnd: number; count: number; errorCount: number;
+    }>> {
+        const metadata = await this.getMetadata();
+        if (!metadata || metadata.dateRange.min === metadata.dateRange.max) return [];
+
+        const { min, max } = metadata.dateRange;
+        const span = max - min;
+        const bucketSpan = span / bucketCount;
+
+        const buckets: { count: number; errorCount: number }[] =
+            Array.from({ length: bucketCount }, () => ({ count: 0, errorCount: 0 }));
+
+        const db = await this.getDB();
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction([STORE_NAME], 'readonly');
+            const store = transaction.objectStore(STORE_NAME);
+            const index = store.index('timestamp');
+            const request = index.openCursor();
+
+            request.onsuccess = (event) => {
+                const cursor = (event.target as IDBRequest<IDBCursorWithValue>).result;
+                if (cursor) {
+                    const ts: number = cursor.value.timestamp;
+                    const bucketIdx = Math.min(
+                        Math.floor((ts - min) / bucketSpan),
+                        bucketCount - 1
+                    );
+                    if (bucketIdx >= 0) {
+                        buckets[bucketIdx].count++;
+                        if (cursor.value.level === 'ERROR') buckets[bucketIdx].errorCount++;
+                    }
+                    cursor.continue();
+                } else {
+                    resolve(buckets.map((b, i) => ({
+                        bucketStart: min + i * bucketSpan,
+                        bucketEnd: min + (i + 1) * bucketSpan,
+                        count: b.count,
+                        errorCount: b.errorCount,
+                    })));
+                }
+            };
+            request.onerror = () => reject(request.error);
+        });
+    }
+
+    /**
      * Get ID range for all logs (for virtual scrolling)
      */
     async getIdRange(): Promise<{ min: number; max: number }> {
