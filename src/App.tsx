@@ -1,7 +1,8 @@
-import { useRef, useState, useEffect } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LogProvider, useLogContext } from './contexts/LogContext';
 import { AIProvider } from './contexts/AIContext';
-import FileUploader from './components/FileUploader';
+import OnboardingGate from './components/OnboardingGate';
+import { getOnboardingCompleted } from './components/OnboardingPage';
 import FilterBar from './components/FilterBar';
 import LogViewer from './components/LogViewer';
 import CallFlowViewer from './components/CallFlowViewer';
@@ -9,14 +10,31 @@ import TimelineScrubber from './components/TimelineScrubber';
 import CorrelationSidebar from './components/CorrelationSidebar';
 import ExportModal from './components/export/ExportModal';
 import ChangelogDropdown from './components/ChangelogDropdown';
-import { Download, FolderOpen, X, AlertTriangle, Filter, Moon, Sun, Flame, ArrowLeft, ClipboardCopy } from 'lucide-react';
+import AIAssistantDropdown from './components/AIAssistantDropdown';
+import SplashPage from './components/splash/SplashPage';
+import {
+  AlertTriangle,
+  ArrowLeft,
+  ClipboardCopy,
+  Download,
+  Filter,
+  Flame,
+  FolderOpen,
+  Moon,
+  PanelRightOpen,
+  Sparkles,
+  Sun,
+  X,
+} from 'lucide-react';
 import LogDetailsPanel from './components/log/LogDetailsPanel';
-import AIAssistantPanel from './components/AIAssistantPanel';
-import AISettingsPanel from './components/AISettingsPanel';
-import CrashReportsPanel from './components/CrashReportsPanel';
 import { parseLogFile } from './utils/parser';
 import { validateFile } from './utils/fileUtils';
+import type { LogEntry } from './types';
 import clsx from 'clsx';
+
+const AIAssistantPanel = lazy(() => import('./components/AIAssistantPanel'));
+const AISettingsPanel = lazy(() => import('./components/AISettingsPanel'));
+const CrashReportsPanel = lazy(() => import('./components/CrashReportsPanel'));
 
 const MainLayout = () => {
   const {
@@ -39,16 +57,19 @@ const MainLayout = () => {
     setJumpState,
     setScrollTargetTimestamp,
     filterText,
-    clearAllData
+    clearAllData,
+    enableIndexedDBMode,
   } = useLogContext();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [fileWarning, setFileWarning] = useState<string | null>(null);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
-  const [isAIAssistantOpen, setIsAIAssistantOpen] = useState(false);
   const [isAISettingsOpen, setIsAISettingsOpen] = useState(false);
   const [isCrashReportsOpen, setIsCrashReportsOpen] = useState(false);
+  const [rightPanelMode, setRightPanelMode] = useState<'none' | 'details' | 'ai'>('none');
+  const [aiInitialQuery, setAiInitialQuery] = useState('');
+  const [aiPanelKey, setAiPanelKey] = useState(0);
 
   // Theme State
   const [theme, setTheme] = useState<'light' | 'dark' | 'red'>('dark');
@@ -67,10 +88,34 @@ const MainLayout = () => {
   }, [theme]);
 
   // Panel Sizes
-  const [detailsHeight, setDetailsHeight] = useState(256);
   const [timelineHeight, setTimelineHeight] = useState(128);
 
-  const selectedLog = selectedLogId ? filteredLogs.find(l => l.id === selectedLogId) || logs.find(l => l.id === selectedLogId) : null;
+  const selectedLog = useMemo(() => {
+    if (!selectedLogId) {
+      return null;
+    }
+
+    return filteredLogs.find(l => l.id === selectedLogId) || logs.find(l => l.id === selectedLogId) || null;
+  }, [filteredLogs, logs, selectedLogId]);
+
+  const isRightPanelVisible = rightPanelMode === 'ai' || (rightPanelMode === 'details' && !!selectedLog);
+
+  const openAIPanel = useCallback((query?: string) => {
+    if (typeof query === 'string') {
+      setAiInitialQuery(query);
+      setAiPanelKey(prev => prev + 1);
+    }
+    setRightPanelMode('ai');
+  }, []);
+
+  useEffect(() => {
+    if (selectedLogId) {
+      setRightPanelMode(prev => (prev === 'ai' ? 'ai' : 'details'));
+      return;
+    }
+
+    setRightPanelMode(prev => (prev === 'details' ? 'none' : prev));
+  }, [selectedLogId]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -85,12 +130,12 @@ const MainLayout = () => {
       if (isTypingTarget) return;
 
       event.preventDefault();
-      setIsAIAssistantOpen(true);
+      openAIPanel();
     };
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
+  }, [openAIPanel]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -103,12 +148,15 @@ const MainLayout = () => {
     const filesArray = Array.from(files);
     const validationResults = filesArray.map(file => ({
       file,
-      ...validateFile(file)
+      ...validateFile(file),
     }));
 
     const invalidFiles = validationResults.filter(r => !r.valid);
     if (invalidFiles.length > 0) {
       setFileError(`Invalid file type(s): ${invalidFiles.map(r => r.file.name).join(', ')}. Please upload text or log files.`);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
       return;
     }
 
@@ -118,30 +166,43 @@ const MainLayout = () => {
     }
 
     setLoading(true);
-    if (clearAllData) {
-      await clearAllData();
-    } else {
-      setLogs([]);
-    }
-    setSelectedLogId(null);
-    setActiveCallFlowId(null);
-
     try {
-      const allLogs = [];
-      for (const { file } of validationResults) {
-        const parsed = await parseLogFile(file, '#3b82f6', 1, undefined, false); // Use traditional parsing for App.tsx
-        if (Array.isArray(parsed)) {
-          allLogs.push(...parsed);
-        }
-        // If IndexedDB was used, logs are already stored, skip adding to array
+      if (clearAllData) {
+        await clearAllData();
+      } else {
+        setLogs([]);
       }
 
-      // Sort combined logs by timestamp
-      allLogs.sort((a, b) => a.timestamp - b.timestamp);
+      setSelectedLogId(null);
+      setActiveCallFlowId(null);
+      setRightPanelMode('none');
 
-      setLogs(allLogs);
+      const allLogs: LogEntry[] = [];
+      let nextStartId = 1;
+      const shouldUseIndexedDB = validationResults.some(({ file }) => file.size > 50 * 1024 * 1024);
+      for (const { file } of validationResults) {
+        const parsed = await parseLogFile(file, '#3b82f6', nextStartId, undefined, shouldUseIndexedDB);
+        if (Array.isArray(parsed)) {
+          allLogs.push(...parsed);
+          nextStartId += parsed.length;
+          continue;
+        }
+
+        if (parsed && typeof parsed === 'object' && 'totalParsed' in parsed) {
+          const totalParsed = typeof parsed.totalParsed === 'number' ? parsed.totalParsed : 0;
+          nextStartId += totalParsed;
+        }
+      }
+
+      if (shouldUseIndexedDB && enableIndexedDBMode) {
+        await enableIndexedDBMode();
+      } else {
+        // Sort combined logs by timestamp
+        allLogs.sort((a, b) => a.timestamp - b.timestamp);
+        setLogs(allLogs);
+      }
     } catch (err) {
-      setFileError('Failed to parse log file. Please check the format.');
+      setFileError('Failed to process uploaded log files. Please verify file format and try again.');
       console.error(err);
     } finally {
       setLoading(false);
@@ -151,17 +212,25 @@ const MainLayout = () => {
   };
 
   const handleClearLogs = async () => {
-    // Use clearAllData to clear both in-memory and IndexedDB data
-    if (clearAllData) {
-      await clearAllData();
-    } else {
+    try {
+      // Use clearAllData to clear both in-memory and IndexedDB data
+      if (clearAllData) {
+        await clearAllData();
+      } else {
+        setLogs([]);
+      }
+    } catch (error) {
+      // Fall back to in-memory clear so UI can continue even if persistent cleanup fails.
       setLogs([]);
+      setFileWarning('Cleared in-memory logs, but background storage cleanup failed.');
+      console.error('Failed to clear all data storage:', error);
+    } finally {
+      setSelectedLogId(null);
+      setActiveCallFlowId(null);
+      setFileError(null);
+      setFilterText('');
+      setRightPanelMode('none');
     }
-    setSelectedLogId(null);
-    setActiveCallFlowId(null);
-    setFileError(null);
-    setFileWarning(null);
-    setFilterText('');
   };
 
   const cycleTheme = () => {
@@ -178,8 +247,8 @@ const MainLayout = () => {
       active: true,
       previousFilters: {
         activeCorrelations: [...activeCorrelations],
-        filterText
-      }
+        filterText,
+      },
     });
 
     // Clear filters (except file)
@@ -209,7 +278,10 @@ const MainLayout = () => {
     try {
       const result = await window.electronAPI?.getCrashReports?.({ limit: 1 });
       if (!result?.ok) {
-        setFileError(result?.error || 'Failed to load crash reports.');
+        setFileError('Failed to load crash reports.');
+        if (result?.error) {
+          console.error('Crash report retrieval error:', result.error);
+        }
         return;
       }
 
@@ -219,7 +291,18 @@ const MainLayout = () => {
         return;
       }
 
-      await navigator.clipboard.writeText(JSON.stringify(latest, null, 2));
+      const redactedReport = JSON.stringify(
+        latest,
+        (key: string, value: unknown) => {
+          if (/api|token|secret|password|authorization|key/i.test(key)) {
+            return '[REDACTED]';
+          }
+          return value;
+        },
+        2
+      );
+
+      await navigator.clipboard.writeText(redactedReport);
       setFileWarning(`Copied latest crash report (${latest.reportId}) to clipboard.`);
       setFileError(null);
     } catch (error) {
@@ -230,19 +313,14 @@ const MainLayout = () => {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden text-[var(--text-primary)]">
-      {/* Header - Styled per NOC Tool */}
-      <header className="shrink-0 h-16 px-6 flex items-center justify-between shadow-[var(--shadow)] z-50"
-        style={{ backgroundColor: 'var(--primary-blue)', color: '#fff' }}>
-
-        <div className="flex items-center gap-4">
-          <img
-            src="https://carbyne.com/wp-content/uploads/2024/12/carbyne-registered-logo.png"
-            alt="Carbyne Logo"
-            className="h-8 w-auto filter brightness-0 invert" /* Making white for blue bg */
-          />
-          <div>
-            <h1 className="text-xl font-bold leading-tight">Incident Management Tool</h1>
-            <p className="text-xs text-blue-200 opacity-90">NOC Incident Automation (Log Viewer)</p>
+      <header
+        className="shrink-0 h-16 px-4 md:px-6 flex items-center justify-between shadow-[var(--shadow)] z-50"
+        style={{ backgroundColor: 'var(--primary-blue)', color: '#fff' }}
+      >
+        <div className="flex items-center gap-3">
+          <div className="leading-tight">
+            <h1 className="text-lg md:text-xl font-bold">NocLense</h1>
+            <p className="text-xs text-blue-200/90">Log Analysis Workspace</p>
           </div>
           <ChangelogDropdown />
 
@@ -259,86 +337,12 @@ const MainLayout = () => {
           )}
         </div>
 
-        <div className="flex items-center gap-4">
-          {/* File Controls */}
-          <div className="flex items-center gap-2 mr-4">
-            <button
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className={clsx(
-                "p-2 rounded-lg transition-colors flex items-center gap-2 text-sm font-medium",
-                isSidebarOpen ? "bg-white/20 text-white" : "text-blue-100 hover:bg-white/10"
-              )}
-              title="Toggle Correlation Sidebar"
-            >
-              <Filter size={18} />
-              <span className="opacity-90">Filters</span>
-            </button>
-
-            <button
-              onClick={() => setIsTimelineOpen(!isTimelineOpen)}
-              className={clsx(
-                "p-2 rounded-lg transition-colors flex items-center gap-2 text-sm font-medium",
-                isTimelineOpen ? "bg-white/20 text-white" : "text-blue-100 hover:bg-white/10"
-              )}
-              title="Toggle Timeline"
-            >
-              <Download size={18} className="-rotate-90" />
-              <span className="opacity-90">Timeline</span>
-            </button>
-
-            {logs.length > 0 && (
-              <button
-                onClick={() => setIsExportModalOpen(true)}
-                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all text-sm font-semibold flex items-center gap-2 border border-white/10"
-                title="Export logs"
-              >
-                <Download size={16} />
-                Export
-              </button>
-            )}
-
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all text-sm font-semibold flex items-center gap-2 border border-white/10"
-            >
-              <FolderOpen size={16} />
-              Open Log
-            </button>
-
-            {logs.length > 0 && (
-              <button
-                onClick={handleClearLogs}
-                className="px-3 py-2 text-blue-200 hover:text-white hover:bg-red-500/20 hover:border-red-400/50 border border-transparent rounded-lg transition-all text-sm flex items-center gap-2"
-              >
-                <X size={16} />
-                Clear
-              </button>
-            )}
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileUpload}
-              className="hidden"
-              multiple
-              accept=".log,.txt"
+        <div className="flex items-center gap-2">
+          <div className="hidden lg:flex items-center gap-2 mr-2">
+            <AIAssistantDropdown
+              onOpenAssistant={() => openAIPanel()}
+              onOpenSettings={() => setIsAISettingsOpen(true)}
             />
-          </div>
-
-          <div className="flex items-center gap-2 mr-2">
-            <button
-              onClick={() => setIsAIAssistantOpen(true)}
-              className="px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all text-sm font-semibold border border-white/10"
-              title="Open AI Assistant (Cmd/Ctrl + K)"
-            >
-              AI Assistant
-            </button>
-            <button
-              onClick={() => setIsAISettingsOpen(true)}
-              className="px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all text-sm font-semibold border border-white/10"
-              title="Open AI Settings"
-            >
-              AI Settings
-            </button>
             <button
               onClick={() => setIsCrashReportsOpen(true)}
               className="px-3 py-2 bg-red-500/20 hover:bg-red-500/30 text-white rounded-lg transition-all text-sm font-semibold border border-red-300/30"
@@ -356,7 +360,44 @@ const MainLayout = () => {
             </button>
           </div>
 
-          {/* Theme Toggle */}
+          {logs.length > 0 && (
+            <button
+              onClick={() => setIsExportModalOpen(true)}
+              className="px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all text-sm font-semibold flex items-center gap-2 border border-white/10"
+              title="Export logs"
+            >
+              <Download size={16} />
+              <span className="hidden sm:inline">Export</span>
+            </button>
+          )}
+
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all text-sm font-semibold flex items-center gap-2 border border-white/10"
+          >
+            <FolderOpen size={16} />
+            <span className="hidden sm:inline">Open Log</span>
+          </button>
+
+          {logs.length > 0 && (
+            <button
+              onClick={handleClearLogs}
+              className="px-3 py-2 text-blue-200 hover:text-white hover:bg-red-500/20 hover:border-red-400/50 border border-transparent rounded-lg transition-all text-sm flex items-center gap-2"
+            >
+              <X size={16} />
+              <span className="hidden sm:inline">Clear</span>
+            </button>
+          )}
+
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+            className="hidden"
+            multiple
+            accept=".log,.txt"
+          />
+
           <div className="flex items-center bg-white/10 rounded-lg p-1 border border-white/20">
             <button
               onClick={cycleTheme}
@@ -371,106 +412,143 @@ const MainLayout = () => {
         </div>
       </header>
 
-      {/* Main Content Area */}
       <div className="flex flex-1 overflow-hidden relative">
-
-        {/* Sidebar */}
-        {isSidebarOpen && (
-          <div className="shrink-0 z-10 h-full border-r border-[var(--border-color)] bg-[var(--card-bg)] shadow-[var(--shadow-lg)] transition-all duration-300">
-            <CorrelationSidebar />
+        <div
+          className={clsx(
+            'shrink-0 h-full border-r border-[var(--border-color)] bg-[var(--card-bg)] transition-all duration-200 ease-out',
+            isSidebarOpen ? 'w-80' : 'w-16'
+          )}
+        >
+          <div className="h-full flex">
+            <div className="w-16 border-r border-[var(--border-color)] bg-[var(--bg-light)]/40 p-2 flex flex-col items-center gap-2">
+              <button
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                className={clsx(
+                  'w-11 h-11 rounded-lg border transition-colors flex items-center justify-center',
+                  isSidebarOpen
+                    ? 'bg-[var(--accent-blue)] text-white border-[var(--accent-blue)]'
+                    : 'bg-[var(--card-bg)] text-[var(--text-secondary)] border-[var(--border-color)] hover:text-[var(--text-primary)] hover:border-[var(--accent-blue)]/50'
+                )}
+                title="Toggle correlation filters"
+              >
+                <Filter size={18} />
+              </button>
+              <button
+                onClick={() => setIsTimelineOpen(!isTimelineOpen)}
+                className={clsx(
+                  'w-11 h-11 rounded-lg border transition-colors flex items-center justify-center',
+                  isTimelineOpen
+                    ? 'bg-[var(--accent-blue)] text-white border-[var(--accent-blue)]'
+                    : 'bg-[var(--card-bg)] text-[var(--text-secondary)] border-[var(--border-color)] hover:text-[var(--text-primary)] hover:border-[var(--accent-blue)]/50'
+                )}
+                title="Toggle timeline"
+              >
+                <Download size={18} className="-rotate-90" />
+              </button>
+              <button
+                onClick={() => openAIPanel()}
+                className={clsx(
+                  'w-11 h-11 rounded-lg border transition-colors flex items-center justify-center',
+                  rightPanelMode === 'ai'
+                    ? 'bg-[var(--accent-blue)] text-white border-[var(--accent-blue)]'
+                    : 'bg-[var(--card-bg)] text-[var(--text-secondary)] border-[var(--border-color)] hover:text-[var(--text-primary)] hover:border-[var(--accent-blue)]/50'
+                )}
+                title="Open AI Assistant (Cmd/Ctrl + K)"
+              >
+                <Sparkles size={18} />
+              </button>
+              <button
+                onClick={() => setIsAISettingsOpen(true)}
+                className="w-11 h-11 rounded-lg border bg-[var(--card-bg)] text-[var(--text-secondary)] border-[var(--border-color)] hover:text-[var(--text-primary)] hover:border-[var(--accent-blue)]/50 transition-colors flex items-center justify-center"
+                title="Open AI settings"
+              >
+                <PanelRightOpen size={18} />
+              </button>
+              <button
+                onClick={() => setIsCrashReportsOpen(true)}
+                className="w-11 h-11 rounded-lg border bg-[var(--card-bg)] text-[var(--text-secondary)] border-[var(--border-color)] hover:text-[var(--text-primary)] hover:border-[var(--accent-blue)]/50 transition-colors flex items-center justify-center"
+                title="Open crash reports"
+              >
+                <AlertTriangle size={18} />
+              </button>
+            </div>
+            <div
+              className={clsx(
+                'overflow-hidden transition-all duration-200 ease-out',
+                isSidebarOpen ? 'w-64 opacity-100' : 'w-0 opacity-0'
+              )}
+            >
+              <CorrelationSidebar />
+            </div>
           </div>
-        )}
+        </div>
 
-        {/* Center Canvas */}
-        <div className="flex-1 flex flex-col overflow-hidden bg-[var(--bg-light)] relative">
-
-          {/* Filter Bar (Search) - Only show if logs exist or always? Usually always is fine but better if logs exist */}
-          {logs.length > 0 && (
-            <div className="shrink-0 p-4 pb-0 z-40 relative">
-              <div className="bg-[var(--card-bg)] rounded-lg shadow-[var(--shadow)] border border-[var(--border-color)] p-1">
-                <FilterBar />
-              </div>
-            </div>
-          )}
-
-          {/* Error/Warning Banners */}
-          {(fileError || fileWarning) && (
-            <div className="px-4 pt-4 shrink-0">
-              {fileError && (
-                <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-lg flex items-center gap-2 mb-2">
-                  <AlertTriangle size={18} />
-                  {fileError}
-                </div>
-              )}
-              {fileWarning && (
-                <div className="bg-amber-500/10 border border-amber-500/20 text-amber-400 px-4 py-3 rounded-lg flex items-center gap-2">
-                  <AlertTriangle size={18} />
-                  {fileWarning}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Viewers */}
-          <div className="flex-1 overflow-hidden flex flex-col p-4 gap-4">
-
-            {logs.length === 0 ? (
-              /* EMPTY STATE - FILE UPLOADER */
-              <div className="flex-1 flex items-center justify-center p-8 text-[var(--text-secondary)]">
-                <div className="bg-[var(--card-bg)] p-8 rounded-xl shadow-[var(--shadow-lg)] border border-[var(--border-color)] max-w-2xl w-full flex flex-col items-center">
-                  <h2 className="text-xl font-bold text-[var(--text-primary)] mb-4">Upload Logs to Begin</h2>
-                  <FileUploader />
+        <div className="flex-1 flex min-w-0 overflow-hidden">
+          <div className="flex-1 flex flex-col overflow-hidden bg-[var(--bg-light)] relative">
+            {logs.length > 0 && (
+              <div className="shrink-0 p-4 pb-0 z-40 relative">
+                <div className="bg-[var(--card-bg)] rounded-lg shadow-[var(--shadow)] border border-[var(--border-color)] p-1">
+                  <FilterBar />
                 </div>
               </div>
-            ) : (
-              <>
-                {/* Top: Call Flow (Conditional) OR Log List */}
-                <div className="flex-1 min-h-0 bg-[var(--card-bg)] rounded-lg shadow-[var(--shadow-lg)] border border-[var(--border-color)] overflow-hidden flex flex-col text-[var(--text-primary)]">
-                  {activeCallFlowId ? (
-                    <CallFlowViewer callId={activeCallFlowId} onClose={() => setActiveCallFlowId(null)} />
-                  ) : (
-                    <LogViewer />
-                  )}
-                </div>
+            )}
 
-                {/* Decoupled Timeline */}
-                {/* Decoupled Timeline */}
-                {isTimelineOpen && logs.length > 0 && (
-                  <div className="shrink-0 bg-[var(--card-bg)] rounded-lg shadow-[var(--shadow)] border border-[var(--border-color)] overflow-hidden relative flex flex-col" style={{ height: timelineHeight }}>
-                    {/* Draggable Handle (Top) */}
-                    <div
-                      className="absolute top-0 left-0 right-0 h-1.5 bg-transparent hover:bg-[var(--accent-blue)] cursor-row-resize z-50 transition-colors"
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        const startY = e.clientY;
-                        const startH = timelineHeight;
-                        const onMove = (mv: MouseEvent) => {
-                          setTimelineHeight(Math.max(60, Math.min(600, startH + (startY - mv.clientY))));
-                        };
-                        const onUp = () => {
-                          document.removeEventListener('mousemove', onMove);
-                          document.removeEventListener('mouseup', onUp);
-                        };
-                        document.addEventListener('mousemove', onMove);
-                        document.addEventListener('mouseup', onUp);
-                      }}
-                    />
-                    <TimelineScrubber height={timelineHeight} />
+            {(fileError || fileWarning) && (
+              <div className="px-4 pt-4 shrink-0">
+                {fileError && (
+                  <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-lg flex items-center gap-2 mb-2">
+                    <AlertTriangle size={18} />
+                    {fileError}
                   </div>
                 )}
+                {fileWarning && (
+                  <div className="bg-amber-500/10 border border-amber-500/20 text-amber-400 px-4 py-3 rounded-lg flex items-center gap-2">
+                    <AlertTriangle size={18} />
+                    {fileWarning}
+                  </div>
+                )}
+              </div>
+            )}
 
-                {/* Bottom: Details */}
-                {selectedLog && (
-                  <div className="shrink-0 flex flex-col" style={{ height: detailsHeight }}>
-                    <div className="flex-1 overflow-hidden flex flex-col relative z-20">
+            <div className="flex-1 overflow-hidden flex flex-col p-4 gap-4 min-h-0">
+              {logs.length === 0 ? (
+                <div className="flex-1 min-h-0 bg-[var(--card-bg)] rounded-lg shadow-[var(--shadow-lg)] border border-[var(--border-color)] overflow-hidden">
+                  <SplashPage
+                    hasLogs={logs.length > 0}
+                    onUploadClick={() => fileInputRef.current?.click()}
+                    onPromptSelect={(prompt) => {
+                      setAiInitialQuery(prompt);
+                      setFileWarning('Upload logs to enable analysis');
+                    }}
+                    onSubmitPrompt={(prompt) => {
+                      setAiInitialQuery(prompt);
+                      setFileWarning('Upload logs to enable analysis');
+                    }}
+                  />
+                </div>
+              ) : (
+                <>
+                  <div className="flex-1 min-h-0 bg-[var(--card-bg)] rounded-lg shadow-[var(--shadow-lg)] border border-[var(--border-color)] overflow-hidden flex flex-col text-[var(--text-primary)]">
+                    {activeCallFlowId ? (
+                      <CallFlowViewer callId={activeCallFlowId} onClose={() => setActiveCallFlowId(null)} />
+                    ) : (
+                      <LogViewer />
+                    )}
+                  </div>
+
+                  {isTimelineOpen && logs.length > 0 && (
+                    <div
+                      className="shrink-0 bg-[var(--card-bg)] rounded-lg shadow-[var(--shadow)] border border-[var(--border-color)] overflow-hidden relative flex flex-col"
+                      style={{ height: timelineHeight }}
+                    >
                       <div
-                        className="absolute top-0 left-0 right-0 h-1 bg-[var(--border-color)] hover:bg-[var(--accent-blue)] cursor-row-resize z-50 transition-colors"
+                        className="absolute top-0 left-0 right-0 h-1.5 bg-transparent hover:bg-[var(--accent-blue)] cursor-row-resize z-50 transition-colors"
                         onMouseDown={(e) => {
                           e.preventDefault();
                           const startY = e.clientY;
-                          const startH = detailsHeight;
+                          const startH = timelineHeight;
                           const onMove = (mv: MouseEvent) => {
-                            setDetailsHeight(Math.max(150, startH + (startY - mv.clientY)));
+                            setTimelineHeight(Math.max(60, Math.min(600, startH + (startY - mv.clientY))));
                           };
                           const onUp = () => {
                             document.removeEventListener('mousemove', onMove);
@@ -480,40 +558,59 @@ const MainLayout = () => {
                           document.addEventListener('mouseup', onUp);
                         }}
                       />
-                      <LogDetailsPanel
-                        log={selectedLog}
-                        onClose={() => setSelectedLogId(null)}
-                        onJumpToLog={handleJumpToLog}
-                      />
+                      <TimelineScrubber height={timelineHeight} />
                     </div>
-                  </div>
-                )}
-              </>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+
+          <div
+            className={clsx(
+              'shrink-0 h-full border-l border-[var(--border-color)] bg-[var(--card-bg)] transition-all duration-200 ease-out transform overflow-hidden',
+              isRightPanelVisible ? 'w-[420px] opacity-100 translate-x-0' : 'w-0 opacity-0 translate-x-2 pointer-events-none'
+            )}
+          >
+            {rightPanelMode === 'ai' && (
+              <div className="h-full min-w-[420px]">
+                <Suspense fallback={<div className="h-full animate-pulse bg-[var(--bg-light)]" />}>
+                  <AIAssistantPanel
+                    key={aiPanelKey}
+                    layoutMode="inline"
+                    initialQuery={aiInitialQuery}
+                    onClose={() => {
+                      setRightPanelMode(selectedLog ? 'details' : 'none');
+                    }}
+                    logs={filteredLogs}
+                    onOpenSettings={() => {
+                      setIsAISettingsOpen(true);
+                    }}
+                  />
+                </Suspense>
+              </div>
+            )}
+            {rightPanelMode === 'details' && selectedLog && (
+              <div className="h-full min-w-[420px] overflow-hidden">
+                <LogDetailsPanel
+                  log={selectedLog}
+                  onClose={() => setSelectedLogId(null)}
+                  onJumpToLog={handleJumpToLog}
+                />
+              </div>
             )}
           </div>
         </div>
       </div>
-      <ExportModal isOpen={isExportModalOpen} onClose={() => setIsExportModalOpen(false)} />
 
-      {isAIAssistantOpen && (
-        <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4">
-          <div className="w-full max-w-5xl h-[85vh] bg-[var(--card-bg)] rounded-lg border border-[var(--border-color)] shadow-[var(--shadow-lg)] overflow-hidden">
-            <AIAssistantPanel
-              onClose={() => setIsAIAssistantOpen(false)}
-              logs={filteredLogs}
-              onOpenSettings={() => {
-                setIsAIAssistantOpen(false);
-                setIsAISettingsOpen(true);
-              }}
-            />
-          </div>
-        </div>
-      )}
+      <ExportModal isOpen={isExportModalOpen} onClose={() => setIsExportModalOpen(false)} />
 
       {isAISettingsOpen && (
         <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4">
           <div className="w-full max-w-3xl h-[85vh] bg-[var(--card-bg)] rounded-lg border border-[var(--border-color)] shadow-[var(--shadow-lg)] overflow-hidden">
-            <AISettingsPanel onClose={() => setIsAISettingsOpen(false)} />
+            <Suspense fallback={<div className="h-full animate-pulse bg-[var(--bg-light)]" />}>
+              <AISettingsPanel onClose={() => setIsAISettingsOpen(false)} />
+            </Suspense>
           </div>
         </div>
       )}
@@ -521,7 +618,9 @@ const MainLayout = () => {
       {isCrashReportsOpen && (
         <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4">
           <div className="w-full max-w-6xl h-[85vh] bg-[var(--card-bg)] rounded-lg border border-[var(--border-color)] shadow-[var(--shadow-lg)] overflow-hidden">
-            <CrashReportsPanel onClose={() => setIsCrashReportsOpen(false)} />
+            <Suspense fallback={<div className="h-full animate-pulse bg-[var(--bg-light)]" />}>
+              <CrashReportsPanel onClose={() => setIsCrashReportsOpen(false)} />
+            </Suspense>
           </div>
         </div>
       )}
@@ -529,12 +628,29 @@ const MainLayout = () => {
   );
 };
 
-const App = () => (
-  <AIProvider>
-    <LogProvider>
-      <MainLayout />
-    </LogProvider>
-  </AIProvider>
-);
+const App = () => {
+  const showOnboarding = !getOnboardingCompleted();
+  const [, setRefresh] = useState(0);
+
+  const handleOnboardingDone = useCallback(() => {
+    setRefresh((r) => r + 1);
+  }, []);
+
+  if (showOnboarding) {
+    return (
+      <AIProvider>
+        <OnboardingGate onDone={handleOnboardingDone} />
+      </AIProvider>
+    );
+  }
+
+  return (
+    <AIProvider>
+      <LogProvider>
+        <MainLayout />
+      </LogProvider>
+    </AIProvider>
+  );
+};
 
 export default App;

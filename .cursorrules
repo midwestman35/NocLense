@@ -351,3 +351,38 @@ For detailed implementation guidance, refer to:
 - `src/contexts/LogContext.tsx` - State management patterns
 - `src/types.ts` - Core type definitions
 - `src/components/FilterBar.tsx` - UI component patterns
+
+---
+
+## V2 Workspace Conventions
+
+When implementing the v2 UX redesign, follow these conventions:
+
+1. **Branding**
+- Do not use Carbyne branding, logos, or "Incident Management Tool" copy in app chrome.
+- Use product-native naming (`NocLense` / `LogScrub`) and neutral descriptors.
+
+2. **Layout**
+- Use a three-column workspace structure:
+  - Left rail: tool/navigation actions.
+  - Center canvas: splash (no logs) or log workspace (with logs).
+  - Right panel: details or AI assistant panel.
+- Avoid full-screen blocking AI modal for primary assistant use.
+
+3. **Logs-First Gating**
+- Prompt submission and AI analysis must be disabled until logs are loaded.
+- Surface explicit guidance text: "Upload logs to enable analysis."
+- Prompt chips on splash should not trigger analysis when no logs are present.
+
+4. **State and Resilience**
+- Keep all log data ownership in `LogContext`; do not duplicate log arrays in UI components.
+- Wrap async clear/upload flows in `try/catch/finally` so loading state and UI cleanup always complete.
+- Ensure multi-file parsing uses unique incremental log IDs across files.
+
+5. **Performance and Loading**
+- Lazy-load heavy AI panels/settings/report viewers where possible.
+- Memoize expensive lookups in UI render paths (`useMemo`, `useCallback`).
+
+6. **Error and Security UX**
+- Show user-safe error messages in UI; avoid rendering raw provider/internal error text.
+- Do not log secrets or API keys; keep console diagnostics generic and safe.

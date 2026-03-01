@@ -43,7 +43,7 @@
  * @module components/AISettingsPanel
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useAI } from '../contexts/AIContext';
 import { Eye, EyeOff, ExternalLink, AlertTriangle, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
 import { getApiKeyStorageStatus } from '../store/apiKeyStorage';
@@ -93,7 +93,31 @@ export default function AISettingsPanel({ onClose }: AISettingsPanelProps) {
   const [isElectronRuntime, setIsElectronRuntime] = useState(false);
   const [secureStorageAvailable, setSecureStorageAvailable] = useState(false);
   const providerInfo = AI_PROVIDERS[provider];
+  const isCodexProvider = provider === 'codex';
+  const providerSetupLinkText = isCodexProvider
+    ? 'Install Codex CLI: npm i -g @openai/codex, then run codex login'
+    : `Get API key for ${providerInfo.name}`;
+  const providerErrorHelpLinkText = isCodexProvider
+    ? 'Codex CLI setup guide'
+    : `Get ${providerInfo.name} key`;
   const providerModels = getModelsForProvider(provider);
+  const safeErrorMessage = useMemo(() => {
+    if (!error) {
+      return null;
+    }
+
+    const normalized = error.toLowerCase();
+    if (normalized.includes('api key') || normalized.includes('auth')) {
+      return 'Authentication failed. Verify provider setup and try again.';
+    }
+    if (normalized.includes('quota') || normalized.includes('rate limit')) {
+      return 'Request limit reached. Wait briefly, then retry.';
+    }
+    if (normalized.includes('network') || normalized.includes('fetch')) {
+      return 'Network error while contacting AI provider. Check your connection.';
+    }
+    return 'AI configuration request failed. Please try again.';
+  }, [error]);
 
   useEffect(() => {
     let cancelled = false;
@@ -136,7 +160,7 @@ export default function AISettingsPanel({ onClose }: AISettingsPanelProps) {
    * Shows clear success/error messages during validation
    */
   const handleTestConnection = useCallback(async () => {
-    if (!apiKeyInput.trim()) {
+    if (!isCodexProvider && !apiKeyInput.trim()) {
       setValidationMessage({ type: 'error', text: 'Please enter an API key' });
       return;
     }
@@ -163,7 +187,7 @@ export default function AISettingsPanel({ onClose }: AISettingsPanelProps) {
     } finally {
       setIsValidating(false);
     }
-  }, [apiKeyInput, providerInfo.name, setApiKey]);
+  }, [apiKeyInput, isCodexProvider, providerInfo.name, setApiKey]);
 
   /**
    * Handle model selection change
@@ -278,7 +302,7 @@ export default function AISettingsPanel({ onClose }: AISettingsPanelProps) {
                         rel="noopener noreferrer"
                         className="ml-1 text-[var(--accent-blue)] hover:underline inline-flex items-center gap-0.5"
                       >
-                        Get {providerInfo.name} key
+                        {providerErrorHelpLinkText}
                         <ExternalLink size={10} />
                       </a>
                     )}
@@ -294,9 +318,7 @@ export default function AISettingsPanel({ onClose }: AISettingsPanelProps) {
                   rel="noopener noreferrer"
                   className="text-xs text-[var(--accent-blue)] hover:underline flex items-center gap-1"
                 >
-                  {provider === 'codex'
-                    ? 'Install Codex CLI: npm i -g @openai/codex, then run codex login'
-                    : `Get API key for ${providerInfo.name}`}
+                  {providerSetupLinkText}
                   <ExternalLink size={12} />
                 </a>
               </div>
@@ -483,11 +505,11 @@ export default function AISettingsPanel({ onClose }: AISettingsPanelProps) {
         </section>
 
         {/* Error Display */}
-        {error && (
+        {safeErrorMessage && (
           <div className="p-3 bg-red-500/10 border border-red-500/30 rounded text-xs text-red-400">
             <div className="flex items-start gap-2">
               <AlertTriangle size={14} className="mt-0.5 flex-shrink-0" />
-              <div>{error}</div>
+              <div>{safeErrorMessage}</div>
             </div>
           </div>
         )}

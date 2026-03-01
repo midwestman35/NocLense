@@ -99,3 +99,14 @@ Users filter logs by faceted correlations (Call-ID, Report-ID, Operator-ID, Exte
 - External data / error handling → `src/components/FileUploader.tsx`
 - Toolbar UI → `src/components/FilterBar.tsx`
 - AI implementation phases → `LLM_INTEGRATION_IMPLEMENTATION_PLAN.md`
+
+## V2 UX Redesign Conventions
+
+- **No legacy branding**: Remove/avoid Carbyne logo and "Incident Management Tool" copy in renderer UI.
+- **Three-column workspace**: Left rail (tools), center canvas (splash/logs), right panel (details or AI assistant).
+- **Logs-first behavior**: AI analysis actions remain disabled until logs are uploaded; show clear upload-required messaging.
+- **AI presentation model**: Prefer inline right-panel assistant with subtle fade/slide transitions over full-screen blocking modal.
+- **Robust upload/clear flows**: Wrap async storage/parser steps in `try/catch/finally`; always reset loading and input state.
+- **Stable log identity**: Multi-file parsing must preserve unique incremental `LogEntry.id` values across files.
+- **Safe error surfaces**: Show sanitized user-facing errors in components; avoid leaking provider internals/raw error strings.
+- **Performance defaults**: Lazy-load AI-heavy panels and memoize expensive render-time lookups.

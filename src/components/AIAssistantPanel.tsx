@@ -68,6 +68,8 @@ import type { LogEntry } from '../types';
 interface AIAssistantPanelProps {
   /** Callback when panel should be closed */
   onClose?: () => void;
+  /** Optional: Presentation mode for modal or inline panel usage */
+  layoutMode?: 'modal' | 'inline';
   /** Optional: Pre-populated query */
   initialQuery?: string;
   /** Optional: Specific logs to analyze (if not provided, uses filtered logs) */
@@ -89,10 +91,15 @@ function MarkdownRenderer({ content }: { content: string }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(content).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
+    navigator.clipboard
+      .writeText(content)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      })
+      .catch((copyError) => {
+        console.error('Failed to copy AI response:', copyError);
+      });
   }, [content]);
 
   // Simple markdown parsing
@@ -132,65 +139,52 @@ function MarkdownRenderer({ content }: { content: string }) {
   }, []);
 
   const renderInlineMarkdown = (text: string): React.ReactNode => {
-    const parts: React.ReactNode[] = [];
-    let lastIndex = 0;
-    let key = 0;
-    
-    // Bold (**text**)
-    const boldRegex = /\*\*(.*?)\*\*/g;
-    let match;
-    
-    while ((match = boldRegex.exec(text)) !== null) {
-      if (match.index > lastIndex) {
-        parts.push(text.slice(lastIndex, match.index));
-      }
-      parts.push(<strong key={`bold-${key++}`} className="font-semibold">{match[1]}</strong>);
-      lastIndex = match.index + match[0].length;
-    }
-    
-    // Inline code (`code`)
+    const nodes: React.ReactNode[] = [];
     const inlineCodeRegex = /`([^`]+)`/g;
-    lastIndex = 0;
-    const newParts: React.ReactNode[] = [];
-    key = 0;
-    
-    while ((match = inlineCodeRegex.exec(text)) !== null) {
-      if (match.index > lastIndex) {
-        const beforeText = text.slice(lastIndex, match.index);
-        // Process bold in before text
-        const boldParts: React.ReactNode[] = [];
-        let boldKey = 0;
-        const boldMatch = /\*\*(.*?)\*\*/g.exec(beforeText);
-        if (boldMatch) {
-          boldParts.push(beforeText.slice(0, boldMatch.index));
-          boldParts.push(<strong key={`bold-${boldKey++}`} className="font-semibold">{boldMatch[1]}</strong>);
-          boldParts.push(beforeText.slice(boldMatch.index + boldMatch[0].length));
-        } else {
-          boldParts.push(beforeText);
+    let cursor = 0;
+    let codeKey = 0;
+    let boldKey = 0;
+
+    const appendBoldSegments = (segment: string) => {
+      const boldRegex = /\*\*(.*?)\*\*/g;
+      let segmentCursor = 0;
+      let boldMatch: RegExpExecArray | null;
+
+      while ((boldMatch = boldRegex.exec(segment)) !== null) {
+        if (boldMatch.index > segmentCursor) {
+          nodes.push(segment.slice(segmentCursor, boldMatch.index));
         }
-        newParts.push(...boldParts);
+        nodes.push(
+          <strong key={`bold-${boldKey++}`} className="font-semibold">
+            {boldMatch[1]}
+          </strong>
+        );
+        segmentCursor = boldMatch.index + boldMatch[0].length;
       }
-      newParts.push(
-        <code key={`inline-code-${key++}`} className="bg-[var(--bg-light)] px-1.5 py-0.5 rounded text-xs font-mono">
-          {match[1]}
+
+      if (segmentCursor < segment.length) {
+        nodes.push(segment.slice(segmentCursor));
+      }
+    };
+
+    let codeMatch: RegExpExecArray | null;
+    while ((codeMatch = inlineCodeRegex.exec(text)) !== null) {
+      if (codeMatch.index > cursor) {
+        appendBoldSegments(text.slice(cursor, codeMatch.index));
+      }
+      nodes.push(
+        <code key={`inline-code-${codeKey++}`} className="bg-[var(--bg-light)] px-1.5 py-0.5 rounded text-xs font-mono">
+          {codeMatch[1]}
         </code>
       );
-      lastIndex = match.index + match[0].length;
+      cursor = codeMatch.index + codeMatch[0].length;
     }
-    
-    if (lastIndex < text.length) {
-      const remaining = text.slice(lastIndex);
-      const boldMatch = /\*\*(.*?)\*\*/g.exec(remaining);
-      if (boldMatch) {
-        newParts.push(remaining.slice(0, boldMatch.index));
-        newParts.push(<strong key={`bold-final-${key++}`} className="font-semibold">{boldMatch[1]}</strong>);
-        newParts.push(remaining.slice(boldMatch.index + boldMatch[0].length));
-      } else {
-        newParts.push(remaining);
-      }
+
+    if (cursor < text.length) {
+      appendBoldSegments(text.slice(cursor));
     }
-    
-    return newParts.length > 0 ? newParts : text;
+
+    return nodes.length > 0 ? nodes : text;
   };
 
   return (
@@ -253,7 +247,13 @@ const QUICK_PROMPTS = [
  * - Pre-defined prompts reduce friction
  * - Context indicator builds trust
  */
-export default function AIAssistantPanel({ onClose, initialQuery, logs: providedLogs, onOpenSettings }: AIAssistantPanelProps) {
+export default function AIAssistantPanel({
+  onClose,
+  layoutMode = 'modal',
+  initialQuery,
+  logs: providedLogs,
+  onOpenSettings,
+}: AIAssistantPanelProps) {
   const {
     conversationHistory,
     isLoading,
@@ -276,6 +276,24 @@ export default function AIAssistantPanel({ onClose, initialQuery, logs: provided
   const [query, setQuery] = useState(initialQuery || '');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const hasAutoSentInitialQueryRef = useRef(false);
+  const safeErrorMessage = useMemo(() => {
+    if (!error) {
+      return null;
+    }
+
+    const normalized = error.toLowerCase();
+    if (normalized.includes('api key') || normalized.includes('auth')) {
+      return 'AI authentication failed. Open settings and verify your provider credentials.';
+    }
+    if (normalized.includes('rate limit') || normalized.includes('quota')) {
+      return 'AI request limit reached. Please wait and try again.';
+    }
+    if (normalized.includes('network') || normalized.includes('fetch')) {
+      return 'Network issue while contacting the AI provider. Check your connection and retry.';
+    }
+    return 'AI request failed. Please try again.';
+  }, [error]);
 
   // Auto-scroll to latest message
   // Why: Keeps conversation visible as new messages arrive
@@ -291,40 +309,60 @@ export default function AIAssistantPanel({ onClose, initialQuery, logs: provided
     }
   }, [initialQuery]);
 
-  // Auto-send initial query if provided
-  // Why: Allows pre-populated queries from other components
-  useEffect(() => {
-    if (initialQuery && conversationHistory.length === 0 && apiKeyConfigured && isEnabled) {
-      handleSend(initialQuery);
-    }
-  }, [initialQuery]); // Only run once on mount
-
   /**
    * Handle sending a query
    * 
    * Why: Validates input, sends to AI, and manages state
    */
-  const handleSend = useCallback(async (queryText?: string) => {
+  const handleSend = useCallback(async (queryText?: string): Promise<boolean> => {
     const textToSend = queryText || query.trim();
     if (!textToSend || isLoading || !apiKeyConfigured || !isEnabled) {
-      return;
+      return false;
     }
     // Phase 6.2: No logs - AIContext will also reject, but avoid unnecessary round-trip
     if (logsToAnalyze.length === 0) {
-      return;
+      return false;
     }
 
     // Get log IDs for context
     const logIds = logsToAnalyze.map(log => log.id);
 
-    // Send question with logs as context
-    await askQuestion(textToSend, logIds, logsToAnalyze);
+    try {
+      // Send question with logs as context
+      await askQuestion(textToSend, logIds, logsToAnalyze);
 
-    // Clear input if it was the current query
-    if (!queryText) {
-      setQuery('');
+      // Clear input if it was the current query
+      if (!queryText) {
+        setQuery('');
+      }
+      return true;
+    } catch (sendError) {
+      console.error('Failed to send question to AI provider:', sendError);
+      return false;
     }
   }, [query, isLoading, apiKeyConfigured, isEnabled, askQuestion, logsToAnalyze]);
+
+  // Auto-send initial query if provided
+  // Why: Allows pre-populated queries from other components.
+  useEffect(() => {
+    if (hasAutoSentInitialQueryRef.current) {
+      return;
+    }
+
+    if (initialQuery && conversationHistory.length === 0 && apiKeyConfigured && isEnabled) {
+      const autoSendInitialQuery = async () => {
+        try {
+          const didSend = await handleSend(initialQuery);
+          if (didSend) {
+            hasAutoSentInitialQueryRef.current = true;
+          }
+        } catch (sendError) {
+          console.error('Failed to auto-send initial AI query:', sendError);
+        }
+      };
+      void autoSendInitialQuery();
+    }
+  }, [apiKeyConfigured, conversationHistory.length, handleSend, initialQuery, isEnabled]);
 
   /**
    * Handle keyboard shortcuts
@@ -353,11 +391,20 @@ export default function AIAssistantPanel({ onClose, initialQuery, logs: provided
   // Check if AI is properly configured
   const isConfigured = apiKeyConfigured && isEnabled;
   const logCount = logsToAnalyze.length;
+  const isInlineLayout = layoutMode === 'inline';
 
   return (
-    <div className="flex flex-col h-full bg-[var(--bg-primary)] text-[var(--text-primary)]">
+    <div
+      className={`flex flex-col h-full bg-[var(--bg-primary)] text-[var(--text-primary)] ${
+        isInlineLayout ? 'min-h-0 overflow-hidden rounded-none' : ''
+      }`}
+    >
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)]">
+      <div
+        className={`flex items-center justify-between border-b border-[var(--border-color)] ${
+          isInlineLayout ? 'px-3 py-2.5' : 'p-4'
+        }`}
+      >
         <div className="flex items-center gap-2">
           <Sparkles size={20} className="text-[var(--accent-blue)]" />
           <h2 className="text-lg font-semibold">AI Assistant</h2>
@@ -478,14 +525,14 @@ export default function AIAssistantPanel({ onClose, initialQuery, logs: provided
           </div>
 
           {/* Error Display - Phase 6.1: Clear, actionable, dismissible */}
-          {error && (
+          {safeErrorMessage && (
             <div className="px-4 py-2 bg-red-500/10 border-t border-red-500/30 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-xs text-red-400 min-w-0 flex-1">
                 <AlertCircle size={14} className="flex-shrink-0" />
-                <span className="break-words">{error}</span>
+                <span className="break-words">{safeErrorMessage}</span>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
-                {onOpenSettings && (error.toLowerCase().includes('api key') || error.toLowerCase().includes('settings')) && (
+                {onOpenSettings && error !== null && (error.toLowerCase().includes('api key') || error.toLowerCase().includes('settings')) && (
                   <button
                     onClick={onOpenSettings}
                     className="text-xs font-medium text-red-400 hover:text-red-300 underline"
