@@ -314,9 +314,9 @@ export const AI_PROVIDERS: Record<AIProviderId, AIProviderInfo> = {
   },
   codex: {
     id: 'codex',
-    name: 'OpenAI (Codex)',
-    keyLabel: 'OpenAI API Key',
-    helpUrl: 'https://platform.openai.com/api-keys',
+    name: 'Codex CLI',
+    keyLabel: 'Optional: CODEX_API_KEY (leave empty to use codex login)',
+    helpUrl: 'https://developers.openai.com/codex/cli',
     privacyNoticeName: 'OpenAI',
   },
 } as const;

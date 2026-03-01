@@ -25,7 +25,7 @@ export class ClaudeProvider implements LLMProvider {
   private lastDailyReset = Date.now();
   private totalTokensUsed = 0;
 
-  public initialize(apiKey: string, model: string = 'claude-sonnet-4-6'): void {
+  public initialize(apiKey: string | null, model: string = 'claude-sonnet-4-6'): void {
     if (!apiKey || apiKey.trim().length < 10) {
       throw new InvalidApiKeyError('API key is required');
     }

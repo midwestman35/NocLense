@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, shell, safeStorage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const https = require('https');
+const { spawn } = require('child_process');
 const isDev = !app.isPackaged;
 
 let mainWindow;
@@ -272,6 +273,68 @@ function createWindow() {
   });
 }
 
+/**
+ * Run codex exec with given args. Uses spawn (no shell) for security.
+ * @param {string[]} args - Args for codex exec (e.g. ['--json', '--ephemeral', prompt])
+ * @param {string|null} apiKey - Optional CODEX_API_KEY for env
+ * @param {number} timeoutMs - Max run time
+ * @returns {{ exitCode: number, stdout: string, stderr: string }}
+ */
+function runCodexExec(args, apiKey, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const env = { ...process.env };
+    if (apiKey) env.CODEX_API_KEY = apiKey;
+
+    const proc = spawn('codex', ['exec', ...args], {
+      env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    let stdout = '';
+    let stderr = '';
+    proc.stdout?.on('data', (chunk) => { stdout += chunk.toString(); });
+    proc.stderr?.on('data', (chunk) => { stderr += chunk.toString(); });
+
+    const timer = setTimeout(() => {
+      proc.kill('SIGTERM');
+      reject(new Error('Codex exec timed out'));
+    }, timeoutMs);
+
+    proc.on('close', (code, signal) => {
+      clearTimeout(timer);
+      resolve({ exitCode: code ?? (signal ? 1 : 0), stdout, stderr });
+    });
+
+    proc.on('error', (err) => {
+      clearTimeout(timer);
+      reject(err);
+    });
+  });
+}
+
+/**
+ * Parse Codex --json output: extract final agent_message text and usage from JSONL.
+ */
+function parseCodexJsonOutput(stdout) {
+  let lastText = '';
+  let usage = null;
+  const lines = stdout.split('\n').filter(Boolean);
+  for (const line of lines) {
+    try {
+      const obj = JSON.parse(line);
+      if (obj.type === 'item.completed' && obj.item?.type === 'agent_message' && obj.item?.text) {
+        lastText = obj.item.text;
+      }
+      if (obj.usage) {
+        usage = obj.usage;
+      }
+    } catch (_) {
+      // skip malformed lines
+    }
+  }
+  return { text: lastText, usage };
+}
+
 app.whenReady().then(() => {
   ipcMain.handle('app:report-error', async (_event, payload) => {
     try {
@@ -413,6 +476,49 @@ app.whenReady().then(() => {
       }
 
       return { ok: true };
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  });
+
+  // Codex CLI IPC: spawn codex exec for log analysis (no shell interpolation)
+  ipcMain.handle('codex:health', async () => {
+    try {
+      const result = await runCodexExec(['--ephemeral', '--skip-git-repo-check', 'Reply with exactly: ok'], null, 15000);
+      return { ok: true, available: result.exitCode === 0 };
+    } catch (error) {
+      return {
+        ok: false,
+        available: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  });
+
+  ipcMain.handle('codex:analyze', async (_event, payload) => {
+    try {
+      const context = typeof payload?.context === 'string' ? payload.context : '';
+      const apiKey = typeof payload?.apiKey === 'string' && payload.apiKey.trim() ? payload.apiKey.trim() : null;
+      const result = await runCodexExec(
+        ['--json', '--ephemeral', '--sandbox', 'read-only', '--skip-git-repo-check', context],
+        apiKey,
+        120000
+      );
+      if (result.exitCode !== 0) {
+        return { ok: false, error: result.stderr || result.stdout || 'Codex exited with error' };
+      }
+      const content = parseCodexJsonOutput(result.stdout);
+      const tokensUsed = content.usage?.input_tokens != null && content.usage?.output_tokens != null
+        ? content.usage.input_tokens + content.usage.output_tokens
+        : undefined;
+      return {
+        ok: true,
+        content: content.text || '',
+        tokensUsed,
+      };
     } catch (error) {
       return {
         ok: false,

@@ -25,5 +25,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setSecureStorage: (key, value) => ipcRenderer.invoke('secure-storage:set', key, value),
   deleteSecureStorage: (key) => ipcRenderer.invoke('secure-storage:delete', key),
   migrateToSecureStorage: (values) => ipcRenderer.invoke('secure-storage:migrate', values),
+
+  // Codex CLI bridge (Electron only)
+  codexHealth: () => ipcRenderer.invoke('codex:health'),
+  codexAnalyze: (payload) => ipcRenderer.invoke('codex:analyze', payload),
 });
 

@@ -466,19 +466,20 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
     };
   }, []);
   
-  // Initialize active provider service when API key is available
+  // Initialize active provider service when API key is available (or Codex CLI - no key needed)
   // Why: Lazy initialization - only create API client when needed
   useEffect(() => {
-    if (apiKey && isEnabled) {
+    const needsInit = (apiKey && isEnabled) || (provider === 'codex' && isEnabled);
+    if (needsInit) {
       try {
-        activeProviderService.initialize(apiKey, model);
+        activeProviderService.initialize(provider === 'codex' ? (apiKey || null) : apiKey!, model);
         activeProviderService.setDailyRequestLimit(dailyRequestLimit);
       } catch (e) {
         console.error('Failed to initialize AI provider service:', e);
         setError('Failed to initialize AI service. Please check your API key.');
       }
     }
-  }, [apiKey, model, isEnabled, dailyRequestLimit, activeProviderService]);
+  }, [apiKey, model, isEnabled, dailyRequestLimit, activeProviderService, provider]);
   
   // Persist usage stats to localStorage when they change
   // Why: Keep usage tracking persistent across sessions
@@ -511,28 +512,35 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
    */
   const setApiKey = useCallback(async (key: string): Promise<boolean> => {
     setError(null);
-    
-    if (!key || key.trim().length === 0) {
+
+    // Codex CLI: empty key allowed (uses codex login); validate via codexHealth
+    if ((!key || key.trim().length === 0) && provider !== 'codex') {
       setError('API key is required');
       return false;
     }
-    
+
     try {
-      // Validate API key by making test request
-      // Why: Prevents saving invalid keys that would fail later
-      const isValid = await activeProviderService.validateApiKey(key);
+      // Validate: API key for gemini/claude; codexHealth for Codex CLI
+      const isValid = await activeProviderService.validateApiKey(key || '');
       
       if (!isValid) {
-        setError('Invalid API key. Please check your API key and try again.');
+        setError(
+          provider === 'codex'
+            ? 'Codex CLI not found or not authenticated. Install: npm i -g @openai/codex, then run codex login.'
+            : 'Invalid API key. Please check your API key and try again.'
+        );
         return false;
       }
-      
-      // Save API key
-      await saveStoredApiKey(provider, key);
-      setApiKeysState(prev => ({ ...prev, [provider]: key }));
-      
-      // Initialize service with new key
-      activeProviderService.initialize(key, model);
+
+      // Save API key (only for non-Codex; Codex uses codex login)
+      if (provider !== 'codex' && key.trim()) {
+        await saveStoredApiKey(provider, key);
+        setApiKeysState((prev) => ({ ...prev, [provider]: key }));
+      } else if (provider === 'codex') {
+        setApiKeysState((prev) => ({ ...prev, codex: key.trim() || undefined }));
+      }
+
+      activeProviderService.initialize(provider === 'codex' ? (key.trim() || null) : key, model);
       activeProviderService.setDailyRequestLimit(dailyRequestLimit);
       
       return true;
@@ -583,10 +591,14 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
     setModelState(nextModel);
 
     const nextApiKey = apiKeys[newProvider] ?? null;
-    if (nextApiKey && isEnabled) {
+    const shouldInit = (nextApiKey && isEnabled) || (newProvider === 'codex' && isEnabled);
+    if (shouldInit) {
       try {
         const nextProviderService = providerRegistry.getProvider(newProvider);
-        nextProviderService.initialize(nextApiKey, nextModel);
+        nextProviderService.initialize(
+          newProvider === 'codex' ? (nextApiKey || null) : nextApiKey!,
+          nextModel
+        );
         nextProviderService.setDailyRequestLimit(dailyRequestLimit);
       } catch (e) {
         console.error('Failed to initialize selected provider:', e);
@@ -612,7 +624,7 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
     setDailyRequestLimitState(limit);
     
     // Update service limit
-    if (apiKey && isEnabled) {
+    if ((apiKey || provider === 'codex') && isEnabled) {
       try {
         activeProviderService.setDailyRequestLimit(limit);
       } catch (e) {
@@ -632,10 +644,10 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
     saveEnabled(enabled);
     setIsEnabledState(enabled);
     
-    // Initialize service if enabling and API key is set
-    if (enabled && apiKey) {
+    // Initialize service if enabling (Codex CLI does not require API key)
+    if (enabled && (apiKey || provider === 'codex')) {
       try {
-        activeProviderService.initialize(apiKey, model);
+        activeProviderService.initialize(provider === 'codex' ? (apiKey || null) : apiKey!, model);
         activeProviderService.setDailyRequestLimit(dailyRequestLimit);
       } catch (e) {
         console.error('Failed to initialize AI service:', e);
@@ -830,7 +842,7 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
     logIds?: number[],
     logs?: LogEntry[]
   ): Promise<void> => {
-    if (!apiKey) {
+    if (!apiKey && provider !== 'codex') {
       setError('API key not configured. Please set your API key in settings.');
       return;
     }
@@ -894,7 +906,7 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
   const contextValue = useMemo<AIContextType>(() => ({
     // State
     isEnabled,
-    apiKeyConfigured: !!apiKey,
+    apiKeyConfigured: !!apiKey || provider === 'codex',
     provider,
     model,
     conversationHistory,

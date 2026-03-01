@@ -38,6 +38,18 @@ declare global {
       setSecureStorage?: (key: string, value: string) => Promise<{ ok: boolean; error?: string }>;
       deleteSecureStorage?: (key: string) => Promise<{ ok: boolean; error?: string }>;
       migrateToSecureStorage?: (values: Record<string, string>) => Promise<{ ok: boolean; error?: string }>;
+      codexHealth?: () => Promise<{ ok: boolean; available?: boolean; error?: string }>;
+      codexAnalyze?: (payload: {
+        query: string;
+        context: string;
+        model?: string;
+        apiKey?: string;
+      }) => Promise<{
+        ok: boolean;
+        content?: string;
+        tokensUsed?: number;
+        error?: string;
+      }>;
     };
   }
 }

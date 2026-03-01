@@ -223,7 +223,11 @@ export default function AISettingsPanel({ onClose }: AISettingsPanelProps) {
                     type={showApiKey ? 'text' : 'password'}
                     value={apiKeyInput}
                     onChange={handleApiKeyChange}
-                    placeholder={apiKeyConfigured ? 'API key configured' : 'Enter your API key'}
+                    placeholder={
+                      provider === 'codex'
+                        ? 'Leave empty to use codex login, or set CODEX_API_KEY'
+                        : (apiKeyConfigured ? 'API key configured' : 'Enter your API key')
+                    }
                     className="w-full px-3 py-2 bg-[var(--bg-light)] border border-[var(--border-color)] rounded text-sm text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-blue)] focus:border-transparent"
                     disabled={isValidating}
                     aria-label="API key input"
@@ -239,7 +243,7 @@ export default function AISettingsPanel({ onClose }: AISettingsPanelProps) {
                 </div>
                 <button
                   onClick={handleTestConnection}
-                  disabled={isValidating || !apiKeyInput.trim()}
+                  disabled={isValidating || (provider !== 'codex' && !apiKeyInput.trim())}
                   className="px-4 py-2 bg-[var(--accent-blue)] text-white rounded text-sm font-medium hover:bg-[var(--accent-blue)]/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {isValidating ? (
@@ -282,7 +286,7 @@ export default function AISettingsPanel({ onClose }: AISettingsPanelProps) {
                 </div>
               )}
 
-              {/* Get API key link */}
+              {/* Get API key / Codex setup link */}
               <div className="mt-2">
                 <a
                   href={providerInfo.helpUrl}
@@ -290,7 +294,9 @@ export default function AISettingsPanel({ onClose }: AISettingsPanelProps) {
                   rel="noopener noreferrer"
                   className="text-xs text-[var(--accent-blue)] hover:underline flex items-center gap-1"
                 >
-                  Get API key for {providerInfo.name}
+                  {provider === 'codex'
+                    ? 'Install Codex CLI: npm i -g @openai/codex, then run codex login'
+                    : `Get API key for ${providerInfo.name}`}
                   <ExternalLink size={12} />
                 </a>
               </div>

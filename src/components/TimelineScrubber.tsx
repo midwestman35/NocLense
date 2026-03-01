@@ -58,7 +58,7 @@ const TimelineScrubber: React.FC<TimelineScrubberProps> = ({ height = 80 }) => {
         setTimelineEventFilters,
         setHoveredCallId,
         hoveredCallId,
-        hoveredCorrelation,
+        hoveredCorrelation: _hoveredCorrelation,
         useIndexedDBMode,
     } = useTimelineData();
 

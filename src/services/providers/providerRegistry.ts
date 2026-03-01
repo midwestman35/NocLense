@@ -1,6 +1,6 @@
 import type { AIProviderId } from '../../types/ai';
 import { ClaudeProvider } from './ClaudeProvider';
-import { CodexProvider } from './CodexProvider';
+import { CodexCLIProvider } from './CodexCLIProvider';
 import { GeminiProvider } from './GeminiProvider';
 import type { LLMProvider } from './types';
 
@@ -15,7 +15,7 @@ export class ProviderRegistry {
     this.providers = new Map<AIProviderId, LLMProvider>([
       ['gemini', new GeminiProvider()],
       ['claude', new ClaudeProvider()],
-      ['codex', new CodexProvider()],
+      ['codex', new CodexCLIProvider()],
     ]);
   }
 

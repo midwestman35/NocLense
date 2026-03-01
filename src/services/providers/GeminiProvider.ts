@@ -1,5 +1,5 @@
 import { GeminiService } from '../llmService';
-import type { AIUsageStats } from '../../types/ai';
+import { InvalidApiKeyError, type AIUsageStats } from '../../types/ai';
 import type {
   LLMProvider,
   ProviderAnalyzeOptions,
@@ -15,7 +15,10 @@ export class GeminiProvider implements LLMProvider {
     this.service = service ?? GeminiService.getInstance();
   }
 
-  public initialize(apiKey: string, model?: string): void {
+  public initialize(apiKey: string | null, model?: string): void {
+    if (!apiKey || apiKey.trim().length < 10) {
+      throw new InvalidApiKeyError('API key is required');
+    }
     this.service.initialize(apiKey, model);
   }
 

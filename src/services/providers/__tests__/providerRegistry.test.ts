@@ -32,23 +32,25 @@ describe('Provider registry', () => {
     expect(response.tokensUsed).toBe(15);
   });
 
-  it('Codex provider normalizes response shape', async () => {
+  it('Codex CLI provider normalizes response shape', async () => {
+    const codexAnalyze = vi.fn().mockResolvedValue({
+      ok: true,
+      content: 'Root cause points to log 77',
+      tokensUsed: 19,
+    });
+    const orig = (globalThis as unknown as { window?: { electronAPI?: unknown } }).window;
+    if (orig) {
+      orig.electronAPI = { codexAnalyze } as never;
+    }
+
     const provider = providerRegistry.getProvider('codex');
-    provider.initialize('test-openai-key-12345', 'gpt-4.1-mini');
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          output_text: 'Root cause points to log 77',
-          usage: { total_tokens: 19 },
-        }),
-      })
-    );
+    provider.initialize(null, 'gpt-4.1-mini');
 
     const response = await provider.analyzeLog('why', 'context');
     expect(response.content).toContain('Root cause');
     expect(response.logReferences).toContain(77);
     expect(response.tokensUsed).toBe(19);
+
+    if (orig) delete (orig as { electronAPI?: unknown }).electronAPI;
   });
 });

@@ -20,10 +20,11 @@ export interface ProviderHierarchicalContextChunk {
 
 /**
  * Common contract for pluggable LLM providers.
+ * Codex CLI: apiKey optional (null/empty = use codex login).
  */
 export interface LLMProvider {
   readonly providerId: AIProviderId;
-  initialize(apiKey: string, model?: string): void;
+  initialize(apiKey: string | null, model?: string): void;
   validateApiKey(apiKey: string): Promise<boolean>;
   setDailyRequestLimit(limit: number): void;
   getUsageStats(): AIUsageStats;
