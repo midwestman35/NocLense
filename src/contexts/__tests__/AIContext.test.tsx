@@ -347,7 +347,46 @@ describe('AIContext', () => {
       expect(localStorage.setItem).toHaveBeenCalledWith('noclense_ai_provider', 'codex');
     });
   });
-  
+
+  describe('Gemini model migration', () => {
+    it('should migrate gemini-3-pro-preview to gemini-3.1-pro-preview', () => {
+      localStorageMock['noclense_ai_provider'] = 'gemini';
+      localStorageMock['noclense_ai_model'] = 'gemini-3-pro-preview';
+
+      const { result } = renderHook(() => useAI(), {
+        wrapper: createWrapper(),
+      });
+
+      expect(result.current.model).toBe('gemini-3.1-pro-preview');
+      expect(localStorage.setItem).toHaveBeenCalledWith(
+        'noclense_ai_model',
+        'gemini-3.1-pro-preview'
+      );
+    });
+
+    it('should migrate gemini-2.0-flash to gemini-3.1-flash-lite-preview', () => {
+      localStorageMock['noclense_ai_provider'] = 'gemini';
+      localStorageMock['noclense_ai_model'] = 'gemini-2.0-flash';
+
+      const { result } = renderHook(() => useAI(), {
+        wrapper: createWrapper(),
+      });
+
+      expect(result.current.model).toBe('gemini-3.1-flash-lite-preview');
+    });
+
+    it('should migrate gemini-1.5-pro to gemini-3.1-flash-lite-preview', () => {
+      localStorageMock['noclense_ai_provider'] = 'gemini';
+      localStorageMock['noclense_ai_model'] = 'gemini-1.5-pro';
+
+      const { result } = renderHook(() => useAI(), {
+        wrapper: createWrapper(),
+      });
+
+      expect(result.current.model).toBe('gemini-3.1-flash-lite-preview');
+    });
+  });
+
   describe('Enabled state', () => {
     it('should load enabled state from localStorage', () => {
       localStorageMock['noclense_ai_enabled'] = 'true';
