@@ -33,3 +33,6 @@ dist-electron
 
 # Allow analysis directory
 !analysis_logs/
+
+# Git worktrees
+.worktrees/
