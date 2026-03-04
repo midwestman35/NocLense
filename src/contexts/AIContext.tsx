@@ -116,9 +116,23 @@ function loadModel(provider: AIProviderId): AIConfig['model'] {
     if (saved && AI_MODELS[saved]?.provider === provider) {
       return saved;
     }
-    if (provider === 'gemini' && saved === 'gemini-1.5-flash') {
-      saveModel('gemini', 'gemini-3-flash-preview');
-      return 'gemini-3-flash-preview';
+    // Migrate deprecated and removed Gemini models to their 3.1 equivalents.
+    // Why: gemini-3-pro-preview shuts down March 9 2026 (Google deprecation).
+    //      gemini-2.0-flash, gemini-1.5-flash, gemini-1.5-pro removed from model list.
+    //      Silent migration prevents users from being stuck on non-functional models.
+    if (provider === 'gemini') {
+      if (saved === 'gemini-3-pro-preview') {
+        saveModel('gemini', 'gemini-3.1-pro-preview');
+        return 'gemini-3.1-pro-preview';
+      }
+      if (
+        saved === 'gemini-2.0-flash' ||
+        saved === 'gemini-1.5-pro' ||
+        saved === 'gemini-1.5-flash'
+      ) {
+        saveModel('gemini', 'gemini-3.1-flash-lite-preview');
+        return 'gemini-3.1-flash-lite-preview';
+      }
     }
     if (provider === 'claude' && (saved === 'claude-3-5-sonnet-latest' || saved === 'claude-3-5-haiku-latest')) {
       const next = saved === 'claude-3-5-haiku-latest' ? 'claude-haiku-4-5' : 'claude-sonnet-4-6';
