@@ -211,7 +211,7 @@ describe('AIContext', () => {
       expect(result.current.isEnabled).toBe(false);
       expect(result.current.apiKeyConfigured).toBe(false);
       expect(result.current.provider).toBe('gemini');
-      expect(result.current.model).toBe('gemini-3-flash-preview');
+      expect(result.current.model).toBe('gemini-3.1-flash-lite-preview');
       expect(result.current.conversationHistory).toEqual([]);
       expect(result.current.isLoading).toBe(false);
       expect(result.current.error).toBeNull();
