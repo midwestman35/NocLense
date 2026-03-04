@@ -328,40 +328,31 @@ export const AI_PROVIDERS: Record<AIProviderId, AIProviderInfo> = {
  * Makes it easy to add new models or update descriptions.
  */
 export const AI_MODELS: Record<string, AIModelInfo> = {
+  'gemini-3.1-flash-lite-preview': {
+    id: 'gemini-3.1-flash-lite-preview',
+    provider: 'gemini',
+    name: 'Gemini 3.1 Flash-Lite',
+    description: 'Recommended: Fastest 3.1 model, 1M context, low latency',
+    speed: 'fast',
+    quality: 'excellent',
+    contextWindow: 1000000,
+  },
   'gemini-3-flash-preview': {
     id: 'gemini-3-flash-preview',
     provider: 'gemini',
     name: 'Gemini 3 Flash',
-    description: 'Recommended: Fast, high quality, latest model',
+    description: 'Stable: Well-tested, production-ready fallback',
     speed: 'fast',
     quality: 'excellent',
     contextWindow: 1000000,
   },
-  'gemini-3-pro-preview': {
-    id: 'gemini-3-pro-preview',
+  'gemini-3.1-pro-preview': {
+    id: 'gemini-3.1-pro-preview',
     provider: 'gemini',
-    name: 'Gemini 3 Pro',
-    description: 'Most capable model for complex analysis',
+    name: 'Gemini 3.1 Pro',
+    description: 'Most capable: Advanced reasoning for complex log analysis',
     speed: 'medium',
-    quality: 'excellent',
-    contextWindow: 1000000,
-  },
-  'gemini-2.0-flash': {
-    id: 'gemini-2.0-flash',
-    provider: 'gemini',
-    name: 'Gemini 2.0 Flash',
-    description: 'May be unavailable for new users; prefer Gemini 3',
-    speed: 'fast',
-    quality: 'excellent',
-    contextWindow: 1000000,
-  },
-  'gemini-1.5-pro': {
-    id: 'gemini-1.5-pro',
-    provider: 'gemini',
-    name: 'Gemini 1.5 Pro',
-    description: 'Higher quality, best for complex analysis',
-    speed: 'medium',
-    quality: 'excellent',
+    quality: 'best',
     contextWindow: 1000000,
   },
   'claude-sonnet-4-6': {
@@ -415,7 +406,7 @@ export const AI_MODELS: Record<string, AIModelInfo> = {
  * Provider default models.
  */
 export const DEFAULT_MODELS_BY_PROVIDER: Record<AIProviderId, string> = {
-  gemini: 'gemini-3-flash-preview',
+  gemini: 'gemini-3.1-flash-lite-preview',
   claude: 'claude-sonnet-4-6',
   codex: 'gpt-4.1-mini',
 };
