@@ -270,7 +270,7 @@ describe('GeminiService', () => {
       expect(result.tokensUsed).toBeGreaterThan(0);
       expect(result.tokensUsed).toBe(321);
       expect(mockModel.countTokens).toHaveBeenCalled();
-      expect(result.model).toBe('gemini-3-flash-preview');
+      expect(result.model).toBe('gemini-3.1-flash-lite-preview');
     });
 
     it('should skip cache creation for cache-incompatible models', async () => {
