@@ -243,7 +243,7 @@ describe('AIContext', () => {
       expect(success!).toBe(true);
 
       expect(mockService.validateApiKey).toHaveBeenCalledWith('test-api-key-123');
-      expect(mockService.initialize).toHaveBeenCalledWith('test-api-key-123', 'gemini-3-flash-preview');
+      expect(mockService.initialize).toHaveBeenCalledWith('test-api-key-123', 'gemini-3.1-flash-lite-preview');
       expect(apiKeyStorage.saveApiKey).toHaveBeenCalledWith('gemini', 'test-api-key-123');
       expect(localStorage.setItem).toHaveBeenCalledWith('noclense_ai_api_key', 'test-api-key-123');
       expect(localStorage.setItem).toHaveBeenCalledWith('noclense_ai_api_key_gemini', 'test-api-key-123');
@@ -292,13 +292,13 @@ describe('AIContext', () => {
   
   describe('Model selection', () => {
     it('should load model preference from localStorage', () => {
-      localStorageMock['noclense_ai_model'] = 'gemini-1.5-pro';
-      
+      localStorageMock['noclense_ai_model'] = 'gemini-3-flash-preview';
+
       const { result } = renderHook(() => useAI(), {
         wrapper: createWrapper(),
       });
-      
-      expect(result.current.model).toBe('gemini-1.5-pro');
+
+      expect(result.current.model).toBe('gemini-3-flash-preview');
     });
     
     it('should set model preference', async () => {

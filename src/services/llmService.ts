@@ -58,7 +58,7 @@ export class GeminiService {
   private static instance: GeminiService;
   private client: GoogleGenerativeAI | null = null;
   private model: GenerativeModel | null = null;
-  private currentModelId: string = 'gemini-3-flash-preview';
+  private currentModelId: string = 'gemini-3.1-flash-lite-preview';
   
   // Rate limiting state
   // Why: Free tier has 15 RPM, 1,500 RPD limits - must track to avoid quota errors
@@ -94,10 +94,10 @@ export class GeminiService {
    * This prevents unnecessary API client creation if AI features are disabled.
    * 
    * @param apiKey - Google Gemini API key
-   * @param model - Model to use (default: 'gemini-3-flash-preview')
+   * @param model - Model to use (default: 'gemini-3.1-flash-lite-preview')
    * @throws InvalidApiKeyError - If API key is empty or invalid format
    */
-  public initialize(apiKey: string, model: string = 'gemini-3-flash-preview'): void {
+  public initialize(apiKey: string, model: string = 'gemini-3.1-flash-lite-preview'): void {
     if (!apiKey || apiKey.trim().length === 0) {
       throw new InvalidApiKeyError('API key is required');
     }
@@ -133,8 +133,8 @@ export class GeminiService {
     
     try {
       const testClient = new GoogleGenerativeAI(apiKey);
-      // Use gemini-3-flash-preview for validation; 2.0-flash no longer available to new users
-      const testModel = testClient.getGenerativeModel({ model: 'gemini-3-flash-preview' });
+      // Use gemini-3.1-flash-lite-preview for validation — current default, available to all users
+      const testModel = testClient.getGenerativeModel({ model: 'gemini-3.1-flash-lite-preview' });
       
       // Minimal test request (just "test" prompt)
       const result = await testModel.generateContent('test');
@@ -684,7 +684,7 @@ RESPONSE:`;
 
     // 404 Model not found - e.g. deprecated gemini-1.5-flash (distinguish from invalid key)
     if (errorString.includes('404') || errorString.includes('is not found') || errorString.includes('not supported for generatecontent')) {
-      return new Error('Model unavailable. Try selecting a different model in AI Settings (e.g. Gemini 3 Flash).');
+      return new Error('Model unavailable. Try selecting a different model in AI Settings (e.g. Gemini 3.1 Flash-Lite).');
     }
 
     // Invalid API key
