@@ -78,16 +78,16 @@ export default function CrashReportsPanel({ onClose }: CrashReportsPanelProps) {
   }, [loadReports]);
 
   return (
-    <div className="flex flex-col h-full bg-[var(--bg-primary)] text-[var(--text-primary)]">
-      <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)]">
+    <div className="flex flex-col h-full bg-[var(--background)] text-[var(--foreground)]">
+      <div className="flex items-center justify-between p-4 border-b border-[var(--border)]">
         <div className="flex items-center gap-2">
-          <AlertTriangle size={18} className="text-red-400" />
+          <AlertTriangle size={18} className="text-[var(--destructive)]" />
           <h2 className="text-lg font-semibold">Crash Reports</h2>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => void loadReports()}
-            className="px-3 py-1.5 rounded bg-[var(--bg-light)] border border-[var(--border-color)] text-sm inline-flex items-center gap-1 hover:bg-[var(--bg-light)]/80"
+            className="px-3 py-1.5 rounded bg-[var(--muted)] border border-[var(--border)] text-sm inline-flex items-center gap-1 hover:bg-[var(--muted)]/80"
           >
             <RefreshCw size={14} />
             Refresh
@@ -95,7 +95,7 @@ export default function CrashReportsPanel({ onClose }: CrashReportsPanelProps) {
           {onClose && (
             <button
               onClick={onClose}
-              className="px-3 py-1.5 rounded bg-[var(--bg-light)] border border-[var(--border-color)] text-sm hover:bg-[var(--bg-light)]/80"
+              className="px-3 py-1.5 rounded bg-[var(--muted)] border border-[var(--border)] text-sm hover:bg-[var(--muted)]/80"
             >
               Close
             </button>
@@ -103,10 +103,10 @@ export default function CrashReportsPanel({ onClose }: CrashReportsPanelProps) {
         </div>
       </div>
 
-      <div className="p-4 border-b border-[var(--border-color)] flex items-center gap-2">
+      <div className="p-4 border-b border-[var(--border)] flex items-center gap-2">
         <button
           onClick={() => void handleOpenLocation()}
-          className="px-3 py-1.5 rounded bg-[var(--bg-light)] border border-[var(--border-color)] text-sm inline-flex items-center gap-1 hover:bg-[var(--bg-light)]/80"
+          className="px-3 py-1.5 rounded bg-[var(--muted)] border border-[var(--border)] text-sm inline-flex items-center gap-1 hover:bg-[var(--muted)]/80"
         >
           <ExternalLink size={14} />
           Open Log Location
@@ -114,14 +114,14 @@ export default function CrashReportsPanel({ onClose }: CrashReportsPanelProps) {
         <button
           onClick={() => void handleCopyReport()}
           disabled={!selectedReport}
-          className="px-3 py-1.5 rounded bg-[var(--bg-light)] border border-[var(--border-color)] text-sm inline-flex items-center gap-1 hover:bg-[var(--bg-light)]/80 disabled:opacity-50"
+          className="px-3 py-1.5 rounded bg-[var(--muted)] border border-[var(--border)] text-sm inline-flex items-center gap-1 hover:bg-[var(--muted)]/80 disabled:opacity-50"
         >
           <ClipboardCopy size={14} />
           Copy Selected Report
         </button>
         <button
           onClick={() => void handleClearReports()}
-          className="px-3 py-1.5 rounded bg-red-500/10 border border-red-500/30 text-sm inline-flex items-center gap-1 hover:bg-red-500/20 text-red-300"
+          className="px-3 py-1.5 rounded bg-[var(--destructive)]/10 border border-red-500/30 text-sm inline-flex items-center gap-1 hover:bg-[var(--destructive)]/20 text-[var(--destructive)]"
         >
           <Trash2 size={14} />
           Clear Reports
@@ -129,35 +129,35 @@ export default function CrashReportsPanel({ onClose }: CrashReportsPanelProps) {
       </div>
 
       {logPath && (
-        <div className="px-4 py-2 text-xs text-[var(--text-secondary)] border-b border-[var(--border-color)]">
+        <div className="px-4 py-2 text-xs text-[var(--muted-foreground)] border-b border-[var(--border)]">
           Local file: <span className="font-mono">{logPath}</span>
         </div>
       )}
 
       {error && (
-        <div className="mx-4 mt-3 p-3 rounded bg-red-500/10 border border-red-500/30 text-red-300 text-sm">
+        <div className="mx-4 mt-3 p-3 rounded bg-[var(--destructive)]/10 border border-red-500/30 text-[var(--destructive)] text-sm">
           {error}
         </div>
       )}
 
       <div className="flex-1 overflow-hidden grid grid-cols-5">
-        <div className="col-span-2 border-r border-[var(--border-color)] overflow-y-auto">
+        <div className="col-span-2 border-r border-[var(--border)] overflow-y-auto">
           {isLoading ? (
-            <div className="p-4 text-sm text-[var(--text-secondary)]">Loading crash reports...</div>
+            <div className="p-4 text-sm text-[var(--muted-foreground)]">Loading crash reports...</div>
           ) : reports.length === 0 ? (
-            <div className="p-4 text-sm text-[var(--text-secondary)]">No crash reports recorded yet.</div>
+            <div className="p-4 text-sm text-[var(--muted-foreground)]">No crash reports recorded yet.</div>
           ) : (
             reports.map((report) => (
               <button
                 key={report.reportId}
                 onClick={() => setSelectedId(report.reportId)}
-                className={`w-full text-left p-3 border-b border-[var(--border-color)] hover:bg-[var(--bg-light)]/60 ${
-                  selectedReport?.reportId === report.reportId ? 'bg-[var(--bg-light)]' : ''
+                className={`w-full text-left p-3 border-b border-[var(--border)] hover:bg-[var(--muted)]/60 ${
+                  selectedReport?.reportId === report.reportId ? 'bg-[var(--muted)]' : ''
                 }`}
               >
-                <div className="text-xs text-[var(--text-secondary)]">{new Date(report.timestamp).toLocaleString()}</div>
+                <div className="text-xs text-[var(--muted-foreground)]">{new Date(report.timestamp).toLocaleString()}</div>
                 <div className="text-sm font-medium break-all">{report.source}</div>
-                <div className="text-xs text-[var(--text-secondary)] font-mono break-all">{report.reportId}</div>
+                <div className="text-xs text-[var(--muted-foreground)] font-mono break-all">{report.reportId}</div>
               </button>
             ))
           )}
@@ -167,26 +167,26 @@ export default function CrashReportsPanel({ onClose }: CrashReportsPanelProps) {
           {selectedReport ? (
             <>
               <div className="mb-3">
-                <div className="text-xs text-[var(--text-secondary)]">Report ID</div>
+                <div className="text-xs text-[var(--muted-foreground)]">Report ID</div>
                 <div className="font-mono text-sm break-all">{selectedReport.reportId}</div>
               </div>
               <div className="mb-3">
-                <div className="text-xs text-[var(--text-secondary)]">Source</div>
+                <div className="text-xs text-[var(--muted-foreground)]">Source</div>
                 <div className="text-sm">{selectedReport.source}</div>
               </div>
               <div className="mb-3">
-                <div className="text-xs text-[var(--text-secondary)]">Timestamp</div>
+                <div className="text-xs text-[var(--muted-foreground)]">Timestamp</div>
                 <div className="text-sm">{new Date(selectedReport.timestamp).toLocaleString()}</div>
               </div>
               <div>
-                <div className="text-xs text-[var(--text-secondary)] mb-1">Payload</div>
-                <pre className="text-xs p-3 rounded bg-[var(--bg-light)] border border-[var(--border-color)] overflow-auto">
+                <div className="text-xs text-[var(--muted-foreground)] mb-1">Payload</div>
+                <pre className="text-xs p-3 rounded bg-[var(--muted)] border border-[var(--border)] overflow-auto">
                   {JSON.stringify(selectedReport.payload, null, 2)}
                 </pre>
               </div>
             </>
           ) : (
-            <div className="text-sm text-[var(--text-secondary)]">Select a crash report to inspect details.</div>
+            <div className="text-sm text-[var(--muted-foreground)]">Select a crash report to inspect details.</div>
           )}
         </div>
       </div>

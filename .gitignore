@@ -36,3 +36,5 @@ dist-electron
 
 # Git worktrees
 .worktrees/
+tools/external/agent-scripts
+settings.local.json

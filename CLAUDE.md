@@ -98,4 +98,5 @@ Users filter logs by faceted correlations (Call-ID, Report-ID, Operator-ID, Exte
 - State management → `src/contexts/LogContext.tsx`
 - External data / error handling → `src/components/FileUploader.tsx`
 - Toolbar UI → `src/components/FilterBar.tsx`
-- AI implementation phases → `LLM_INTEGRATION_IMPLEMENTATION_PLAN.md`
+- AI implementation phases → `docs/plans/LLM_INTEGRATION_IMPLEMENTATION_PLAN.md`
+

@@ -314,7 +314,7 @@ export const AI_PROVIDERS: Record<AIProviderId, AIProviderInfo> = {
   },
   codex: {
     id: 'codex',
-    name: 'OpenAI (Codex)',
+    name: 'ChatGPT (OpenAI)',
     keyLabel: 'OpenAI API Key',
     helpUrl: 'https://platform.openai.com/api-keys',
     privacyNoticeName: 'OpenAI',

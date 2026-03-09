@@ -181,10 +181,10 @@ describe('AISettingsPanel', () => {
   it('allows model selection', () => {
     render(<AISettingsPanel />);
     
-    const proModel = screen.getByText('Gemini 1.5 Pro');
+    const proModel = screen.getByText('Gemini 3.1 Pro');
     fireEvent.click(proModel.closest('label')!);
-    
-    expect(mockSetModel).toHaveBeenCalledWith('gemini-1.5-pro');
+
+    expect(mockSetModel).toHaveBeenCalledWith('gemini-3.1-pro-preview');
   });
 
   it('allows provider selection', () => {
@@ -199,7 +199,7 @@ describe('AISettingsPanel', () => {
   it('allows enabling/disabling AI features', () => {
     render(<AISettingsPanel />);
     
-    const enableCheckbox = screen.getByLabelText(/Enable AI Features/i);
+    const enableCheckbox = screen.getByRole('checkbox');
     fireEvent.click(enableCheckbox);
     
     expect(mockSetEnabled).toHaveBeenCalledWith(true);
@@ -208,7 +208,7 @@ describe('AISettingsPanel', () => {
   it('disables enable toggle when API key not configured', () => {
     render(<AISettingsPanel />);
     
-    const enableCheckbox = screen.getByLabelText(/Enable AI Features/i);
+    const enableCheckbox = screen.getByRole('checkbox');
     expect(enableCheckbox).toBeDisabled();
   });
 

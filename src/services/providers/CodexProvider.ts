@@ -48,7 +48,7 @@ export class CodexProvider implements LLMProvider {
         body: JSON.stringify({
           model: 'gpt-4.1-mini',
           input: 'ping',
-          max_output_tokens: 8,
+          max_output_tokens: 16,
         }),
       });
       return response.ok;

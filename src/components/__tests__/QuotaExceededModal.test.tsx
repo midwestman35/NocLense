@@ -29,7 +29,7 @@ describe('QuotaExceededModal', () => {
 
   it('renders with limit reached message', () => {
     render(<QuotaExceededModal />);
-    expect(screen.getByRole('alertdialog', { name: /Daily Limit Reached/i })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: /Daily Limit Reached/i })).toBeInTheDocument();
     expect(screen.getByText(/1500 \/ 1500/)).toBeInTheDocument();
     expect(screen.getByText(/midnight UTC/)).toBeInTheDocument();
   });

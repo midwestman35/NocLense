@@ -81,24 +81,24 @@ const SipFilterDropdown = ({
         <div className="relative" ref={dropdownRef}>
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors border border-[var(--border-color)] rounded-md hover:border-[var(--accent-blue)] bg-[var(--bg-light)]"
+                className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors border border-[var(--border)] rounded-md hover:border-[var(--foreground)] bg-[var(--accent)]"
             >
                 <span>Filter</span>
-                <span className="max-w-[160px] truncate font-mono text-[var(--text-primary)]">
+                <span className="max-w-[160px] truncate font-mono text-[var(--foreground)]">
                     {currentLabel()}
                 </span>
                 <ChevronDown size={14} className={`shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
             </button>
 
             {isOpen && (
-                <div className="absolute top-full left-0 mt-1 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-md shadow-lg z-50 min-w-[220px] max-h-[320px] overflow-y-auto">
-                    <div className="px-2 py-1 border-b border-[var(--border-color)] flex items-center justify-between">
-                        <span className="text-xs font-medium text-[var(--text-secondary)] px-2">Show only (multi-select)</span>
+                <div className="absolute top-full left-0 mt-1 bg-[var(--card)] border border-[var(--border)] rounded-md shadow-lg z-50 min-w-[220px] max-h-[320px] overflow-y-auto">
+                    <div className="px-2 py-1 border-b border-[var(--border)] flex items-center justify-between">
+                        <span className="text-xs font-medium text-[var(--muted-foreground)] px-2">Show only (multi-select)</span>
                         {hasAnyFilter && (
                             <button
                                 type="button"
                                 onClick={() => { onClearAll(); setIsOpen(false); }}
-                                className="text-[10px] text-[var(--accent-blue)] hover:underline px-2"
+                                className="text-[10px] text-[var(--foreground)] hover:underline px-2"
                             >
                                 Clear all
                             </button>
@@ -109,8 +109,8 @@ const SipFilterDropdown = ({
                             onClick={() => { onClearAll(); setIsOpen(false); }}
                             className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 transition-colors ${
                                 !hasAnyFilter
-                                    ? 'bg-[var(--accent-blue)] text-white'
-                                    : 'text-[var(--text-primary)] hover:bg-[var(--bg-light)]'
+                                    ? 'bg-[var(--foreground)] text-white'
+                                    : 'text-[var(--foreground)] hover:bg-[var(--accent)]'
                             }`}
                         >
                             <span className="w-4 flex items-center justify-center">
@@ -127,14 +127,14 @@ const SipFilterDropdown = ({
                                     onClick={(e) => { e.preventDefault(); onToggleLevel(value); }}
                                     className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 transition-colors ${
                                         checked
-                                            ? 'bg-[var(--accent-blue)]/15 text-[var(--accent-blue)]'
-                                            : 'text-[var(--text-primary)] hover:bg-[var(--bg-light)]'
+                                            ? 'bg-[var(--foreground)]/15 text-[var(--foreground)]'
+                                            : 'text-[var(--foreground)] hover:bg-[var(--accent)]'
                                     }`}
                                 >
-                                    <span className="w-4 h-4 border rounded flex items-center justify-center shrink-0 border-[var(--border-color)]">
-                                        {checked && <Check size={12} className="text-[var(--accent-blue)]" />}
+                                    <span className="w-4 h-4 border rounded flex items-center justify-center shrink-0 border-[var(--border)]">
+                                        {checked && <Check size={12} className="text-[var(--foreground)]" />}
                                     </span>
-                                    <Icon size={14} className={value === 'ERROR' ? 'text-[var(--err)]' : value === 'WARN' ? 'text-amber-500' : ''} />
+                                    <Icon size={14} className={value === 'ERROR' ? 'text-[var(--destructive)]' : value === 'WARN' ? 'text-[var(--warning)]' : ''} />
                                     <span>{label}</span>
                                 </button>
                             );
@@ -142,17 +142,17 @@ const SipFilterDropdown = ({
 
                         {hasSipOptions && (
                             <>
-                                <div className="my-1 border-t border-[var(--border-color)]" />
+                                <div className="my-1 border-t border-[var(--border)]" />
                                 <button
                                     onClick={(e) => { e.preventDefault(); onToggleSipOnly(); }}
                                     className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 transition-colors ${
                                         isSipFilterEnabled && selectedSipMethods.size === 0
-                                            ? 'bg-[var(--accent-blue)]/15 text-[var(--accent-blue)]'
-                                            : 'text-[var(--text-primary)] hover:bg-[var(--bg-light)]'
+                                            ? 'bg-[var(--foreground)]/15 text-[var(--foreground)]'
+                                            : 'text-[var(--foreground)] hover:bg-[var(--accent)]'
                                     }`}
                                 >
-                                    <span className="w-4 h-4 border rounded flex items-center justify-center shrink-0 border-[var(--border-color)]">
-                                        {isSipFilterEnabled && selectedSipMethods.size === 0 && <Check size={12} className="text-[var(--accent-blue)]" />}
+                                    <span className="w-4 h-4 border rounded flex items-center justify-center shrink-0 border-[var(--border)]">
+                                        {isSipFilterEnabled && selectedSipMethods.size === 0 && <Check size={12} className="text-[var(--foreground)]" />}
                                     </span>
                                     <span>SIP only</span>
                                 </button>
@@ -164,12 +164,12 @@ const SipFilterDropdown = ({
                                             onClick={(e) => { e.preventDefault(); onToggleSipMethod(method); }}
                                             className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 transition-colors ${
                                                 checked
-                                                    ? 'bg-[var(--accent-blue)]/15 text-[var(--accent-blue)]'
-                                                    : 'text-[var(--text-primary)] hover:bg-[var(--bg-light)]'
+                                                    ? 'bg-[var(--foreground)]/15 text-[var(--foreground)]'
+                                                    : 'text-[var(--foreground)] hover:bg-[var(--accent)]'
                                             }`}
                                         >
-                                            <span className="w-4 h-4 border rounded flex items-center justify-center shrink-0 border-[var(--border-color)]">
-                                                {checked && <Check size={12} className="text-[var(--accent-blue)]" />}
+                                            <span className="w-4 h-4 border rounded flex items-center justify-center shrink-0 border-[var(--border)]">
+                                                {checked && <Check size={12} className="text-[var(--foreground)]" />}
                                             </span>
                                             <span className="font-mono text-xs">SIP: {method}</span>
                                         </button>

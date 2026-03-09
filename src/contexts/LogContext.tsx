@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useMemo, useEffect, useCallback, type ReactNode } from 'react';
-import type { LogEntry, LogLevel, LogState } from '../types';
+import type { ImportedDataset, LogEntry, LogLevel, LogState } from '../types';
 import { loadSearchHistory, addToSearchHistory as saveToHistory, clearSearchHistory as clearHistoryStorage } from '../store/searchHistory';
 import { dbManager } from '../utils/indexedDB';
 
@@ -86,8 +86,6 @@ interface LogContextType extends LogState {
     isTimelineOpen: boolean;
     setIsTimelineOpen: (isOpen: boolean) => void;
 
-    activeCallFlowId: string | null;
-    setActiveCallFlowId: (id: string | null) => void;
     correlationData: {
         reportIds: string[];
         operatorIds: string[];
@@ -116,6 +114,8 @@ interface LogContextType extends LogState {
     clearAllData: () => Promise<void>;
     enableIndexedDBMode: () => Promise<void>;
     removeFile: (fileName: string) => Promise<void>;
+    importedDatasets: ImportedDataset[];
+    addImportedDatasets: (datasets: ImportedDataset[]) => void;
 }
 
 const LogContext = createContext<LogContextType | null>(null);
@@ -211,13 +211,42 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
 
     // Correlation State
     const [activeCorrelations, setActiveCorrelations] = useState<CorrelationItem[]>([]);
-    const [activeCallFlowId, setActiveCallFlowId] = useState<string | null>(null);
+
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [isTimelineOpen, setIsTimelineOpen] = useState(true);
 
     // Favorites State
     const [favoriteLogIds, setFavoriteLogIds] = useState<Set<number>>(new Set());
     const [isShowFavoritesOnly, setIsShowFavoritesOnly] = useState(false);
+    const [importedDatasets, setImportedDatasets] = useState<ImportedDataset[]>([]);
+
+    useEffect(() => {
+        const stored = localStorage.getItem('noclense-imported-datasets');
+        if (!stored) return;
+        try {
+            const parsed = JSON.parse(stored) as ImportedDataset[];
+            setImportedDatasets(parsed);
+        } catch (error) {
+            console.error('Failed to load imported datasets:', error);
+        }
+    }, []);
+
+    useEffect(() => {
+        localStorage.setItem('noclense-imported-datasets', JSON.stringify(importedDatasets));
+    }, [importedDatasets]);
+
+    const addImportedDatasets = useCallback((datasets: ImportedDataset[]) => {
+        if (datasets.length === 0) return;
+        setImportedDatasets((prev) => {
+            const next = [...prev];
+            for (const dataset of datasets) {
+                if (!next.some((existing) => existing.id === dataset.id)) {
+                    next.push(dataset);
+                }
+            }
+            return next.sort((a, b) => a.importedAt - b.importedAt);
+        });
+    }, []);
 
     // Load logs from IndexedDB when filters change (for IndexedDB mode)
     // This must be after all state declarations
@@ -876,6 +905,7 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         setIndexedDBLogs([]);
         setUseIndexedDBMode(false);
         setTotalLogCount(0);
+        setImportedDatasets([]);
         setCorrelationDataState({
             reportIds: [],
             operatorIds: [],
@@ -958,6 +988,7 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
                 
                 // Remove from active correlations if filtering by this file
                 setActiveCorrelations(prev => prev.filter(c => !(c.type === 'file' && c.value === fileName)));
+                setImportedDatasets(prev => prev.filter(dataset => dataset.fileName !== fileName));
                 
                 // Reload indexed logs
                 const metadata = await dbManager.getMetadata();
@@ -986,6 +1017,7 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
             
             // Remove from active correlations if filtering by this file
             setActiveCorrelations(prev => prev.filter(c => !(c.type === 'file' && c.value === fileName)));
+            setImportedDatasets(prev => prev.filter(dataset => dataset.fileName !== fileName));
         }
     }, [useIndexedDBMode, clearAllData]);
     
@@ -1052,8 +1084,8 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         setIsSidebarOpen,
         isTimelineOpen,
         setIsTimelineOpen,
-        activeCallFlowId,
-        setActiveCallFlowId,
+
+
         correlationData,
         favoriteLogIds,
         toggleFavorite,
@@ -1065,7 +1097,9 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         loadLogsFromIndexedDB,
         clearAllData,
         enableIndexedDBMode,
-        removeFile
+        removeFile,
+        importedDatasets,
+        addImportedDatasets
     }), [
         // Only include values that actually change and affect consumers
         logs,
@@ -1101,11 +1135,12 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         correlationCounts,
         isSidebarOpen,
         isTimelineOpen,
-        activeCallFlowId,
+
         correlationData,
         favoriteLogIds,
         isShowFavoritesOnly,
         totalLogCount,
+        importedDatasets,
         // Stable callbacks - included to satisfy exhaustive-deps but won't cause unnecessary recalculations
         addToSearchHistory,
         clearSearchHistory,
@@ -1115,7 +1150,8 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         toggleFavorite,
         loadLogsFromIndexedDB,
         enhancedSetLogs,
-        removeFile
+        removeFile,
+        addImportedDatasets
     ]);
 
     return (

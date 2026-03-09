@@ -1,189 +1,81 @@
-import { useRef, useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { LogProvider, useLogContext } from './contexts/LogContext';
-import { AIProvider } from './contexts/AIContext';
+import { AIProvider, useAI } from './contexts/AIContext';
+import { CaseProvider } from './store/caseContext';
 import FileUploader from './components/FileUploader';
 import FilterBar from './components/FilterBar';
 import LogViewer from './components/LogViewer';
-import CallFlowViewer from './components/CallFlowViewer';
-import TimelineScrubber from './components/TimelineScrubber';
-import CorrelationSidebar from './components/CorrelationSidebar';
+import { AISidebar } from './components/AISidebar';
 import ExportModal from './components/export/ExportModal';
 import ChangelogDropdown from './components/ChangelogDropdown';
-import { Download, FolderOpen, X, AlertTriangle, Filter, Moon, Sun, Flame, ArrowLeft, ClipboardCopy } from 'lucide-react';
+import { Download, AlertTriangle, ArrowLeft, ClipboardCopy, FolderPlus } from 'lucide-react';
 import LogDetailsPanel from './components/log/LogDetailsPanel';
-import AIAssistantPanel from './components/AIAssistantPanel';
-import AISettingsPanel from './components/AISettingsPanel';
-import CrashReportsPanel from './components/CrashReportsPanel';
-import { parseLogFile } from './utils/parser';
-import { validateFile } from './utils/fileUtils';
-import clsx from 'clsx';
+import { AppLayout } from './components/layout/AppLayout';
+import type { PanelId } from './components/layout/IconRail';
+import { useInvestigationPanels } from './components/layout/InvestigationPanels';
+import { initTheme } from './utils/theme';
+import { Button, Dialog } from './components/ui';
+import { AIOnboardingWizard } from './components/onboarding/AIOnboardingWizard';
+import { WorkspaceImportPanel } from './components/import/WorkspaceImportPanel';
+import { CaseHeader } from './components/case/CaseHeader';
+import { CaseStateBridge } from './components/case/CaseStateBridge';
 
 const MainLayout = () => {
   const {
     logs,
-    setLogs,
     selectedLogId,
     filteredLogs,
     setSelectedLogId,
-    setLoading,
     setFilterText,
-    activeCallFlowId,
-    setActiveCallFlowId,
     activeCorrelations,
     setActiveCorrelations,
-    isSidebarOpen,
-    setIsSidebarOpen,
-    isTimelineOpen,
-    setIsTimelineOpen,
     jumpState,
     setJumpState,
     setScrollTargetTimestamp,
     filterText,
-    clearAllData
+    clearAllData,
   } = useLogContext();
+  const { onboardingCompleted } = useAI();
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [fileWarning, setFileWarning] = useState<string | null>(null);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
-  const [isAIAssistantOpen, setIsAIAssistantOpen] = useState(false);
-  const [isAISettingsOpen, setIsAISettingsOpen] = useState(false);
-  const [isCrashReportsOpen, setIsCrashReportsOpen] = useState(false);
-
-  // Theme State
-  const [theme, setTheme] = useState<'light' | 'dark' | 'red'>('dark');
-
-  // Apply Theme Effect
-  useEffect(() => {
-    const root = window.document.body;
-    root.classList.remove('dark', 'red-theme');
-
-    if (theme === 'dark') {
-      root.classList.add('dark');
-    } else if (theme === 'red') {
-      root.classList.add('red-theme');
-    }
-    // light is default (no class)
-  }, [theme]);
-
-  // Panel Sizes
-  const [detailsHeight, setDetailsHeight] = useState(256);
-  const [timelineHeight, setTimelineHeight] = useState(128);
-
-  const selectedLog = selectedLogId ? filteredLogs.find(l => l.id === selectedLogId) || logs.find(l => l.id === selectedLogId) : null;
+  const [activePanel, setActivePanel] = useState<PanelId | null>(null);
+  const [showOnboardingWizard, setShowOnboardingWizard] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
 
   useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      const isShortcut = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k';
-      if (!isShortcut) return;
-
-      const target = event.target as HTMLElement | null;
-      const isTypingTarget =
-        target?.tagName === 'INPUT' ||
-        target?.tagName === 'TEXTAREA' ||
-        target?.isContentEditable;
-      if (isTypingTarget) return;
-
-      event.preventDefault();
-      setIsAIAssistantOpen(true);
-    };
-
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    initTheme();
   }, []);
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    setFileError(null);
-    setFileWarning(null);
-
-    // Validate all files first
-    const filesArray = Array.from(files);
-    const validationResults = filesArray.map(file => ({
-      file,
-      ...validateFile(file)
-    }));
-
-    const invalidFiles = validationResults.filter(r => !r.valid);
-    if (invalidFiles.length > 0) {
-      setFileError(`Invalid file type(s): ${invalidFiles.map(r => r.file.name).join(', ')}. Please upload text or log files.`);
-      return;
+  useEffect(() => {
+    if (activePanel === 'ai' && !onboardingCompleted) {
+      setShowOnboardingWizard(true);
     }
+  }, [activePanel, onboardingCompleted]);
 
-    const largeFiles = validationResults.filter(r => r.warning);
-    if (largeFiles.length > 0) {
-      setFileWarning(`Warning: ${largeFiles.map(r => r.file.name).join(', ')} are large (>50MB). Processing may take a moment.`);
-    }
-
-    setLoading(true);
-    if (clearAllData) {
-      await clearAllData();
-    } else {
-      setLogs([]);
-    }
-    setSelectedLogId(null);
-    setActiveCallFlowId(null);
-
-    try {
-      const allLogs = [];
-      for (const { file } of validationResults) {
-        const parsed = await parseLogFile(file, '#3b82f6', 1, undefined, false); // Use traditional parsing for App.tsx
-        if (Array.isArray(parsed)) {
-          allLogs.push(...parsed);
-        }
-        // If IndexedDB was used, logs are already stored, skip adding to array
-      }
-
-      // Sort combined logs by timestamp
-      allLogs.sort((a, b) => a.timestamp - b.timestamp);
-
-      setLogs(allLogs);
-    } catch (err) {
-      setFileError('Failed to parse log file. Please check the format.');
-      console.error(err);
-    } finally {
-      setLoading(false);
-      // clear input
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  };
+  const selectedLog = selectedLogId
+    ? filteredLogs.find((entry) => entry.id === selectedLogId) || logs.find((entry) => entry.id === selectedLogId)
+    : null;
 
   const handleClearLogs = async () => {
-    // Use clearAllData to clear both in-memory and IndexedDB data
-    if (clearAllData) {
-      await clearAllData();
-    } else {
-      setLogs([]);
-    }
+    await clearAllData();
     setSelectedLogId(null);
-    setActiveCallFlowId(null);
     setFileError(null);
     setFileWarning(null);
     setFilterText('');
   };
 
-  const cycleTheme = () => {
-    const modes: ('light' | 'dark' | 'red')[] = ['light', 'dark', 'red'];
-    const next = modes[(modes.indexOf(theme) + 1) % modes.length];
-    setTheme(next);
-  };
-
   const handleJumpToLog = () => {
     if (!selectedLog) return;
-
-    // Save state
     setJumpState({
       active: true,
       previousFilters: {
         activeCorrelations: [...activeCorrelations],
-        filterText
-      }
+        filterText,
+      },
     });
-
-    // Clear filters (except file)
-    const fileFilters = activeCorrelations.filter(c => c.type === 'file');
+    const fileFilters = activeCorrelations.filter((correlation) => correlation.type === 'file');
     setActiveCorrelations(fileFilters);
     setFilterText('');
     setScrollTargetTimestamp(selectedLog.timestamp);
@@ -191,20 +83,12 @@ const MainLayout = () => {
 
   const handleBackFromJump = () => {
     if (!jumpState.active || !jumpState.previousFilters) return;
-
     setActiveCorrelations(jumpState.previousFilters.activeCorrelations);
     setFilterText(jumpState.previousFilters.filterText);
     setJumpState({ active: false, previousFilters: null });
     setScrollTargetTimestamp(null);
   };
 
-  /**
-   * Copy most recent crash report to clipboard for quick support handoff.
-   *
-   * Why:
-   * - Fastest path for users/operators to share latest failure context.
-   * - Avoids opening the full crash panel for common triage workflows.
-   */
   const handleCopyLatestCrashReport = async () => {
     try {
       const result = await window.electronAPI?.getCrashReports?.({ limit: 1 });
@@ -212,13 +96,11 @@ const MainLayout = () => {
         setFileError(result?.error || 'Failed to load crash reports.');
         return;
       }
-
       const latest = result.reports?.[0];
       if (!latest) {
         setFileWarning('No crash reports available yet.');
         return;
       }
-
       await navigator.clipboard.writeText(JSON.stringify(latest, null, 2));
       setFileWarning(`Copied latest crash report (${latest.reportId}) to clipboard.`);
       setFileError(null);
@@ -228,312 +110,128 @@ const MainLayout = () => {
     }
   };
 
+  const panelContent = useInvestigationPanels({
+    onSetupAI: () => {
+      setShowOnboardingWizard(true);
+      setActivePanel('ai');
+    },
+  });
+
+  const headerContent = (
+    <div className="flex items-center gap-2 w-full">
+      <div className="ml-auto flex items-center gap-1 shrink-0">
+        <Button variant="ghost" onClick={() => setShowImportDialog(true)} className="text-xs h-7 px-2">
+          <FolderPlus size={14} className="mr-1" />
+          Import
+        </Button>
+        {logs.length > 0 && (
+          <>
+            <ChangelogDropdown />
+            <Button variant="ghost" onClick={() => setIsExportModalOpen(true)} className="text-xs h-7 px-2">
+              <Download size={14} className="mr-1" />
+              Export
+            </Button>
+            <Button variant="ghost" onClick={() => void handleCopyLatestCrashReport()} className="text-xs h-7 px-2">
+              <ClipboardCopy size={13} className="mr-1" />
+              Crash
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => void handleClearLogs()}
+              className="text-xs h-7 px-2 text-[var(--destructive)] hover:text-[var(--destructive)]"
+            >
+              Clear
+            </Button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+
   return (
-    <div className="flex flex-col h-screen overflow-hidden text-[var(--text-primary)]">
-      {/* Header - Styled per NOC Tool */}
-      <header className="shrink-0 h-16 px-6 flex items-center justify-between shadow-[var(--shadow)] z-50"
-        style={{ backgroundColor: 'var(--primary-blue)', color: '#fff' }}>
+    <>
+      <AppLayout
+        activePanel={activePanel}
+        onActivePanelChange={setActivePanel}
+        panelContent={panelContent}
+        headerContent={headerContent}
+        rightSidebar={<AISidebar onSetupAI={() => setShowOnboardingWizard(true)} />}
+      >
+        <CaseStateBridge activePanel={activePanel} onActivePanelChange={setActivePanel} />
 
-        <div className="flex items-center gap-4">
-          <img
-            src="https://carbyne.com/wp-content/uploads/2024/12/carbyne-registered-logo.png"
-            alt="Carbyne Logo"
-            className="h-8 w-auto filter brightness-0 invert" /* Making white for blue bg */
-          />
-          <div>
-            <h1 className="text-xl font-bold leading-tight">Incident Management Tool</h1>
-            <p className="text-xs text-blue-200 opacity-90">NOC Incident Automation (Log Viewer)</p>
-          </div>
-          <ChangelogDropdown />
-
-          {jumpState.active && (
-            <div className="flex items-center animate-in fade-in slide-in-from-top-2 duration-300 ml-4">
-              <button
-                onClick={handleBackFromJump}
-                className="flex items-center gap-2 px-3 py-1.5 bg-yellow-500 text-white rounded shadow-sm hover:bg-yellow-400 transition-colors font-semibold text-xs animate-pulse"
-              >
-                <ArrowLeft size={14} />
-                Restore Filters (Back)
-              </button>
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-center gap-4">
-          {/* File Controls */}
-          <div className="flex items-center gap-2 mr-4">
-            <button
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className={clsx(
-                "p-2 rounded-lg transition-colors flex items-center gap-2 text-sm font-medium",
-                isSidebarOpen ? "bg-white/20 text-white" : "text-blue-100 hover:bg-white/10"
-              )}
-              title="Toggle Correlation Sidebar"
-            >
-              <Filter size={18} />
-              <span className="opacity-90">Filters</span>
-            </button>
-
-            <button
-              onClick={() => setIsTimelineOpen(!isTimelineOpen)}
-              className={clsx(
-                "p-2 rounded-lg transition-colors flex items-center gap-2 text-sm font-medium",
-                isTimelineOpen ? "bg-white/20 text-white" : "text-blue-100 hover:bg-white/10"
-              )}
-              title="Toggle Timeline"
-            >
-              <Download size={18} className="-rotate-90" />
-              <span className="opacity-90">Timeline</span>
-            </button>
-
-            {logs.length > 0 && (
-              <button
-                onClick={() => setIsExportModalOpen(true)}
-                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all text-sm font-semibold flex items-center gap-2 border border-white/10"
-                title="Export logs"
-              >
-                <Download size={16} />
-                Export
-              </button>
-            )}
-
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all text-sm font-semibold flex items-center gap-2 border border-white/10"
-            >
-              <FolderOpen size={16} />
-              Open Log
-            </button>
-
-            {logs.length > 0 && (
-              <button
-                onClick={handleClearLogs}
-                className="px-3 py-2 text-blue-200 hover:text-white hover:bg-red-500/20 hover:border-red-400/50 border border-transparent rounded-lg transition-all text-sm flex items-center gap-2"
-              >
-                <X size={16} />
-                Clear
-              </button>
-            )}
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileUpload}
-              className="hidden"
-              multiple
-              accept=".log,.txt"
-            />
-          </div>
-
-          <div className="flex items-center gap-2 mr-2">
-            <button
-              onClick={() => setIsAIAssistantOpen(true)}
-              className="px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all text-sm font-semibold border border-white/10"
-              title="Open AI Assistant (Cmd/Ctrl + K)"
-            >
-              AI Assistant
-            </button>
-            <button
-              onClick={() => setIsAISettingsOpen(true)}
-              className="px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all text-sm font-semibold border border-white/10"
-              title="Open AI Settings"
-            >
-              AI Settings
-            </button>
-            <button
-              onClick={() => setIsCrashReportsOpen(true)}
-              className="px-3 py-2 bg-red-500/20 hover:bg-red-500/30 text-white rounded-lg transition-all text-sm font-semibold border border-red-300/30"
-              title="Open Crash Reports"
-            >
-              Crash Reports
-            </button>
-            <button
-              onClick={() => void handleCopyLatestCrashReport()}
-              className="px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all text-sm font-semibold border border-white/10 inline-flex items-center gap-2"
-              title="Copy latest crash report"
-            >
-              <ClipboardCopy size={14} />
-              Copy Latest Crash
-            </button>
-          </div>
-
-          {/* Theme Toggle */}
-          <div className="flex items-center bg-white/10 rounded-lg p-1 border border-white/20">
-            <button
-              onClick={cycleTheme}
-              className="p-2 text-white hover:bg-white/10 rounded-md transition-all"
-              title={`Current Theme: ${theme.toUpperCase()}`}
-            >
-              {theme === 'light' && <Sun size={18} />}
-              {theme === 'dark' && <Moon size={18} />}
-              {theme === 'red' && <Flame size={18} />}
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content Area */}
-      <div className="flex flex-1 overflow-hidden relative">
-
-        {/* Sidebar */}
-        {isSidebarOpen && (
-          <div className="shrink-0 z-10 h-full border-r border-[var(--border-color)] bg-[var(--card-bg)] shadow-[var(--shadow-lg)] transition-all duration-300">
-            <CorrelationSidebar />
+        {jumpState.active && (
+          <div className="flex items-center px-3 py-1 border-b border-[var(--border)] bg-[var(--card)] shrink-0">
+            <Button variant="ghost" onClick={handleBackFromJump} className="text-xs text-[var(--warning)] h-7 px-2">
+              <ArrowLeft size={14} className="mr-1" />
+              Restore Filters
+            </Button>
           </div>
         )}
 
-        {/* Center Canvas */}
-        <div className="flex-1 flex flex-col overflow-hidden bg-[var(--bg-light)] relative">
+        {fileError && (
+          <div className="flex items-center gap-2 px-3 py-2 text-xs border-b border-[var(--destructive)]/20 text-[var(--destructive)] shrink-0">
+            <AlertTriangle size={14} />
+            {fileError}
+          </div>
+        )}
+        {fileWarning && (
+          <div className="flex items-center gap-2 px-3 py-2 text-xs border-b border-[var(--warning)]/20 text-[var(--warning)] shrink-0">
+            <AlertTriangle size={14} />
+            {fileWarning}
+          </div>
+        )}
 
-          {/* Filter Bar (Search) - Only show if logs exist or always? Usually always is fine but better if logs exist */}
-          {logs.length > 0 && (
-            <div className="shrink-0 p-4 pb-0 z-40 relative">
-              <div className="bg-[var(--card-bg)] rounded-lg shadow-[var(--shadow)] border border-[var(--border-color)] p-1">
-                <FilterBar />
-              </div>
+        {logs.length === 0 ? (
+          <div className="flex-1 flex items-center justify-center p-6 bg-[var(--workspace)]">
+            <div className="max-w-3xl w-full border border-[var(--border)] bg-[var(--card)] px-5 py-5">
+              <h2 className="text-sm font-semibold text-[var(--foreground)] mb-2">Import Incident Data</h2>
+              <p className="text-xs text-[var(--muted-foreground)] mb-4">
+                Start with exported files or pasted AWS console logs, then move straight into case building, evidence capture, and stakeholder handoff.
+              </p>
+              <FileUploader />
             </div>
-          )}
-
-          {/* Error/Warning Banners */}
-          {(fileError || fileWarning) && (
-            <div className="px-4 pt-4 shrink-0">
-              {fileError && (
-                <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-lg flex items-center gap-2 mb-2">
-                  <AlertTriangle size={18} />
-                  {fileError}
-                </div>
-              )}
-              {fileWarning && (
-                <div className="bg-amber-500/10 border border-amber-500/20 text-amber-400 px-4 py-3 rounded-lg flex items-center gap-2">
-                  <AlertTriangle size={18} />
-                  {fileWarning}
-                </div>
-              )}
+          </div>
+        ) : (
+          <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+            <CaseHeader />
+            <div className="shrink-0 px-2 py-1 border-b border-[var(--border)] bg-[var(--card)]">
+              <FilterBar />
             </div>
-          )}
 
-          {/* Viewers */}
-          <div className="flex-1 overflow-hidden flex flex-col p-4 gap-4">
+            <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+              <LogViewer />
+            </div>
 
-            {logs.length === 0 ? (
-              /* EMPTY STATE - FILE UPLOADER */
-              <div className="flex-1 flex items-center justify-center p-8 text-[var(--text-secondary)]">
-                <div className="bg-[var(--card-bg)] p-8 rounded-xl shadow-[var(--shadow-lg)] border border-[var(--border-color)] max-w-2xl w-full flex flex-col items-center">
-                  <h2 className="text-xl font-bold text-[var(--text-primary)] mb-4">Upload Logs to Begin</h2>
-                  <FileUploader />
-                </div>
+            {selectedLog && (
+              <div className="shrink-0 border-t border-[var(--border)] bg-[var(--card)] overflow-hidden" style={{ height: 360 }}>
+                <LogDetailsPanel log={selectedLog} onClose={() => setSelectedLogId(null)} onJumpToLog={handleJumpToLog} />
               </div>
-            ) : (
-              <>
-                {/* Top: Call Flow (Conditional) OR Log List */}
-                <div className="flex-1 min-h-0 bg-[var(--card-bg)] rounded-lg shadow-[var(--shadow-lg)] border border-[var(--border-color)] overflow-hidden flex flex-col text-[var(--text-primary)]">
-                  {activeCallFlowId ? (
-                    <CallFlowViewer callId={activeCallFlowId} onClose={() => setActiveCallFlowId(null)} />
-                  ) : (
-                    <LogViewer />
-                  )}
-                </div>
-
-                {/* Decoupled Timeline */}
-                {/* Decoupled Timeline */}
-                {isTimelineOpen && logs.length > 0 && (
-                  <div className="shrink-0 bg-[var(--card-bg)] rounded-lg shadow-[var(--shadow)] border border-[var(--border-color)] overflow-hidden relative flex flex-col" style={{ height: timelineHeight }}>
-                    {/* Draggable Handle (Top) */}
-                    <div
-                      className="absolute top-0 left-0 right-0 h-1.5 bg-transparent hover:bg-[var(--accent-blue)] cursor-row-resize z-50 transition-colors"
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        const startY = e.clientY;
-                        const startH = timelineHeight;
-                        const onMove = (mv: MouseEvent) => {
-                          setTimelineHeight(Math.max(60, Math.min(600, startH + (startY - mv.clientY))));
-                        };
-                        const onUp = () => {
-                          document.removeEventListener('mousemove', onMove);
-                          document.removeEventListener('mouseup', onUp);
-                        };
-                        document.addEventListener('mousemove', onMove);
-                        document.addEventListener('mouseup', onUp);
-                      }}
-                    />
-                    <TimelineScrubber height={timelineHeight} />
-                  </div>
-                )}
-
-                {/* Bottom: Details */}
-                {selectedLog && (
-                  <div className="shrink-0 flex flex-col" style={{ height: detailsHeight }}>
-                    <div className="flex-1 overflow-hidden flex flex-col relative z-20">
-                      <div
-                        className="absolute top-0 left-0 right-0 h-1 bg-[var(--border-color)] hover:bg-[var(--accent-blue)] cursor-row-resize z-50 transition-colors"
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          const startY = e.clientY;
-                          const startH = detailsHeight;
-                          const onMove = (mv: MouseEvent) => {
-                            setDetailsHeight(Math.max(150, startH + (startY - mv.clientY)));
-                          };
-                          const onUp = () => {
-                            document.removeEventListener('mousemove', onMove);
-                            document.removeEventListener('mouseup', onUp);
-                          };
-                          document.addEventListener('mousemove', onMove);
-                          document.addEventListener('mouseup', onUp);
-                        }}
-                      />
-                      <LogDetailsPanel
-                        log={selectedLog}
-                        onClose={() => setSelectedLogId(null)}
-                        onJumpToLog={handleJumpToLog}
-                      />
-                    </div>
-                  </div>
-                )}
-              </>
             )}
           </div>
-        </div>
-      </div>
+        )}
+      </AppLayout>
+
+      <Dialog open={showImportDialog} onClose={() => setShowImportDialog(false)} title="Import Incident Data">
+        <WorkspaceImportPanel onComplete={() => setShowImportDialog(false)} />
+      </Dialog>
+
+      <AIOnboardingWizard
+        open={showOnboardingWizard}
+        onClose={() => setShowOnboardingWizard(false)}
+        onComplete={() => setShowOnboardingWizard(false)}
+      />
       <ExportModal isOpen={isExportModalOpen} onClose={() => setIsExportModalOpen(false)} />
-
-      {isAIAssistantOpen && (
-        <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4">
-          <div className="w-full max-w-5xl h-[85vh] bg-[var(--card-bg)] rounded-lg border border-[var(--border-color)] shadow-[var(--shadow-lg)] overflow-hidden">
-            <AIAssistantPanel
-              onClose={() => setIsAIAssistantOpen(false)}
-              logs={filteredLogs}
-              onOpenSettings={() => {
-                setIsAIAssistantOpen(false);
-                setIsAISettingsOpen(true);
-              }}
-            />
-          </div>
-        </div>
-      )}
-
-      {isAISettingsOpen && (
-        <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4">
-          <div className="w-full max-w-3xl h-[85vh] bg-[var(--card-bg)] rounded-lg border border-[var(--border-color)] shadow-[var(--shadow-lg)] overflow-hidden">
-            <AISettingsPanel onClose={() => setIsAISettingsOpen(false)} />
-          </div>
-        </div>
-      )}
-
-      {isCrashReportsOpen && (
-        <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4">
-          <div className="w-full max-w-6xl h-[85vh] bg-[var(--card-bg)] rounded-lg border border-[var(--border-color)] shadow-[var(--shadow-lg)] overflow-hidden">
-            <CrashReportsPanel onClose={() => setIsCrashReportsOpen(false)} />
-          </div>
-        </div>
-      )}
-    </div>
+    </>
   );
 };
 
 const App = () => (
   <AIProvider>
-    <LogProvider>
-      <MainLayout />
-    </LogProvider>
+    <CaseProvider>
+      <LogProvider>
+        <MainLayout />
+      </LogProvider>
+    </CaseProvider>
   </AIProvider>
 );
 

@@ -64,7 +64,7 @@ describe('ConsentModal', () => {
   it('calls declineConsent when X button clicked', () => {
     render(<ConsentModal />);
 
-    fireEvent.click(screen.getByRole('button', { name: /Decline and close/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Close/i }));
 
     expect(mockDeclineConsent).toHaveBeenCalledTimes(1);
   });

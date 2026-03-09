@@ -1,0 +1,9 @@
+{
+  "project": "noclense",
+  "docsRoot": "docs",
+  "defaultModel": "codex",
+  "codeReview": {
+    "requireTestsForBehaviorChanges": true,
+    "focus": ["regressions", "performance", "security"]
+  }
+}

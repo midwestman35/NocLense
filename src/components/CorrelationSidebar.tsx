@@ -59,7 +59,7 @@ const CorrelationItemList = ({
         return a.localeCompare(b);
     });
 
-    if (sortedItems.length === 0) return <div className="px-8 py-1 text-xs text-[var(--text-secondary)] italic opacity-60">None detected</div>;
+    if (sortedItems.length === 0) return <div className="px-8 py-1 text-xs text-[var(--muted-foreground)] italic opacity-60">None detected</div>;
 
     const isLimited = type === 'callId' && !showAllCallIds; // Don't limit files
     const visibleItems = isLimited ? sortedItems.slice(0, 10) : sortedItems;
@@ -91,12 +91,12 @@ const CorrelationItemList = ({
                         className={clsx(
                             "group flex items-start justify-between px-8 py-1.5 text-xs font-mono transition-colors cursor-pointer relative border-l-2",
                             isActive
-                                ? "bg-[var(--accent-blue)]/10 text-[var(--accent-blue)] border-[var(--accent-blue)]"
+                                ? "bg-[var(--foreground)]/10 text-[var(--foreground)] border-[var(--foreground)]"
                                 : isExcluded
-                                    ? "bg-red-500/10 text-red-400 border-red-500 opacity-60"
+                                    ? "bg-[var(--destructive)]/10 text-[var(--destructive)] border-[var(--destructive)] opacity-60"
                                     : isHighlighted
-                                        ? "bg-yellow-500/20 text-yellow-200 border-yellow-500"
-                                        : "text-[var(--text-secondary)] hover:bg-[var(--bg-light)] hover:text-[var(--text-primary)] border-transparent"
+                                        ? "bg-[var(--warning)]/20 text-[var(--warning)] border-[var(--warning)]"
+                                        : "text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] border-transparent"
                         )}
                         onClick={() => toggleCorrelation({ type, value: item })}
                         onMouseEnter={() => setHoveredCorrelation({ type, value: item })}
@@ -111,7 +111,7 @@ const CorrelationItemList = ({
                                         e.stopPropagation();
                                         onRemoveItem(item);
                                     }}
-                                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-red-500/20 text-[var(--text-secondary)] hover:text-red-400"
+                                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-[var(--destructive)]/20 text-[var(--muted-foreground)] hover:text-[var(--destructive)]"
                                     title="Remove file"
                                 >
                                     <X size={12} />
@@ -123,8 +123,8 @@ const CorrelationItemList = ({
                                     toggleCorrelation({ type, value: item, excluded: true });
                                 }}
                                 className={clsx(
-                                    "opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-red-500/20 hover:text-red-400",
-                                    isExcluded ? "text-red-400 opacity-100" : "text-[var(--text-secondary)]"
+                                    "opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-[var(--destructive)]/20 hover:text-[var(--destructive)]",
+                                    isExcluded ? "text-[var(--destructive)] opacity-100" : "text-[var(--muted-foreground)]"
                                 )}
                                 title="Exclude"
                             >
@@ -136,8 +136,8 @@ const CorrelationItemList = ({
                                 className={clsx(
                                     "opacity-0 group-hover:opacity-100 transition-opacity px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border",
                                     isOnlyFilter
-                                        ? "bg-[var(--accent-blue)] text-[var(--bg-light)] border-[var(--accent-blue)] opacity-100"
-                                        : "bg-transparent text-[var(--text-secondary)] border-[var(--border-color)] hover:bg-[var(--accent-blue)] hover:text-white hover:border-[var(--accent-blue)]"
+                                        ? "bg-[var(--foreground)] text-[var(--muted)] border-[var(--foreground)] opacity-100"
+                                        : "bg-transparent text-[var(--muted-foreground)] border-[var(--border)] hover:bg-[var(--foreground)] hover:text-white hover:border-[var(--foreground)]"
                                 )}
                             >
                                 {isOnlyFilter ? 'ALL' : 'ONLY'}
@@ -146,8 +146,8 @@ const CorrelationItemList = ({
                             <span className={clsx(
                                 "text-[10px] px-1.5 py-0.5 rounded-full min-w-[20px] text-center transition-colors font-sans",
                                 isActive
-                                    ? "bg-[var(--accent-blue)] text-white"
-                                    : "bg-[var(--border-color)] text-[var(--text-secondary)] group-hover:bg-[var(--text-secondary)] group-hover:text-[var(--card-bg)]"
+                                    ? "bg-[var(--foreground)] text-white"
+                                    : "bg-[var(--border)] text-[var(--muted-foreground)] group-hover:bg-[var(--muted-foreground)] group-hover:text-[var(--card)]"
                             )}>
                                 {count}
                             </span>
@@ -158,7 +158,7 @@ const CorrelationItemList = ({
             {isLimited && remainingCount > 0 && (
                 <button
                     onClick={() => setShowAllCallIds(true)}
-                    className="px-8 py-1 text-xs text-blue-400 hover:text-blue-300 text-left italic hover:underline"
+                    className="px-8 py-1 text-xs text-[var(--foreground)] hover:text-[var(--foreground)] text-left italic hover:underline"
                 >
                     Show {remainingCount} More...
                 </button>
@@ -166,7 +166,7 @@ const CorrelationItemList = ({
             {!isLimited && type === 'callId' && items.length > 10 && (
                 <button
                     onClick={() => setShowAllCallIds(false)}
-                    className="px-8 py-1 text-xs text-blue-400 hover:text-blue-300 text-left italic hover:underline"
+                    className="px-8 py-1 text-xs text-[var(--foreground)] hover:text-[var(--foreground)] text-left italic hover:underline"
                 >
                     Show Less
                 </button>
@@ -178,7 +178,7 @@ const CorrelationItemList = ({
 const SectionHeader = ({ title, icon: Icon, expanded, onToggle }: { title: string, icon: any, expanded: boolean, onToggle: () => void }) => (
     <button
         onClick={onToggle}
-        className="flex items-center w-full px-3 py-1.5 text-[10px] font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-light)] transition-colors uppercase tracking-wider border-b border-[var(--border-color)]/50 bg-[var(--card-bg)] sticky top-0 z-10"
+        className="flex items-center w-full px-3 py-1.5 text-[10px] font-semibold text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--muted)] transition-colors uppercase tracking-wider border-b border-[var(--border)]/50 bg-[var(--card)] sticky top-0 z-10"
     >
         {expanded ? <ChevronDown size={12} className="mr-2" /> : <ChevronRight size={12} className="mr-2" />}
         <Icon size={12} className="mr-2" />
@@ -250,12 +250,12 @@ const CorrelationSidebar = () => {
 
     return (
         <div
-            className="h-full flex flex-col bg-[var(--card-bg)] text-[var(--text-primary)] font-sans relative border-r border-[var(--border-color)]"
+            className="h-full flex flex-col bg-[var(--card)] text-[var(--foreground)] font-sans relative border-r border-[var(--border)]"
             style={{ width: sidebarWidth }}
         >
             {/* Resize Handle */}
             <div
-                className="absolute right-0 top-0 bottom-0 w-1 bg-transparent hover:bg-[var(--accent-blue)] cursor-col-resize z-50 transition-colors"
+                className="absolute right-0 top-0 bottom-0 w-1 bg-transparent hover:bg-[var(--foreground)] cursor-col-resize z-50 transition-colors"
                 onMouseDown={(e) => {
                     e.preventDefault();
                     const startX = e.clientX;
@@ -273,8 +273,8 @@ const CorrelationSidebar = () => {
             />
 
             {/* Header */}
-            <div className="flex items-center justify-between px-3 py-3 border-b border-[var(--border-color)] shrink-0 bg-[var(--bg-light)]/50 backdrop-blur-sm">
-                <div className="flex items-center gap-2 text-[var(--text-secondary)]">
+            <div className="flex items-center justify-between px-3 py-3 border-b border-[var(--border)] shrink-0 bg-[var(--muted)]/50 backdrop-blur-sm">
+                <div className="flex items-center gap-2 text-[var(--muted-foreground)]">
                     <Filter size={16} />
                     <span className="font-bold text-xs uppercase tracking-wider">Correlate</span>
                 </div>
@@ -284,7 +284,7 @@ const CorrelationSidebar = () => {
                         onClick={() => setSortMode(prev => prev === 'count' ? 'alpha' : 'count')}
                         className={clsx(
                             "p-1.5 rounded transition-colors",
-                            sortMode === 'count' ? "text-[var(--accent-blue)] bg-[var(--accent-blue)]/10" : "text-[var(--text-secondary)] hover:bg-[var(--bg-light)]"
+                            sortMode === 'count' ? "text-[var(--foreground)] bg-[var(--foreground)]/10" : "text-[var(--muted-foreground)] hover:bg-[var(--muted)]"
                         )}
                         title={`Sort by: ${sortMode === 'count' ? 'Count (Desc)' : 'Alpha (Asc)'}`}
                     >
@@ -293,7 +293,7 @@ const CorrelationSidebar = () => {
 
                     <button
                         onClick={clearAllFilters}
-                        className="p-1.5 hover:bg-red-500/10 rounded text-[var(--text-secondary)] hover:text-red-500 transition-colors"
+                        className="p-1.5 hover:bg-[var(--destructive)]/10 rounded text-[var(--muted-foreground)] hover:text-[var(--destructive)] transition-colors"
                         title="Clear Active Filters"
                     >
                         <X size={14} />
@@ -301,7 +301,7 @@ const CorrelationSidebar = () => {
 
                     <button
                         onClick={() => setIsSidebarOpen(false)}
-                        className="p-1.5 hover:bg-[var(--bg-light)] rounded text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors lg:hidden"
+                        className="p-1.5 hover:bg-[var(--muted)] rounded text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors lg:hidden"
                     >
                         <ChevronRight size={14} />
                     </button>
@@ -417,8 +417,8 @@ const CorrelationSidebar = () => {
             </div>
 
             {activeCorrelations.length > 0 && (
-                <div className="px-3 py-2 border-t border-[var(--border-color)] bg-[var(--bg-light)]/30">
-                    <div className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)] mb-2">
+                <div className="px-3 py-2 border-t border-[var(--border)] bg-[var(--muted)]/30">
+                    <div className="text-[10px] uppercase tracking-wider text-[var(--muted-foreground)] mb-2">
                         Analyze Active Filters
                     </div>
                     <div className="space-y-2 max-h-40 overflow-y-auto">
@@ -426,7 +426,7 @@ const CorrelationSidebar = () => {
                             const scopedLogs = getCorrelationLogs(item);
                             return (
                                 <div key={`${item.type}:${item.value}:${item.excluded ? 'excluded' : 'included'}`} className="flex items-center justify-between gap-2">
-                                    <span className="text-[10px] text-[var(--text-secondary)] truncate">
+                                    <span className="text-[10px] text-[var(--muted-foreground)] truncate">
                                         {item.type}: {item.value}
                                     </span>
                                     <AIButton
@@ -444,9 +444,9 @@ const CorrelationSidebar = () => {
                 </div>
             )}
 
-            <div className="mt-auto px-4 py-2 border-t border-[var(--border-color)] text-[10px] text-[var(--text-secondary)] text-center bg-[var(--bg-light)]/30">
+            <div className="mt-auto px-4 py-2 border-t border-[var(--border)] text-[10px] text-[var(--muted-foreground)] text-center bg-[var(--muted)]/30">
                 {activeCorrelations.length > 0 ? (
-                    <span className="text-[var(--accent-blue)] font-medium">{activeCorrelations.length} Active Filter(s)</span>
+                    <span className="text-[var(--foreground)] font-medium">{activeCorrelations.length} Active Filter(s)</span>
                 ) : (
                     <span className="opacity-50">No active filters</span>
                 )}

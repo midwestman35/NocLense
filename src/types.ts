@@ -1,40 +1,54 @@
 export type LogLevel = 'INFO' | 'DEBUG' | 'ERROR' | 'WARN';
+export type LogSourceType = 'apex' | 'datadog' | 'aws' | 'unknown';
+
+export interface ImportedDataset {
+    id: string;
+    importBatchId: string;
+    sourceType: LogSourceType;
+    sourceLabel: string;
+    fileName: string;
+    kind: 'file' | 'paste';
+    size: number;
+    importedAt: number;
+    logCount: number;
+    warnings: string[];
+}
 
 export interface LogEntry {
     id: number;
     timestamp: number;
     rawTimestamp: string;
     level: LogLevel;
-    component: string; // Original component path (for details panel)
-    displayComponent: string; // Cleaned component name (for list view)
-    message: string; // Original message (for details panel)
-    displayMessage: string; // Cleaned message (for list view)
+    component: string;
+    displayComponent: string;
+    message: string;
+    displayMessage: string;
     payload: string;
     type: 'LOG' | 'JSON';
     json?: any;
     isSip: boolean;
     sipMethod?: string | null;
     callId?: string;
-    // Correlation Fields
     reportId?: string;
     operatorId?: string;
     extensionId?: string;
     stationId?: string;
     sipFrom?: string;
     sipTo?: string;
-    // New UI (CNC/FDX) correlation and summarization
     messageType?: string;
     cncID?: string;
     messageID?: string;
     summaryMessage?: string;
     fileName?: string;
     fileColor?: string;
-    // Phase 2 Optimization: Pre-computed lowercase strings for faster filtering
-    _messageLower?: string; // Pre-computed lowercase message
-    _componentLower?: string; // Pre-computed lowercase component
-    _payloadLower?: string; // Pre-computed lowercase payload
-    _callIdLower?: string; // Pre-computed lowercase callId
-    // Tier 3: optional embedding state for retrieval-augmented context selection
+    sourceType?: LogSourceType;
+    sourceLabel?: string;
+    importBatchId?: string;
+    importedAt?: number;
+    _messageLower?: string;
+    _componentLower?: string;
+    _payloadLower?: string;
+    _callIdLower?: string;
     embedding?: number[];
     hasEmbedding?: boolean;
 }

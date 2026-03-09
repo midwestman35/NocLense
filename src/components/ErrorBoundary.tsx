@@ -29,6 +29,9 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
+    // DEBUG: identify which component is failing
+    console.error('[ErrorBoundary] Component stack:', errorInfo.componentStack);
+    console.error('[ErrorBoundary] Error:', error.message);
     // Capture structured crash info with component stack so support can triage.
     void reportRuntimeError({
       source: 'react-error-boundary',
@@ -54,23 +57,23 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
     }
 
     return (
-      <div className="h-screen w-screen bg-[var(--bg-primary)] text-[var(--text-primary)] flex items-center justify-center p-6">
-        <div className="max-w-xl w-full rounded-xl border border-red-500/40 bg-red-500/10 p-6 shadow-[var(--shadow-lg)]">
+      <div className="h-screen w-screen bg-[var(--background)] text-[var(--foreground)] flex items-center justify-center p-6">
+        <div className="max-w-xl w-full rounded-xl border border-[var(--destructive)]/40 bg-[var(--destructive)]/10 p-6 shadow-[var(--shadow-lg)]">
           <div className="flex items-center gap-3 mb-3">
-            <AlertTriangle className="text-red-400" size={22} />
+            <AlertTriangle className="text-[var(--destructive)]" size={22} />
             <h1 className="text-lg font-semibold">Application Error</h1>
           </div>
-          <p className="text-sm text-[var(--text-secondary)] mb-4">
+          <p className="text-sm text-[var(--muted-foreground)] mb-4">
             The app hit an unexpected error. A crash report was captured to help troubleshooting.
           </p>
           {this.state.reportId && (
-            <p className="text-xs text-[var(--text-secondary)] mb-4">
+            <p className="text-xs text-[var(--muted-foreground)] mb-4">
               Crash reference: <span className="font-mono">{this.state.reportId}</span>
             </p>
           )}
           <button
             onClick={this.handleReload}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded bg-[var(--accent-blue)] text-white hover:bg-[var(--accent-blue)]/90"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded bg-[var(--foreground)] text-white hover:bg-[var(--foreground)]/90"
           >
             <RefreshCw size={14} />
             Reload Application

@@ -30,21 +30,21 @@ const SearchHistoryDropdown = ({
     };
 
     return (
-        <div className="absolute top-full left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-md shadow-lg z-50 max-h-[300px] overflow-y-auto">
+        <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-md)] shadow-[var(--shadow-lg)] z-50 max-h-[300px] overflow-y-auto">
             {history.length === 0 ? (
-                <div className="px-4 py-3 text-sm text-slate-400 text-center">
+                <div className="px-4 py-3 text-sm text-[var(--muted-foreground)] text-center">
                     No search history
                 </div>
             ) : (
                 <>
-                    <div className="px-2 py-1 border-b border-slate-700 flex items-center justify-between">
-                        <span className="text-xs font-medium text-slate-400 px-2 py-1">Recent Searches</span>
+                    <div className="px-2 py-1 border-b border-[var(--border)] flex items-center justify-between">
+                        <span className="text-xs font-medium text-[var(--muted-foreground)] px-2 py-1">Recent Searches</span>
                         <button
                             onMouseDown={(e) => {
                                 e.preventDefault(); // Prevent input blur
                                 onClear();
                             }}
-                            className="text-xs text-slate-500 hover:text-red-400 px-2 py-1 rounded transition-colors"
+                            className="text-xs text-[var(--muted-foreground)] hover:text-[var(--destructive)] px-2 py-1 rounded transition-colors"
                             title="Clear history"
                         >
                             Clear
@@ -60,11 +60,11 @@ const SearchHistoryDropdown = ({
                                 }}
                                 className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 transition-colors ${
                                     index === selectedIndex
-                                        ? 'bg-blue-600 text-white'
-                                        : 'text-slate-200 hover:bg-slate-700'
+                                        ? 'bg-[var(--accent)] text-[var(--foreground)]'
+                                        : 'text-[var(--foreground)] hover:bg-[var(--accent)]'
                                 }`}
                             >
-                                <Search size={14} className="flex-shrink-0 text-slate-400" />
+                                <Search size={14} className="flex-shrink-0 text-[var(--muted-foreground)]" />
                                 <span className="flex-1 truncate">{truncateText(term)}</span>
                             </button>
                         ))}

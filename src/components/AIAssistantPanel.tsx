@@ -115,7 +115,7 @@ function MarkdownRenderer({ content }: { content: string }) {
       
       // Code block
       parts.push(
-        <pre key={`code-${key++}`} className="bg-[var(--bg-light)] p-3 rounded border border-[var(--border-color)] overflow-x-auto my-2 text-xs font-mono">
+        <pre key={`code-${key++}`} className="bg-[var(--muted)] p-3 rounded border border-[var(--border)] overflow-x-auto my-2 text-xs font-mono">
           <code>{match[1].trim()}</code>
         </pre>
       );
@@ -171,7 +171,7 @@ function MarkdownRenderer({ content }: { content: string }) {
         newParts.push(...boldParts);
       }
       newParts.push(
-        <code key={`inline-code-${key++}`} className="bg-[var(--bg-light)] px-1.5 py-0.5 rounded text-xs font-mono">
+        <code key={`inline-code-${key++}`} className="bg-[var(--muted)] px-1.5 py-0.5 rounded text-xs font-mono">
           {match[1]}
         </code>
       );
@@ -195,12 +195,12 @@ function MarkdownRenderer({ content }: { content: string }) {
 
   return (
     <div className="prose prose-invert max-w-none">
-      <div className="text-sm text-[var(--text-primary)] whitespace-pre-wrap break-words">
+      <div className="text-sm text-[var(--foreground)] whitespace-pre-wrap break-words">
         {renderMarkdown(content)}
       </div>
       <button
         onClick={handleCopy}
-        className="mt-2 flex items-center gap-1 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+        className="mt-2 flex items-center gap-1 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
         aria-label="Copy response"
       >
         {copied ? (
@@ -355,17 +355,17 @@ export default function AIAssistantPanel({ onClose, initialQuery, logs: provided
   const logCount = logsToAnalyze.length;
 
   return (
-    <div className="flex flex-col h-full bg-[var(--bg-primary)] text-[var(--text-primary)]">
+    <div className="flex flex-col h-full bg-[var(--background)] text-[var(--foreground)]">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)]">
+      <div className="flex items-center justify-between p-4 border-b border-[var(--border)]">
         <div className="flex items-center gap-2">
-          <Sparkles size={20} className="text-[var(--accent-blue)]" />
+          <Sparkles size={20} className="text-[var(--foreground)]" />
           <h2 className="text-lg font-semibold">AI Assistant</h2>
         </div>
         {onClose && (
           <button
             onClick={onClose}
-            className="p-1 rounded hover:bg-[var(--bg-light)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+            className="p-1 rounded hover:bg-[var(--muted)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
             aria-label="Close assistant"
           >
             <X size={20} />
@@ -375,7 +375,7 @@ export default function AIAssistantPanel({ onClose, initialQuery, logs: provided
 
       {/* Context Indicator - Phase 6.2: Show log count, sampling notice, or empty state */}
       {logCount > 0 ? (
-        <div className="px-4 py-2 bg-[var(--bg-light)] border-b border-[var(--border-color)] text-xs text-[var(--text-secondary)] flex items-center gap-2">
+        <div className="px-4 py-2 bg-[var(--muted)] border-b border-[var(--border)] text-xs text-[var(--muted-foreground)] flex items-center gap-2">
           <FileText size={14} />
           <span>
             {logCount > 10000
@@ -384,7 +384,7 @@ export default function AIAssistantPanel({ onClose, initialQuery, logs: provided
           </span>
         </div>
       ) : isConfigured && (
-        <div className="px-4 py-2 bg-amber-500/10 border-b border-amber-500/30 text-xs text-amber-600 dark:text-amber-400 flex items-center gap-2">
+        <div className="px-4 py-2 bg-[var(--warning)]/10 border-b border-[var(--warning)]/30 text-xs text-[var(--warning)] flex items-center gap-2">
           <AlertCircle size={14} />
           <span>Load logs first to use AI analysis. Select or filter logs to analyze.</span>
         </div>
@@ -394,9 +394,9 @@ export default function AIAssistantPanel({ onClose, initialQuery, logs: provided
       {!isConfigured && (
         <div className="flex-1 flex items-center justify-center p-8">
           <div className="text-center max-w-md">
-            <AlertCircle size={48} className="mx-auto mb-4 text-[var(--text-secondary)]" />
+            <AlertCircle size={48} className="mx-auto mb-4 text-[var(--muted-foreground)]" />
             <h3 className="text-lg font-semibold mb-2">AI Features Not Configured</h3>
-            <p className="text-sm text-[var(--text-secondary)] mb-4">
+            <p className="text-sm text-[var(--muted-foreground)] mb-4">
               Please configure your API key and enable AI features in settings to use the AI Assistant.
             </p>
           </div>
@@ -410,13 +410,13 @@ export default function AIAssistantPanel({ onClose, initialQuery, logs: provided
             {/* Quick Prompts (shown when no messages) */}
             {conversationHistory.length === 0 && !isLoading && (
               <div className="space-y-2">
-                <div className="text-xs text-[var(--text-secondary)] mb-2">Quick actions:</div>
+                <div className="text-xs text-[var(--muted-foreground)] mb-2">Quick actions:</div>
                 <div className="grid grid-cols-1 gap-2">
                   {QUICK_PROMPTS.map((prompt, idx) => (
                     <button
                       key={idx}
                       onClick={() => handleQuickPrompt(prompt.query)}
-                      className="text-left px-3 py-2 bg-[var(--bg-light)] hover:bg-[var(--bg-light)]/80 border border-[var(--border-color)] rounded text-sm transition-colors"
+                      className="text-left px-3 py-2 bg-[var(--muted)] hover:bg-[var(--muted)]/80 border border-[var(--border)] rounded text-sm transition-colors"
                     >
                       {prompt.label}
                     </button>
@@ -434,15 +434,15 @@ export default function AIAssistantPanel({ onClose, initialQuery, logs: provided
                 }`}
               >
                 {message.role === 'assistant' && (
-                  <div className="w-8 h-8 rounded-full bg-[var(--accent-blue)]/20 flex items-center justify-center flex-shrink-0">
-                    <Sparkles size={16} className="text-[var(--accent-blue)]" />
+                  <div className="w-8 h-8 rounded-full bg-[var(--foreground)]/20 flex items-center justify-center flex-shrink-0">
+                    <Sparkles size={16} className="text-[var(--foreground)]" />
                   </div>
                 )}
                 <div
                   className={`max-w-[80%] rounded-lg p-3 ${
                     message.role === 'user'
-                      ? 'bg-[var(--accent-blue)] text-white'
-                      : 'bg-[var(--bg-light)] border border-[var(--border-color)]'
+                      ? 'bg-[var(--foreground)] text-white'
+                      : 'bg-[var(--muted)] border border-[var(--border)]'
                   }`}
                 >
                   {message.role === 'user' ? (
@@ -452,8 +452,8 @@ export default function AIAssistantPanel({ onClose, initialQuery, logs: provided
                   )}
                 </div>
                 {message.role === 'user' && (
-                  <div className="w-8 h-8 rounded-full bg-[var(--bg-light)] flex items-center justify-center flex-shrink-0">
-                    <span className="text-xs text-[var(--text-secondary)]">You</span>
+                  <div className="w-8 h-8 rounded-full bg-[var(--muted)] flex items-center justify-center flex-shrink-0">
+                    <span className="text-xs text-[var(--muted-foreground)]">You</span>
                   </div>
                 )}
               </div>
@@ -462,11 +462,11 @@ export default function AIAssistantPanel({ onClose, initialQuery, logs: provided
             {/* Loading Indicator */}
             {isLoading && (
               <div className="flex gap-3 justify-start">
-                <div className="w-8 h-8 rounded-full bg-[var(--accent-blue)]/20 flex items-center justify-center flex-shrink-0">
-                  <Sparkles size={16} className="text-[var(--accent-blue)]" />
+                <div className="w-8 h-8 rounded-full bg-[var(--foreground)]/20 flex items-center justify-center flex-shrink-0">
+                  <Sparkles size={16} className="text-[var(--foreground)]" />
                 </div>
-                <div className="bg-[var(--bg-light)] border border-[var(--border-color)] rounded-lg p-3">
-                  <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+                <div className="bg-[var(--muted)] border border-[var(--border)] rounded-lg p-3">
+                  <div className="flex items-center gap-2 text-sm text-[var(--muted-foreground)]">
                     <Loader2 size={16} className="animate-spin" />
                     <span>Analyzing logs...</span>
                   </div>
@@ -479,8 +479,8 @@ export default function AIAssistantPanel({ onClose, initialQuery, logs: provided
 
           {/* Error Display - Phase 6.1: Clear, actionable, dismissible */}
           {error && (
-            <div className="px-4 py-2 bg-red-500/10 border-t border-red-500/30 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 text-xs text-red-400 min-w-0 flex-1">
+            <div className="px-4 py-2 bg-[var(--destructive)]/10 border-t border-[var(--destructive)]/30 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-xs text-[var(--destructive)] min-w-0 flex-1">
                 <AlertCircle size={14} className="flex-shrink-0" />
                 <span className="break-words">{error}</span>
               </div>
@@ -488,7 +488,7 @@ export default function AIAssistantPanel({ onClose, initialQuery, logs: provided
                 {onOpenSettings && (error.toLowerCase().includes('api key') || error.toLowerCase().includes('settings')) && (
                   <button
                     onClick={onOpenSettings}
-                    className="text-xs font-medium text-red-400 hover:text-red-300 underline"
+                    className="text-xs font-medium text-[var(--destructive)] hover:text-[var(--destructive)]/80 underline"
                     aria-label="Open AI Settings"
                   >
                     Open Settings
@@ -496,7 +496,7 @@ export default function AIAssistantPanel({ onClose, initialQuery, logs: provided
                 )}
                 <button
                   onClick={clearError}
-                  className="p-1 rounded hover:bg-red-500/20 text-red-400 hover:text-red-300"
+                  className="p-1 rounded hover:bg-[var(--destructive)]/20 text-[var(--destructive)] hover:text-[var(--destructive)]/80"
                   aria-label="Dismiss error"
                 >
                   <X size={14} />
@@ -506,7 +506,7 @@ export default function AIAssistantPanel({ onClose, initialQuery, logs: provided
           )}
 
           {/* Input Area */}
-          <div className="p-4 border-t border-[var(--border-color)]">
+          <div className="p-4 border-t border-[var(--border)]">
             <div className="flex gap-2">
               <textarea
                 ref={inputRef}
@@ -516,14 +516,14 @@ export default function AIAssistantPanel({ onClose, initialQuery, logs: provided
                 placeholder="Ask a question about your logs..."
                 disabled={isLoading || !isConfigured}
                 rows={3}
-                className="flex-1 px-3 py-2 bg-[var(--bg-light)] border border-[var(--border-color)] rounded text-sm text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-blue)] focus:border-transparent resize-none disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 px-3 py-2 bg-[var(--muted)] border border-[var(--border)] rounded text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--foreground)] focus:border-transparent resize-none disabled:opacity-50 disabled:cursor-not-allowed"
               />
               <div className="flex flex-col gap-2">
                 <button
                   onClick={() => handleSend()}
                   disabled={!query.trim() || isLoading || !isConfigured || logCount === 0}
                   title={logCount === 0 ? 'Load logs first to use AI analysis' : undefined}
-                  className="px-4 py-2 bg-[var(--accent-blue)] text-white rounded text-sm font-medium hover:bg-[var(--accent-blue)]/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="px-4 py-2 bg-[var(--foreground)] text-white rounded text-sm font-medium hover:bg-[var(--foreground)]/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   aria-label="Send message"
                   aria-describedby={logCount === 0 ? 'no-logs-tooltip' : undefined}
                 >
@@ -536,7 +536,7 @@ export default function AIAssistantPanel({ onClose, initialQuery, logs: provided
                 {conversationHistory.length > 0 && (
                   <button
                     onClick={clearHistory}
-                    className="px-4 py-2 bg-[var(--bg-light)] border border-[var(--border-color)] rounded text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-light)]/80 flex items-center gap-2"
+                    className="px-4 py-2 bg-[var(--muted)] border border-[var(--border)] rounded text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--muted)]/80 flex items-center gap-2"
                     aria-label="Clear history"
                   >
                     <Trash2 size={16} />
@@ -544,7 +544,7 @@ export default function AIAssistantPanel({ onClose, initialQuery, logs: provided
                 )}
               </div>
             </div>
-            <div className="mt-2 text-xs text-[var(--text-tertiary)]">
+            <div className="mt-2 text-xs text-[var(--muted-foreground)]">
               Press Enter to send, Shift+Enter for new line
             </div>
           </div>

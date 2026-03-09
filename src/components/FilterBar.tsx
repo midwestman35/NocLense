@@ -148,12 +148,12 @@ const FilterBar = () => {
     return (
         <div className="flex items-center gap-3 w-full p-2 relative z-50" ref={dropdownRef}>
             <div className="relative flex-grow max-w-2xl">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[var(--text-secondary)]" size={16} />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[var(--muted-foreground)]" size={16} />
                 <input
                     ref={inputRef}
                     type="text"
                     placeholder="Search logs (Call-ID, message, component)..."
-                    className="w-full bg-[var(--bg-light)] border border-[var(--border-color)] rounded-lg pl-10 pr-4 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--accent-blue)] focus:border-[var(--accent-blue)] placeholder-[var(--text-secondary)] transition-all shadow-sm"
+                    className="w-full bg-transparent border border-[var(--input)] rounded-[var(--radius-md)] pl-10 pr-4 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-[var(--ring-width)] focus:ring-[var(--ring)] placeholder:text-[var(--muted-foreground)] transition-colors"
                     value={filterText}
                     onChange={(e) => setFilterText(e.target.value)}
                     onFocus={handleFocus}
@@ -177,13 +177,13 @@ const FilterBar = () => {
                         {activeCorrelations.map((filter) => (
                             <div
                                 key={`${filter.type}-${filter.value}`}
-                                className="flex items-center gap-1 bg-[var(--accent-blue)]/10 text-[var(--accent-blue)] border border-[var(--accent-blue)]/20 px-2.5 py-1 rounded-full text-xs whitespace-nowrap shadow-sm shrink-0"
+                                className="flex items-center gap-1 bg-[var(--foreground)]/10 text-[var(--foreground)] border border-[var(--foreground)]/20 px-2.5 py-1 rounded-full text-xs whitespace-nowrap shadow-sm shrink-0"
                             >
                                 <span className="font-bold uppercase opacity-75 text-[10px] tracking-wider">{filter.type}:</span>
                                 <span className="font-mono font-medium">{filter.value}</span>
                                 <button
                                     onClick={() => toggleCorrelation(filter)}
-                                    className="ml-1 hover:text-[var(--err)] transition-colors p-0.5 rounded-full hover:bg-[var(--err)]/10"
+                                    className="ml-1 hover:text-[var(--destructive)] transition-colors p-0.5 rounded-full hover:bg-[var(--destructive)]/10"
                                     title={`Remove ${filter.type} filter`}
                                 >
                                     <X size={12} />
@@ -193,7 +193,7 @@ const FilterBar = () => {
                     </div>
                     <button
                         onClick={clearAllFilters}
-                        className="flex items-center gap-1.5 shrink-0 px-2.5 py-1 rounded-md text-xs font-medium bg-slate-700/80 text-slate-200 border border-slate-600 hover:bg-slate-600 hover:text-white hover:border-slate-500 transition-colors"
+                        className="flex items-center gap-1.5 shrink-0 px-2.5 py-1 rounded-md text-xs font-medium bg-[var(--muted)] text-[var(--foreground)] border border-[var(--border)] hover:bg-[var(--accent)] transition-colors"
                         title="Clear all filters (keeps log data)"
                     >
                         <X size={14} />
@@ -202,7 +202,7 @@ const FilterBar = () => {
                 </div>
             )}
 
-            <div className="w-px h-6 bg-[var(--border-color)] mx-2 shrink-0" />
+            <div className="w-px h-6 bg-[var(--border)] mx-2 shrink-0" />
 
             {/* Toggles */}
             <div className="flex items-center gap-4 shrink-0">
@@ -225,7 +225,7 @@ const FilterBar = () => {
                     onSelectFilter={setSelectedMessageTypeFilter}
                 />
 
-                <label className="flex items-center gap-2 text-xs text-[var(--text-secondary)] cursor-pointer hover:text-[var(--text-primary)] transition-colors select-none group">
+                <label className="flex items-center gap-2 text-xs text-[var(--muted-foreground)] cursor-pointer hover:text-[var(--foreground)] transition-colors select-none group">
                     <div
                         onClick={(e) => {
                             e.preventDefault();
@@ -234,15 +234,15 @@ const FilterBar = () => {
                         }}
                         role="button"
                         tabIndex={0}
-                        className={`w-4 h-4 border rounded transition-all duration-200 flex items-center justify-center ${isShowFavoritesOnly ? 'bg-yellow-500/10 border-yellow-500' : 'border-[var(--text-secondary)] bg-transparent'}`}
+                        className={`w-4 h-4 border rounded transition-all duration-200 flex items-center justify-center ${isShowFavoritesOnly ? 'bg-[var(--warning)]/10 border-[var(--warning)]' : 'border-[var(--muted-foreground)] bg-transparent'}`}
                     >
-                        <Star size={10} className={isShowFavoritesOnly ? "bg-yellow-500/10 border-yellow-500 fill-yellow-500 text-yellow-500" : "text-transparent"} />
+                        <Star size={10} className={isShowFavoritesOnly ? "bg-[var(--warning)]/10 border-[var(--warning)] fill-[var(--warning)] text-[var(--warning)]" : "text-transparent"} />
                     </div>
-                    <span className="font-medium group-hover:text-yellow-500 transition-colors">Favorites</span>
+                    <span className="font-medium group-hover:text-[var(--warning)] transition-colors">Favorites</span>
                     {favoriteLogIds.size > 0 && <span className="text-[10px] opacity-70">({favoriteLogIds.size})</span>}
                 </label>
 
-                <label className="flex items-center gap-2 text-xs text-[var(--text-secondary)] cursor-pointer hover:text-[var(--text-primary)] transition-colors select-none group" title="Group consecutive rows with same service and message">
+                <label className="flex items-center gap-2 text-xs text-[var(--muted-foreground)] cursor-pointer hover:text-[var(--foreground)] transition-colors select-none group" title="Group consecutive rows with same service and message">
                     <div
                         onClick={(e) => {
                             e.preventDefault();
@@ -251,20 +251,20 @@ const FilterBar = () => {
                         }}
                         role="button"
                         tabIndex={0}
-                        className={`w-4 h-4 border rounded transition-all duration-200 flex items-center justify-center ${isCollapseSimilarEnabled ? 'bg-[var(--accent-blue)] border-[var(--accent-blue)]' : 'border-[var(--text-secondary)] bg-transparent'}`}
+                        className={`w-4 h-4 border rounded transition-all duration-200 flex items-center justify-center ${isCollapseSimilarEnabled ? 'bg-[var(--foreground)] border-[var(--foreground)]' : 'border-[var(--muted-foreground)] bg-transparent'}`}
                     >
                         {isCollapseSimilarEnabled && <Check size={12} className="text-white" />}
                     </div>
-                    <span className="font-medium group-hover:text-[var(--accent-blue)] transition-colors">Collapse similar</span>
+                    <span className="font-medium group-hover:text-[var(--foreground)] transition-colors">Collapse similar</span>
                 </label>
             </div>
 
             {/* Log Count */}
             {logs.length > 0 && (
                 <>
-                    <div className="w-px h-6 bg-[var(--border-color)] mx-2 shrink-0" />
-                    <div className="text-xs text-[var(--text-secondary)] shrink-0 font-mono">
-                        <span className="font-bold text-[var(--text-primary)]">{filteredLogs.length}</span>
+                    <div className="w-px h-6 bg-[var(--border)] mx-2 shrink-0" />
+                    <div className="text-xs text-[var(--muted-foreground)] shrink-0 font-mono">
+                        <span className="font-bold text-[var(--foreground)]">{filteredLogs.length}</span>
                         <span className="opacity-75"> / {logs.length}</span>
                     </div>
                 </>

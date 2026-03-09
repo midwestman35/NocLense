@@ -165,9 +165,9 @@ export default function AIButton({
 
   // Variant classes
   const variantClasses = {
-    primary: 'bg-[var(--accent-blue)] text-white hover:bg-[var(--accent-blue)]/90',
-    secondary: 'bg-[var(--bg-light)] border border-[var(--border-color)] text-[var(--text-primary)] hover:bg-[var(--bg-light)]/80',
-    icon: 'p-2 bg-[var(--bg-light)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-light)]/80',
+    primary: 'bg-[var(--foreground)] text-white hover:bg-[var(--foreground)]/90',
+    secondary: 'bg-[var(--muted)] border border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--muted)]/80',
+    icon: 'p-2 bg-[var(--muted)] border border-[var(--border)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--muted)]/80',
   };
 
   // Button content based on variant
@@ -217,7 +217,7 @@ export default function AIButton({
       {/* AI Assistant Panel */}
       {isPanelOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full h-full max-w-4xl max-h-[90vh] m-4 bg-[var(--bg-primary)] rounded-lg shadow-xl flex flex-col">
+          <div className="w-full h-full max-w-4xl max-h-[90vh] m-4 bg-[var(--background)] rounded-lg shadow-xl flex flex-col">
             <AIAssistantPanel
               onClose={handlePanelClose}
               initialQuery={promptText}
