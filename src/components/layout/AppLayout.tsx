@@ -5,6 +5,8 @@ import { IconRail, type PanelId } from './IconRail';
 import { SidebarPanel } from './SidebarPanel';
 import { Button } from '../ui';
 
+const APP_ICON_SRC = `${import.meta.env.BASE_URL}app-icons/noclense-icon-lens-trace.svg`;
+
 const PANEL_TITLES: Record<PanelId, string> = {
   case: 'Case',
   files: 'Files',
@@ -75,7 +77,7 @@ function LayoutInner({
               <div className="mr-4 flex items-center gap-2.5 text-sm font-semibold tracking-tight text-[var(--foreground)]">
                 <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] border border-[var(--button-subtle-border)] bg-[var(--button-subtle-surface)] shadow-[var(--shadow-sm)]">
                   <img
-                    src="/app-icons/noclense-icon-lens-trace.svg"
+                    src={APP_ICON_SRC}
                     alt="NocLense icon"
                     className="h-[18px] w-[18px] shrink-0 rounded-[4px]"
                   />
