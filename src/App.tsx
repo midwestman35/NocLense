@@ -16,9 +16,29 @@ import { useInvestigationPanels } from './components/layout/InvestigationPanels'
 import { initTheme } from './utils/theme';
 import { Button, Dialog } from './components/ui';
 import { AIOnboardingWizard } from './components/onboarding/AIOnboardingWizard';
+import { ProductUpdateWizard } from './components/onboarding/ProductUpdateWizard';
 import { WorkspaceImportPanel } from './components/import/WorkspaceImportPanel';
 import { CaseHeader } from './components/case/CaseHeader';
 import { CaseStateBridge } from './components/case/CaseStateBridge';
+
+const PRODUCT_UPDATE_KEY = 'noclense-v2-product-update-seen';
+
+function hasSeenProductUpdate(): boolean {
+  try {
+    return localStorage.getItem(PRODUCT_UPDATE_KEY) === 'true';
+  } catch (error) {
+    console.error('Failed to read product update onboarding state:', error);
+    return false;
+  }
+}
+
+function markProductUpdateSeen(): void {
+  try {
+    localStorage.setItem(PRODUCT_UPDATE_KEY, 'true');
+  } catch (error) {
+    console.error('Failed to save product update onboarding state:', error);
+  }
+}
 
 const MainLayout = () => {
   const {
@@ -42,6 +62,7 @@ const MainLayout = () => {
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<PanelId | null>(null);
   const [showOnboardingWizard, setShowOnboardingWizard] = useState(false);
+  const [showProductUpdateWizard, setShowProductUpdateWizard] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
 
   useEffect(() => {
@@ -53,6 +74,11 @@ const MainLayout = () => {
       setShowOnboardingWizard(true);
     }
   }, [activePanel, onboardingCompleted]);
+
+  useEffect(() => {
+    if (hasSeenProductUpdate()) return;
+    setShowProductUpdateWizard(true);
+  }, []);
 
   const selectedLog = selectedLogId
     ? filteredLogs.find((entry) => entry.id === selectedLogId) || logs.find((entry) => entry.id === selectedLogId)
@@ -110,6 +136,11 @@ const MainLayout = () => {
     }
   };
 
+  const handleDismissProductUpdate = () => {
+    markProductUpdateSeen();
+    setShowProductUpdateWizard(false);
+  };
+
   const panelContent = useInvestigationPanels({
     onSetupAI: () => {
       setShowOnboardingWizard(true);
@@ -120,13 +151,13 @@ const MainLayout = () => {
   const headerContent = (
     <div className="flex items-center gap-2 w-full">
       <div className="ml-auto flex items-center gap-1 shrink-0">
+        <ChangelogDropdown />
         <Button variant="ghost" onClick={() => setShowImportDialog(true)} className="text-xs h-7 px-2">
           <FolderPlus size={14} className="mr-1" />
           Import
         </Button>
         {logs.length > 0 && (
           <>
-            <ChangelogDropdown />
             <Button variant="ghost" onClick={() => setIsExportModalOpen(true)} className="text-xs h-7 px-2">
               <Download size={14} className="mr-1" />
               Export
@@ -214,6 +245,12 @@ const MainLayout = () => {
       <Dialog open={showImportDialog} onClose={() => setShowImportDialog(false)} title="Import Incident Data">
         <WorkspaceImportPanel onComplete={() => setShowImportDialog(false)} />
       </Dialog>
+
+      <ProductUpdateWizard
+        open={showProductUpdateWizard}
+        onClose={handleDismissProductUpdate}
+        onOpenCasePanel={() => setActivePanel('case')}
+      />
 
       <AIOnboardingWizard
         open={showOnboardingWizard}

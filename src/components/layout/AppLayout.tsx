@@ -72,7 +72,16 @@ function LayoutInner({
               style={{ backgroundImage: 'var(--header-highlight)' }}
             />
             <div className="relative flex h-full items-center px-3">
-              <span className="mr-4 text-sm font-semibold tracking-tight text-[var(--foreground)]">NocLense</span>
+              <div className="mr-4 flex items-center gap-2.5 text-sm font-semibold tracking-tight text-[var(--foreground)]">
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] border border-[var(--button-subtle-border)] bg-[var(--button-subtle-surface)] shadow-[var(--shadow-sm)]">
+                  <img
+                    src="/app-icons/noclense-icon-lens-trace.svg"
+                    alt="NocLense icon"
+                    className="h-[18px] w-[18px] shrink-0 rounded-[4px]"
+                  />
+                </div>
+                <span className="leading-none">NocLense</span>
+              </div>
 
               <div className="min-w-0 flex-1">{headerContent}</div>
 
@@ -107,4 +116,3 @@ function LayoutInner({
 export const AppLayout = memo(function AppLayout(props: AppLayoutProps) {
   return <LayoutInner {...props} />;
 });
-
