@@ -1,50 +1,109 @@
-# LogScrub
+# NocLense
 
-LogScrub is a modern, high-performance log analysis tool designed specifically for reviewing SIP and system logs. It provides a clean, dark-mode interface for visualizing large log files, with specialized features for telecommunications debugging.
+**NocLense** is a desktop application for analyzing SIP/VoIP and telecommunications logs. Built for NOC engineers and support teams, it handles 100,000+ log entries with virtualized rendering, AI-powered analysis, and multi-format import support.
+
+> Runs as an Electron desktop app or in-browser via Vite dev server.
+
+---
 
 ## Features
 
--   **High Performance Rendering**: Built with `@tanstack/react-virtual` to handle thousands of log lines without lag.
--   **Timeline Visualization**: Interactive scrubber to visualize the density of events and errors over time.
--   **SIP/VoIP Awareness**: Automatic highlighting of SIP methods (INVITE, BYE, etc.) and coloring based on call flow.
--   **Detailed Inspection**: Expand any log row to view the full JSON payload or raw message content.
--   **Smart Filtering**: One-click noise reduction.
--   **AI-Powered Analysis** *(Beta)*: Analyze logs with Google Gemini 3. Ask questions, get error explanations, and correlate patterns. Requires a free [Google AI Studio](https://aistudio.google.com) API key.
+### Log Analysis
+- **High-performance rendering** — `@tanstack/react-virtual` renders only visible rows; handles 100k+ entries without lag
+- **Multi-format import** — Datadog CSV, Homer SIP JSON, and plain-text log files
+- **Large-file streaming** — Files over 50 MB are streamed into IndexedDB in 2 MB chunks; no browser memory limits
+- **SIP/VoIP awareness** — Highlights SIP methods (INVITE, BYE, ACK, etc.), 4xx/5xx response codes, and call flows with automatic color coding
+- **Detailed inspection** — Expand any row for full JSON payload, structured fields, and raw message content
+- **Smart Filter** — One-click removal of DEBUG logs and SIP OPTIONS heartbeats to surface signal from noise
 
-### 🔍 Smart Filter
+### Filtering & Correlation
+- **Faceted correlation sidebar** — Filter by Call-ID, Report-ID, Operator-ID, Extension-ID, Station-ID, File Name, CNC-ID, or Message-ID
+- **AND/OR logic** — Correlations use AND between types, OR within a type; exclusion correlations supported
+- **Search history** — Persisted across sessions with keyboard navigation
+- **Message type filter** — Filter by SIP method category, error level, or log format
 
-The **Smart Filter** toggle is designed to instantly clear clutter from your view so you can focus on the important logic of a call or system event.
+### AI-Powered Analysis
+- **Multi-provider support** — Google Gemini 3.1 (default), Claude 4.x (Sonnet/Haiku/Opus), and OpenAI Codex
+- **AI Assistant** — Conversational interface for asking questions about your logs
+- **Analyze Visible Logs** — One-click analysis of the current filtered view
+- **Explain with AI** — Contextual analysis for a selected log entry plus surrounding context
+- **Correlation analysis** — Analyze all logs for a given Call-ID or correlation from the sidebar
+- **Onboarding wizard** — Step-by-step API key setup with provider selection and key validation
+- **Secure key storage** — API keys encrypted at rest via Electron `safeStorage`
 
-When enabled, it **hides**:
-1.  **DEBUG Logs**: All messages with the `DEBUG` severity level.
-2.  **Heartbeats**: All SIP `OPTIONS` messages and internal "keep-alive" checks (e.g., messages containing "OPTIONS sip:").
+### Case & Workspace Management
+- **Case context** — Attach a title, analyst name, notes, and tags to any investigation session
+- **Export packs** — Bundle logs, case metadata, and AI analysis into a `.noclense` ZIP archive
+- **Workspace import** — Restore a previous session from a saved workspace package
 
-Disable the Smart Filter if you need to trace every single packet or debug low-level connectivity issues.
+---
 
 ## Getting Started
 
-1.  **Open the App**: Launch LogScrub in your browser.
-2.  **Load Logs**: Drag and drop a `.log` or `.txt` file onto the window, or click **"Open File"** in the top right.
-3.  **Navigate**:
-    -   Use the **Search Bar** to filter by Call-ID, component name, or message text.
-    -   Use the **Timeline** at the bottom to jump to specific points in time.
-    -   Click on any log row to see its full details.
-4.  **AI Analysis** *(Optional)*: Click **AI Settings** to add your Google Gemini API key, enable AI features, then use **AI Assistant** (or Cmd/Ctrl+K), **Analyze Visible Logs**, or **Explain with AI** on selected logs.
+### Desktop App (Electron)
+
+```bash
+npm install
+npm run electron:dev     # Electron + Vite dev server
+npm run electron:build   # Package installer (NSIS on Windows, DMG on macOS)
+```
+
+### Web (Browser)
+
+```bash
+npm install
+npm run dev              # Vite dev server → http://localhost:5173
+npm run build            # TypeScript check + production build
+```
+
+### Load Your First Logs
+
+1. Launch the app and click **Open File** (or drag and drop)
+2. Supported formats: `.log`, `.txt`, `.csv` (Datadog), `.json` (Homer SIP)
+3. Multiple files are merged and sorted chronologically
+4. Use the **Correlation Sidebar** to filter by Call-ID or other identifiers
+5. Optionally configure an AI provider via the **AI Settings** panel (gear icon)
+
+---
+
+## AI Setup
+
+NocLense supports three AI providers. All keys are stored encrypted — never in plaintext.
+
+| Provider | Models | API Key Source |
+|----------|--------|----------------|
+| Google Gemini | `gemini-3.1-flash-lite-preview` (default), `gemini-3.1-pro-preview` | [Google AI Studio](https://aistudio.google.com) — free tier available |
+| Anthropic Claude | `claude-sonnet-4-6`, `claude-haiku-4-5`, `claude-opus-4-6` | [Anthropic Console](https://console.anthropic.com) |
+| OpenAI Codex | `codex` | [OpenAI Platform](https://platform.openai.com) |
+
+Use the onboarding wizard (launches on first run) or the **AI Settings** panel to configure your provider.
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| UI Framework | React 19 + TypeScript |
+| Desktop | Electron (with `safeStorage`, IPC bridge, preload isolation) |
+| Build | Vite + `vite-plugin-electron` |
+| Styling | Tailwind CSS + custom design token system |
+| Animation | Motion (`framer-motion` successor) |
+| Virtualization | `@tanstack/react-virtual` |
+| Storage | IndexedDB (large files), `localStorage` (settings/history) |
+| Testing | Vitest + React Testing Library |
+| AI Providers | `@google/generative-ai`, `@anthropic-ai/sdk`, OpenAI API |
+
+---
 
 ## Development
 
-This project is built with:
--   React 19
--   TypeScript
--   Vite
--   Tailwind CSS
-
-### Setup
-
 ```bash
-# Install dependencies
-npm install
-
-# Run development server
-npm run dev
+npm run test             # Vitest watch mode
+npm run test:run         # Single CI run
+npm run test:coverage    # Coverage report
+npm run lint             # ESLint
 ```
+
+See [`CLAUDE.md`](./CLAUDE.md) for architecture notes, coding conventions, and key file references.
+See [`docs/releases/CHANGELOG.md`](./docs/releases/CHANGELOG.md) for full version history.
