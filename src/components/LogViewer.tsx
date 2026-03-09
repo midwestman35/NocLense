@@ -151,9 +151,6 @@ const LogViewer = () => {
     favoriteLogIds,
     toggleFavorite,
     hoveredCorrelation,
-    useIndexedDBMode,
-    loadLogsFromIndexedDB,
-    visibleRange,
     isCollapseSimilarEnabled,
     collapsedViewList,
   } = useLogContext();
@@ -177,22 +174,6 @@ const LogViewer = () => {
     }, 100);
   }, [setVisibleRange]);
 
-  useEffect(() => {
-    if (!useIndexedDBMode || !visibleRange || (visibleRange.start === 0 && visibleRange.end === 1)) return;
-    const loadVisibleLogs = async () => {
-      try {
-        await loadLogsFromIndexedDB({
-          timestampRange: { start: visibleRange.start, end: visibleRange.end },
-          limit: 5000,
-        });
-      } catch (error) {
-        console.error('Failed to load visible logs from IndexedDB:', error);
-      }
-    };
-    if (visibleRange.end > visibleRange.start && visibleRange.start > 0) {
-      void loadVisibleLogs();
-    }
-  }, [loadLogsFromIndexedDB, useIndexedDBMode, visibleRange]);
 
   const viewItems = useMemo(() => {
     if (collapsedViewList && collapsedViewList.length > 0) {

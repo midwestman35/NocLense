@@ -1,6 +1,7 @@
 import type { LogEntry, LogLevel } from '../types';
 import { cleanupLogEntry } from './messageCleanup';
 import { dbManager } from './indexedDB';
+import { formatLogTimestamp } from './logTimestamp';
 
 /**
  * Log Parser for LogScrub
@@ -139,6 +140,7 @@ const parseDatadogCSV = (text: string, fileColor: string, startId: number): LogE
                 id: idCounter++,
                 timestamp,
                 rawTimestamp,
+                displayTimestamp: formatLogTimestamp(timestamp),
                 level,
                 component,
                 displayComponent: cleanupResult.displayComponent,
@@ -225,6 +227,7 @@ const parseHomerText = (text: string, fileColor: string, startId: number, fileNa
                     id: idCounter++,
                     timestamp: currentTimestamp,
                     rawTimestamp: currentTimestampStr,
+                    displayTimestamp: formatLogTimestamp(currentTimestamp),
                     level: 'INFO' as LogLevel, // Will be updated based on SIP response code
                     component: 'Homer SIP',
                     displayComponent: 'Homer SIP',
@@ -296,6 +299,7 @@ const parseHomerText = (text: string, fileColor: string, startId: number, fileNa
             id: idCounter++,
             timestamp: currentTimestamp,
             rawTimestamp: currentTimestampStr,
+            displayTimestamp: formatLogTimestamp(currentTimestamp),
             level: 'INFO' as LogLevel, // Will be updated based on SIP response code
             component: 'Homer SIP',
             displayComponent: 'Homer SIP',
@@ -467,10 +471,12 @@ const parseLogFileStreaming = async (
                 }
 
                 const trimmedMessage = message.trim();
+                const resolvedTimestamp = isNaN(timestamp) ? Date.now() : timestamp;
                 currentLog = {
                     id: idCounter++,
-                    timestamp: isNaN(timestamp) ? Date.now() : timestamp,
+                    timestamp: resolvedTimestamp,
                     rawTimestamp: timestampStr,
+                    displayTimestamp: formatLogTimestamp(resolvedTimestamp),
                     level: level,
                     component,
                     displayComponent: cleaned.displayComponent,
@@ -711,10 +717,12 @@ const parseLogFileStreamingToIndexedDB = async (
                 }
 
                 const trimmedMessage = message.trim();
+                const resolvedTimestamp = isNaN(timestamp) ? Date.now() : timestamp;
                 currentLog = {
                     id: idCounter++,
-                    timestamp: isNaN(timestamp) ? Date.now() : timestamp,
+                    timestamp: resolvedTimestamp,
                     rawTimestamp: timestampStr,
+                    displayTimestamp: formatLogTimestamp(resolvedTimestamp),
                     level: level,
                     component,
                     displayComponent: cleaned.displayComponent,
@@ -968,10 +976,12 @@ export const parseLogFile = async (file: File, fileColor: string = '#3b82f6', st
             }
 
             const trimmedMessage = message.trim();
+            const resolvedTimestamp = isNaN(timestamp) ? Date.now() : timestamp;
             currentLog = {
                 id: idCounter++,
-                timestamp: isNaN(timestamp) ? Date.now() : timestamp,
+                timestamp: resolvedTimestamp,
                 rawTimestamp: timestampStr,
+                displayTimestamp: formatLogTimestamp(resolvedTimestamp),
                 level: level, // Already normalized via normalizeLogLevel()
                 component,
                 displayComponent: cleaned.displayComponent,

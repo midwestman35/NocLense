@@ -3,6 +3,23 @@ import type { ImportedDataset, LogEntry, LogLevel, LogState } from '../types';
 import { loadSearchHistory, addToSearchHistory as saveToHistory, clearSearchHistory as clearHistoryStorage } from '../store/searchHistory';
 import { dbManager } from '../utils/indexedDB';
 
+const SIP_RESPONSE_METHOD_PATTERN = /^(\d{3})\s+(\w+)(?:\s+.*)?$/i;
+const LOG_LEVEL_RANK: Record<LogLevel, number> = {
+    ERROR: 3,
+    WARN: 2,
+    INFO: 1,
+    DEBUG: 0,
+};
+
+const normalizeSipMethod = (method: string): string => {
+    const responseMatch = method.match(SIP_RESPONSE_METHOD_PATTERN);
+    if (!responseMatch) return method;
+
+    const code = responseMatch[1];
+    const firstWord = responseMatch[2].charAt(0).toUpperCase() + responseMatch[2].slice(1).toLowerCase();
+    return `${code} ${firstWord}`;
+};
+
 export interface CorrelationItem {
     type: 'report' | 'operator' | 'extension' | 'station' | 'callId' | 'file' | 'cncID' | 'messageID';
     value: string;
@@ -138,6 +155,10 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
     const [isSipFilterEnabled, setIsSipFilterEnabled] = useState(false);
     const [selectedLevels, setSelectedLevels] = useState<Set<LogLevel>>(() => new Set());
     const [selectedSipMethods, setSelectedSipMethods] = useState<Set<string>>(() => new Set());
+    const normalizedSelectedSipMethods = useMemo(
+        () => new Set(Array.from(selectedSipMethods, normalizeSipMethod)),
+        [selectedSipMethods]
+    );
     const [selectedLogId, setSelectedLogId] = useState<number | null>(null);
     const [searchHistory, setSearchHistory] = useState<string[]>([]);
     
@@ -323,22 +344,11 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
                 if (selectedLevels.size > 0) {
                     loadedLogs = loadedLogs.filter(log => selectedLevels.has(log.level));
                 }
-
                 // SIP method filter in memory
-                const normalizeMethod = (method: string): string => {
-                    const responseMatch = method.match(/^(\d{3})\s+(\w+)(?:\s+.*)?$/i);
-                    if (responseMatch) {
-                        const code = responseMatch[1];
-                        const firstWord = responseMatch[2].charAt(0).toUpperCase() + responseMatch[2].slice(1).toLowerCase();
-                        return `${code} ${firstWord}`;
-                    }
-                    return method;
-                };
-                if (isSipFilterEnabled && selectedSipMethods.size > 0) {
+                if (isSipFilterEnabled && normalizedSelectedSipMethods.size > 0) {
                     loadedLogs = loadedLogs.filter(log => {
                         if (!log.isSip || !log.sipMethod) return false;
-                        const normalizedLog = normalizeMethod(log.sipMethod);
-                        return [...selectedSipMethods].some(m => normalizeMethod(m) === normalizedLog);
+                        return normalizedSelectedSipMethods.has(normalizeSipMethod(log.sipMethod));
                     });
                 }
                 
@@ -355,7 +365,7 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
                     loadedLogs = loadedLogs.filter(log => log.messageType === selectedMessageTypeFilter);
                 }
 
-                // Correlation filters (cncID / messageID) – in memory (no IDB index)
+                // Correlation filters (cncID / messageID) - in memory (no IDB index)
                 const cncIdFilters = activeCorrelations.filter(c => c.type === 'cncID' && !c.excluded);
                 const msgIdFilters = activeCorrelations.filter(c => c.type === 'messageID' && !c.excluded);
                 const cncIdExcl = activeCorrelations.filter(c => c.type === 'cncID' && c.excluded);
@@ -405,7 +415,7 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         selectedComponentFilter,
         selectedLevels,
         isSipFilterEnabled,
-        selectedSipMethods,
+        normalizedSelectedSipMethods,
         activeCorrelations,
         filterText,
         isShowFavoritesOnly,
@@ -749,22 +759,10 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
 
             // SIP Filter (Show Only SIP)
             if (isSipFilterEnabled && !log.isSip) return false;
-
             // SIP Method Filter (multi-select: when methods selected, only show SIP logs matching any of them)
-            const normalizeMethod = (method: string): string => {
-                const responseMatch = method.match(/^(\d{3})\s+(\w+)(?:\s+.*)?$/i);
-                if (responseMatch) {
-                    const code = responseMatch[1];
-                    const firstWord = responseMatch[2].charAt(0).toUpperCase() + responseMatch[2].slice(1).toLowerCase();
-                    return `${code} ${firstWord}`;
-                }
-                return method;
-            };
-            if (isSipFilterEnabled && selectedSipMethods.size > 0) {
+            if (isSipFilterEnabled && normalizedSelectedSipMethods.size > 0) {
                 if (!log.isSip || !log.sipMethod) return false;
-                const normalizedLog = normalizeMethod(log.sipMethod);
-                const matchesAny = [...selectedSipMethods].some(m => normalizeMethod(m) === normalizedLog);
-                if (!matchesAny) return false;
+                if (!normalizedSelectedSipMethods.has(normalizeSipMethod(log.sipMethod))) return false;
             }
 
             // Phase 2 Optimization: Use pre-computed lowercase strings from parsing for O(1) string operations
@@ -791,20 +789,17 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         // Sorting
         result.sort((a, b) => {
             if (sortConfig.field === 'timestamp') {
-                const timeA = new Date(a.timestamp).getTime();
-                const timeB = new Date(b.timestamp).getTime();
-                return sortConfig.direction === 'asc' ? timeA - timeB : timeB - timeA;
+                return sortConfig.direction === 'asc' ? a.timestamp - b.timestamp : b.timestamp - a.timestamp;
             } else if (sortConfig.field === 'level') {
-                const levels = { ERROR: 3, WARN: 2, INFO: 1, DEBUG: 0 };
-                const valA = levels[a.level] || 0;
-                const valB = levels[b.level] || 0;
+                const valA = LOG_LEVEL_RANK[a.level];
+                const valB = LOG_LEVEL_RANK[b.level];
                 return sortConfig.direction === 'asc' ? valA - valB : valB - valA;
             }
             return 0;
         });
 
         return result;
-    }, [logs, selectedLogId, correlationIndexes, selectedComponentFilter, selectedLevels, isSipFilterEnabled, selectedSipMethods, lowerFilterText, sortConfig, isShowFavoritesOnly, favoriteLogIds, useIndexedDBMode, indexedDBLogs, excludedMessageTypes, selectedMessageTypeFilter]);
+    }, [logs, selectedLogId, correlationIndexes, selectedComponentFilter, selectedLevels, isSipFilterEnabled, normalizedSelectedSipMethods, lowerFilterText, sortConfig, isShowFavoritesOnly, favoriteLogIds, useIndexedDBMode, indexedDBLogs, excludedMessageTypes, selectedMessageTypeFilter]);
 
     // Collapse similar: group consecutive rows with same (displayComponent, summaryMessage/displayMessage) (6.3 Option A)
     const collapsedViewList = useMemo((): Array<{ firstLog: LogEntry; count: number }> | null => {
@@ -1160,3 +1155,4 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         </LogContext.Provider>
     );
 };
+

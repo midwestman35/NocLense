@@ -1,10 +1,10 @@
 import { useState, memo } from 'react';
 import { stc, getSipColorClasses } from '../utils/colorUtils';
-import { format } from 'date-fns';
 import { ChevronRight, ChevronDown, Star } from 'lucide-react';
 import clsx from 'clsx';
 import type { LogEntry } from '../types';
 import { highlightText } from '../utils/highlightUtils.tsx';
+import { getLogDisplayTimestamp } from '../utils/logTimestamp';
 import { useLogContext } from '../contexts/LogContext';
 
 const EVENT_TYPE_STYLES: Record<string, string> = {
@@ -98,7 +98,7 @@ const LogRow: React.FC<LogRowProps> = ({
         </div>
 
         <div className="text-[var(--muted-foreground)] text-[11px] truncate tabular-nums">
-          {format(new Date(log.timestamp), 'MM/dd HH:mm:ss.SSS')}
+          {getLogDisplayTimestamp(log)}
         </div>
 
         <div className={clsx('min-w-0 flex items-center gap-1.5', isTextWrap ? 'flex-wrap' : 'overflow-hidden')}>

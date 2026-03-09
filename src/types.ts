@@ -18,6 +18,7 @@ export interface LogEntry {
     id: number;
     timestamp: number;
     rawTimestamp: string;
+    displayTimestamp?: string;
     level: LogLevel;
     component: string;
     displayComponent: string;
