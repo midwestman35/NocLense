@@ -127,8 +127,13 @@ export class LogContextBuilder {
       // Prioritize ERROR and WARN logs, but include some INFO for context
       selectedLogs = this.prioritizeLogs(logs, maxTokens);
     } else {
-      // Use all logs (up to token limit)
-      selectedLogs = this.selectLogsByTokenLimit(logs, maxTokens, includePayloads);
+      // Use all logs (up to token limit) but still add surrounding context for errors.
+      // Why: when caller has already ranked logs (e.g. hybrid RAG), we respect that
+      // ordering but still enrich the set with logs adjacent to errors so the LLM
+      // has causal context without us re-sorting by level.
+      let selected = this.selectLogsByTokenLimit(logs, maxTokens, includePayloads);
+      selected = this.addSurroundingContext(logs, selected, includeSurrounding);
+      selectedLogs = selected;
     }
     
     // Remove duplicates

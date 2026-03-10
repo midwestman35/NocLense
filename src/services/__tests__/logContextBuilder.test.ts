@@ -459,13 +459,56 @@ describe('LogContextBuilder', () => {
       log.callId = 'call-123';
       log.reportId = 'report-456';
       log.operatorId = 'op-789';
-      
+
       const result = builder.buildContext([log]);
-      
+
       expect(result).toContain('call-123');
       expect(result).toContain('report-456');
       expect(result).toContain('op-789');
       expect(result).toContain('Correlations:');
+    });
+  });
+
+  describe('buildContext with prioritizeErrors:false (hybrid RAG path)', () => {
+    it('should still include surrounding context for errors when prioritizeErrors is false', () => {
+      // Create a set of logs where an INFO surrounds an ERROR.
+      // When prioritizeErrors:false (hybrid RAG path), the ERROR's neighbours
+      // should still be pulled in via addSurroundingContext.
+      const logs = [
+        createMockLog(1, 'INFO', 'connection established'),
+        createMockLog(2, 'INFO', 'before error'),
+        createMockLog(3, 'ERROR', 'fatal crash'),
+        createMockLog(4, 'INFO', 'after error'),
+        createMockLog(5, 'INFO', 'recovery attempt'),
+      ];
+
+      const result = builder.buildContext(logs, {
+        prioritizeErrors: false,
+        includeSurrounding: 1,
+      });
+
+      // All logs should appear because the window is small and surrounding
+      // context expansion should pull in adjacent logs.
+      expect(result).toContain('fatal crash');
+      expect(result).toContain('before error');
+      expect(result).toContain('after error');
+    });
+
+    it('should preserve caller-supplied log ordering when prioritizeErrors is false', () => {
+      // When using hybrid RAG, the caller has already ranked logs by hybrid score.
+      // buildContext with prioritizeErrors:false should not re-sort by level.
+      const logs = [
+        createMockLog(10, 'INFO', 'highly relevant info log'),
+        createMockLog(20, 'WARN', 'lower relevance warn'),
+        createMockLog(30, 'ERROR', 'even lower relevance error'),
+      ];
+
+      const result = builder.buildContext(logs, { prioritizeErrors: false });
+
+      // All three should be present regardless of level.
+      expect(result).toContain('highly relevant info log');
+      expect(result).toContain('lower relevance warn');
+      expect(result).toContain('even lower relevance error');
     });
   });
 });

@@ -92,6 +92,8 @@ export interface AIConfig {
   dailyRequestLimit: number;
   /** Enable/disable AI features (respects user privacy preferences) */
   enabled: boolean;
+  /** Embedding model ID for semantic retrieval (defaults to 'gemini-embedding-2-preview') */
+  embeddingModel?: string;
 }
 
 /**
@@ -194,8 +196,6 @@ export interface ContextOptions {
   includePayloads?: boolean;
   /** User query used by retrieval-based context selection */
   query?: string;
-  /** Enable embedding retrieval for context selection */
-  useEmbeddingRetrieval?: boolean;
 }
 
 /**

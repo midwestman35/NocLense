@@ -32,9 +32,14 @@ export class EmbeddingService {
    * Initialize embedding service with API key.
    *
    * @param apiKey - Gemini API key
-   * @param modelId - Embedding model id (default: text-embedding-004)
+   * @param modelId - Embedding model id (default: gemini-embedding-2-preview)
+   * @param outputDimensionality - Optional Matryoshka dimension (e.g. 768, 256)
    */
-  public initialize(apiKey: string, modelId: string = 'text-embedding-004'): void {
+  public initialize(
+    apiKey: string,
+    modelId: string = 'gemini-embedding-2-preview',
+    outputDimensionality?: number
+  ): void {
     if (!apiKey || apiKey.trim().length === 0) {
       throw new Error('API key is required to initialize EmbeddingService');
     }
@@ -42,26 +47,34 @@ export class EmbeddingService {
       throw new Error(`Model "${modelId}" is not an embedding-compatible model.`);
     }
     this.client = new GoogleGenerativeAI(apiKey);
-    this.model = this.client.getGenerativeModel({ model: modelId });
+    const modelConfig: { model: string; outputDimensionality?: number } = { model: modelId };
+    if (outputDimensionality !== undefined) {
+      modelConfig.outputDimensionality = outputDimensionality;
+    }
+    this.model = this.client.getGenerativeModel(modelConfig);
   }
 
   /**
    * Validate embedding model compatibility.
    *
    * Why: text generation models do not expose embedding APIs consistently.
+   * Supports both legacy text-embedding-* and newer gemini-embedding-* families.
    */
   private isEmbeddingModelCompatible(modelId: string): boolean {
-    return modelId.startsWith('text-embedding-');
+    return modelId.startsWith('text-embedding-') || modelId.startsWith('gemini-embedding-');
   }
 
   /**
    * Build compact text representation for document embeddings.
    *
-   * Why: full payload embedding is expensive/noisy; concise fields retain signal.
+   * Why: including truncated payload captures diagnostic detail (stack traces,
+   * error codes) that message alone misses, without embedding the full noisy blob.
+   * 500-char cap keeps batch sizes predictable.
    */
   private buildEmbeddingText(log: LogEntry): string {
     const callId = log.callId ? ` [callId:${log.callId}]` : '';
-    return `${log.level} ${log.component} ${log.message}${callId}`;
+    const payload = log.payload ? ` ${log.payload.substring(0, 500)}` : '';
+    return `${log.level} ${log.component} ${log.message}${callId}${payload}`;
   }
 
   /**
@@ -303,13 +316,17 @@ export class EmbeddingService {
   }
 
   /**
-   * Eagerly embed high-priority logs (ERROR/WARN) in background.
+   * Eagerly embed high-priority logs (ERROR/WARN/INFO) in background.
+   *
+   * Why: including INFO logs enables semantic retrieval of relevant config changes
+   * and connection events that often precede ERROR cascades.
+   * DEBUG logs are excluded — too noisy and rarely relevant to user queries.
    */
   public async indexLogFile(
     logs: LogEntry[],
     onProgress?: (pct: number) => void
   ): Promise<void> {
-    const targets = logs.filter(log => (log.level === 'ERROR' || log.level === 'WARN') && !log.hasEmbedding);
+    const targets = logs.filter(log => log.level !== 'DEBUG' && !log.hasEmbedding);
     if (targets.length === 0) {
       onProgress?.(100);
       return;

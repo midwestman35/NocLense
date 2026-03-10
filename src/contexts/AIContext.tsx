@@ -261,6 +261,43 @@ export const useAI = (): AIContextType => {
   return context;
 };
 
+/**
+ * Re-rank similarity-ordered logs using hybrid scoring.
+ *
+ * Combines semantic retrieval rank with log level priority so that
+ * highly-relevant INFO logs are not buried under low-relevance WARN logs.
+ *
+ * Score formula: 0.6 × similarity_rank_score + 0.3 × level_score + 0.1 × error_bonus
+ *
+ * Why this weighting?
+ * - Semantic similarity dominates (0.6) because RAG already selected relevant logs.
+ * - Level score (0.3) ensures genuine errors still rise above noise.
+ * - Error bonus (0.1) gives a small additional push to ERROR-level entries.
+ *
+ * @param logs - Logs ordered by cosine similarity, best match first
+ * @returns Logs re-ordered by hybrid score, best first
+ */
+function hybridRank(logs: LogEntry[]): LogEntry[] {
+  const levelScore: Record<string, number> = {
+    ERROR: 1.0,
+    WARN: 0.75,
+    INFO: 0.4,
+    DEBUG: 0.1,
+  };
+  const total = logs.length;
+  if (total === 0) return logs;
+  return [...logs]
+    .map((log, index) => {
+      const similarityScore = total > 1 ? 1 - index / (total - 1) : 1;
+      const lvl = levelScore[log.level] ?? 0.1;
+      const errorBonus = log.level === 'ERROR' ? 0.1 : 0;
+      const score = 0.6 * similarityScore + 0.3 * lvl + errorBonus;
+      return { log, score };
+    })
+    .sort((a, b) => b.score - a.score)
+    .map(({ log }) => log);
+}
+
 export const AIProvider = ({ children }: { children: ReactNode }) => {
   const [provider, setProviderState] = useState<AIProviderId>(() => loadProvider());
   const [apiKeys, setApiKeysState] = useState<Partial<Record<AIProviderId, string>>>({});
@@ -459,17 +496,21 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
           response = await activeProviderService.analyzeHierarchical(engineeredQuery, chunks, { model });
         } else {
           let logsForContext = logs;
+          let usingRetrievedLogs = false;
           if (provider === 'gemini' && apiKey && logs.length > 1000) {
             try {
-              embeddingService.initialize(apiKey);
-              const candidates = logs.filter((log) => log.level === 'ERROR' || log.level === 'WARN' || log.level === 'INFO');
+              embeddingService.initialize(apiKey, 'gemini-embedding-2-preview');
+              const candidates = logs.filter((log) => log.level !== 'DEBUG');
               const retrieved = await embeddingService.retrieveTopKByQuery(
                 engineeredQuery,
                 candidates.length > 0 ? candidates : logs,
                 250
               );
               if (retrieved.length > 0) {
-                logsForContext = retrieved;
+                // Combine semantic rank with level priority so relevant INFO logs
+                // are not displaced by low-relevance WARN logs.
+                logsForContext = hybridRank(retrieved);
+                usingRetrievedLogs = true;
               }
               embeddingService.indexLogFile(logs).catch((indexError) => {
                 console.error('Background embedding index failed:', indexError);
@@ -481,8 +522,11 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
 
           const context = contextBuilder.buildContext(logsForContext, {
             maxTokens: 100000,
-            prioritizeErrors: true,
+            // When using hybrid-ranked retrieved logs, preserve their ordering
+            // instead of re-sorting by level. Still adds surrounding context.
+            prioritizeErrors: !usingRetrievedLogs,
             includeSurrounding: 5,
+            query: engineeredQuery,
           });
           response = await activeProviderService.analyzeLog(engineeredQuery, context, { model });
         }
