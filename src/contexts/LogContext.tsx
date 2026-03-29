@@ -1,7 +1,8 @@
-import { createContext, useContext, useState, useMemo, useEffect, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useState, useMemo, useEffect, useCallback, useRef, useDeferredValue, type ReactNode } from 'react';
 import type { ImportedDataset, LogEntry, LogLevel, LogState } from '../types';
 import { loadSearchHistory, addToSearchHistory as saveToHistory, clearSearchHistory as clearHistoryStorage } from '../store/searchHistory';
 import { dbManager } from '../utils/indexedDB';
+import { getJobLogs, getJobStats, checkHealth, type StatsResponse, type LogsQueryParams } from '../api/client';
 
 export interface CorrelationItem {
     type: 'report' | 'operator' | 'extension' | 'station' | 'callId' | 'file' | 'cncID' | 'messageID';
@@ -116,6 +117,13 @@ interface LogContextType extends LogState {
     removeFile: (fileName: string) => Promise<void>;
     importedDatasets: ImportedDataset[];
     addImportedDatasets: (datasets: ImportedDataset[]) => void;
+
+    // Server mode (for large files parsed server-side)
+    useServerMode: boolean;
+    activeJobId: string | null;
+    serverAvailable: boolean;
+    enableServerMode: (jobId: string) => Promise<void>;
+    exitServerMode: () => void;
 }
 
 const LogContext = createContext<LogContextType | null>(null);
@@ -168,6 +176,14 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
     // State for IndexedDB-loaded logs (when using IndexedDB mode)
     const [indexedDBLogs, setIndexedDBLogs] = useState<LogEntry[]>([]);
     const [indexedDBLoading, setIndexedDBLoading] = useState(false);
+
+    // Server mode state
+    const [useServerMode, setUseServerMode] = useState(false);
+    const [activeJobId, setActiveJobId] = useState<string | null>(null);
+    const [serverAvailable, setServerAvailable] = useState(false);
+    const [serverLogs, setServerLogs] = useState<LogEntry[]>([]);
+    const [serverTotal, setServerTotal] = useState(0);
+    const serverFilterDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
     
     // Function to load logs from IndexedDB when needed
     const loadLogsFromIndexedDB = useCallback(async (filters?: {
@@ -247,6 +263,82 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
             return next.sort((a, b) => a.importedAt - b.importedAt);
         });
     }, []);
+
+    // ─── Server Mode Functions ───────────────────────────────────────────────
+
+    // Check server health on mount
+    useEffect(() => {
+        checkHealth().then(setServerAvailable).catch(() => setServerAvailable(false));
+    }, []);
+
+    const enableServerMode = useCallback(async (jobId: string) => {
+        setActiveJobId(jobId);
+        setUseServerMode(true);
+        setLoading(true);
+
+        try {
+            // Fetch stats to populate correlationData
+            const statsData = await getJobStats(jobId);
+            // We'll store correlationData by updating the sets in the existing state
+            // This is handled via the correlationData state which we update directly
+            setServerTotal(statsData.total);
+
+            // Fetch initial logs
+            const result = await getJobLogs(jobId, { limit: 5000 });
+            setServerLogs(result.logs);
+            setTotalLogCount(result.total);
+        } catch (err) {
+            console.error('Failed to enable server mode:', err);
+            setUseServerMode(false);
+            setActiveJobId(null);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const exitServerMode = useCallback(() => {
+        setUseServerMode(false);
+        setActiveJobId(null);
+        setServerLogs([]);
+        setServerTotal(0);
+    }, []);
+
+    // Server-backed filtering: when filters change in server mode, debounce and query
+    const deferredFilterText = useDeferredValue(filterText);
+    useEffect(() => {
+        if (!useServerMode || !activeJobId) return;
+
+        if (serverFilterDebounce.current) clearTimeout(serverFilterDebounce.current);
+        serverFilterDebounce.current = setTimeout(async () => {
+            try {
+                const params: LogsQueryParams = { limit: 5000 };
+                if (deferredFilterText) params.search = deferredFilterText;
+                if (selectedLevels.size > 0 && selectedLevels.size < 4) {
+                    // If only one level selected, pass it as filter
+                    if (selectedLevels.size === 1) {
+                        params.level = [...selectedLevels][0];
+                    }
+                }
+                if (selectedComponentFilter) params.component = selectedComponentFilter;
+                if (isSipFilterEnabled) params.isSip = true;
+                if (sortConfig.direction === 'desc') params.sort = 'desc';
+
+                // Correlation filters - pass first callId if any
+                const callIdCorrelation = activeCorrelations.find(c => c.type === 'callId' && !c.excluded);
+                if (callIdCorrelation) params.callId = callIdCorrelation.value;
+
+                const result = await getJobLogs(activeJobId, params);
+                setServerLogs(result.logs);
+                setServerTotal(result.total);
+            } catch (err) {
+                console.error('Server filter query failed:', err);
+            }
+        }, 300);
+
+        return () => {
+            if (serverFilterDebounce.current) clearTimeout(serverFilterDebounce.current);
+        };
+    }, [useServerMode, activeJobId, deferredFilterText, selectedLevels, selectedComponentFilter, isSipFilterEnabled, sortConfig, activeCorrelations]);
 
     // Load logs from IndexedDB when filters change (for IndexedDB mode)
     // This must be after all state declarations
@@ -678,6 +770,11 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
     // Computed filtered logs - Phase 2 Optimized
     // When using IndexedDB mode, use indexedDBLogs instead of logs
     const filteredLogs = useMemo(() => {
+        // If using server mode, return server-fetched logs (already filtered server-side)
+        if (useServerMode) {
+            return serverLogs;
+        }
+
         // If using IndexedDB mode, return IndexedDB-loaded logs
         if (useIndexedDBMode) {
             return indexedDBLogs;
@@ -1099,7 +1196,14 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         enableIndexedDBMode,
         removeFile,
         importedDatasets,
-        addImportedDatasets
+        addImportedDatasets,
+
+        // Server mode
+        useServerMode,
+        activeJobId,
+        serverAvailable,
+        enableServerMode,
+        exitServerMode,
     }), [
         // Only include values that actually change and affect consumers
         logs,
@@ -1151,7 +1255,11 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         loadLogsFromIndexedDB,
         enhancedSetLogs,
         removeFile,
-        addImportedDatasets
+        addImportedDatasets,
+        useServerMode,
+        activeJobId,
+        serverAvailable,
+        serverLogs,
     ]);
 
     return (

@@ -4,7 +4,7 @@ import { Button } from '../ui';
 import { useLogContext } from '../../contexts/LogContext';
 import { useCase } from '../../store/caseContext';
 import { dbManager } from '../../utils/indexedDB';
-import { appendLogsToIndexedDB, importFiles, importPastedLogs } from '../../services/importService';
+import { appendLogsToIndexedDB, importFiles, importFilesViaServer, importPastedLogs } from '../../services/importService';
 import type { ImportedDataset, LogSourceType } from '../../types';
 import type { Attachment } from '../../types/case';
 
@@ -58,10 +58,14 @@ export function WorkspaceImportPanel({ onComplete }: { onComplete?: () => void }
     enableIndexedDBMode,
     useIndexedDBMode,
     addImportedDatasets,
+    serverAvailable,
+    enableServerMode,
   } = useLogContext();
   const { activeCase, updateCase } = useCase();
 
   const hasWorkspaceLogs = logs.length > 0;
+
+  const FIFTY_MB = 50 * 1024 * 1024;
 
   const helperText = useMemo(() => {
     if (mode === 'paste' && sourceType === 'aws') {
@@ -69,6 +73,11 @@ export function WorkspaceImportPanel({ onComplete }: { onComplete?: () => void }
     }
     if (mode === 'paste') {
       return 'Paste raw log text when exporting is slower than copying the incident window.';
+    }
+    if (serverAvailable) {
+      return hasWorkspaceLogs
+        ? 'Files over 50 MB are parsed on the server. New imports append to the current workspace.'
+        : 'Files over 50 MB are automatically routed to the server for parsing. Smaller files are parsed locally.';
     }
     return hasWorkspaceLogs
       ? 'New imports append to the current workspace and keep the existing investigation state intact.'
@@ -103,8 +112,32 @@ export function WorkspaceImportPanel({ onComplete }: { onComplete?: () => void }
     setLoading(true);
     setParsingProgress(0);
 
+    const files = Array.from(fileList);
+    const totalSize = files.reduce((sum, f) => sum + f.size, 0);
+
     try {
-      const files = Array.from(fileList);
+      // ── Server path: large files offloaded to the backend ──────────────────
+      if (serverAvailable && totalSize > FIFTY_MB) {
+        const serverResults = await importFilesViaServer(files, {
+          onProgress: (_fileIndex, progress) => {
+            setParsingProgress(progress);
+          },
+        });
+
+        if (serverResults.length > 0) {
+          // Enable server mode with the last completed job so the viewer
+          // immediately shows logs from the most recently uploaded file.
+          const lastResult = serverResults[serverResults.length - 1];
+          await enableServerMode(lastResult.jobId);
+          setNotices([
+            `Imported ${serverResults.length} file${serverResults.length === 1 ? '' : 's'} via server (${(totalSize / 1024 / 1024).toFixed(0)} MB).`,
+          ]);
+          onComplete?.();
+        }
+        return;
+      }
+
+      // ── Client-side path (unchanged) ────────────────────────────────────────
       const nextId = await getNextLogId();
       const shouldUseIndexedDB = useIndexedDBMode || logs.length === 0;
       const result = await importFiles(files, {
