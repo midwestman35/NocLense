@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { clsx } from 'clsx';
 import { Button } from '../ui';
@@ -6,7 +6,9 @@ import { useLogContext, type CorrelationItem } from '../../contexts/LogContext';
 import { useAI } from '../../contexts/AIContext';
 import { useCase } from '../../store/caseContext';
 import type { PanelId } from './IconRail';
-import { CasePanel } from '../case/CasePanel';
+import { ZendeskPanel } from '../zendesk/ZendeskPanel';
+import AiSettingsModal from '../ai/AiSettingsModal';
+import { loadAiSettings } from '../../store/aiSettings';
 
 function PanelSection({ title, meta, children }: { title: string; meta?: string; children: ReactNode }) {
   return (
@@ -83,7 +85,7 @@ function DenseList({
   );
 }
 
-export function useInvestigationPanels({ onSetupAI }: { onSetupAI: () => void }): Record<PanelId, ReactNode> {
+export function useInvestigationPanels({ onSetupAI: _onSetupAI }: { onSetupAI: () => void }): Record<PanelId, ReactNode> {
   const {
     logs,
     filteredLogs,
@@ -100,8 +102,10 @@ export function useInvestigationPanels({ onSetupAI }: { onSetupAI: () => void })
     removeFile,
     importedDatasets,
   } = useLogContext();
-  const { isEnabled, apiKeyConfigured, onboardingCompleted, provider } = useAI();
+  const { isEnabled, apiKeyConfigured, onboardingCompleted } = useAI();
   const { activeCase } = useCase();
+  const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
+  const [aiSettings, setAiSettings] = useState(() => loadAiSettings());
 
   const messageTypeCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -114,7 +118,7 @@ export function useInvestigationPanels({ onSetupAI }: { onSetupAI: () => void })
 
   return useMemo(
     () => ({
-      case: <CasePanel />,
+      case: <ZendeskPanel />,
       files: (
         <div className="h-full overflow-y-auto">
           <PanelSection title="Imported datasets" meta={`${importedDatasets.length}`}>
@@ -208,30 +212,33 @@ export function useInvestigationPanels({ onSetupAI }: { onSetupAI: () => void })
       ),
       ai: (
         <div className="h-full overflow-y-auto">
-          <PanelSection title="AI Assistant" meta={provider === 'codex' ? 'ChatGPT (OpenAI)' : undefined}>
+          <AiSettingsModal
+            isOpen={aiSettingsOpen}
+            onClose={() => setAiSettingsOpen(false)}
+            onSave={s => setAiSettings(s)}
+          />
+          <PanelSection title="AI Assistant" meta="Unleashed AI">
             <div className="px-3 space-y-3">
               <div className="rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--accent)] px-3 py-2">
                 <div className="text-[11px] font-medium text-[var(--foreground)]">
-                  {onboardingCompleted ? 'AI is configured for investigation support.' : 'Finish setup before first use.'}
+                  Unleashed AI is pre-configured for your NOC team.
                 </div>
                 <div className="mt-1 text-[11px] text-[var(--muted-foreground)]">
-                  Use AI for filtered-log questions only after the case evidence is in view.
+                  Use the AI panel on the right to summarize logs, detect anomalies, chat, or analyze Zendesk tickets.
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2 text-[11px]">
                 <div className="rounded-[var(--radius-sm)] border border-[var(--border)] px-2 py-2">
                   <div className="text-[10px] uppercase tracking-[0.16em] text-[var(--muted-foreground)]">Provider</div>
-                  <div className="mt-1 text-[var(--foreground)]">
-                    {provider === 'codex' ? 'ChatGPT (OpenAI)' : provider === 'claude' ? 'Claude' : 'Gemini'}
-                  </div>
+                  <div className="mt-1 text-[var(--foreground)]">Unleashed AI</div>
                 </div>
                 <div className="rounded-[var(--radius-sm)] border border-[var(--border)] px-2 py-2">
                   <div className="text-[10px] uppercase tracking-[0.16em] text-[var(--muted-foreground)]">Status</div>
-                  <div className="mt-1 text-[var(--foreground)]">{isEnabled && apiKeyConfigured ? 'Ready' : 'Needs setup'}</div>
+                  <div className="mt-1 text-[var(--success)]">Ready</div>
                 </div>
               </div>
-              <Button variant="outline" className="h-8 w-full justify-between text-xs" onClick={onSetupAI}>
-                {onboardingCompleted ? 'Review AI setup' : 'Set up AI'}
+              <Button variant="outline" className="h-8 w-full justify-between text-xs" onClick={() => setAiSettingsOpen(true)}>
+                AI / Zendesk Settings
                 <ChevronRight size={14} />
               </Button>
             </div>
@@ -299,6 +306,8 @@ export function useInvestigationPanels({ onSetupAI }: { onSetupAI: () => void })
     [
       activeCase,
       activeCorrelations,
+      aiSettings,
+      aiSettingsOpen,
       apiKeyConfigured,
       availableMessageTypes,
       clearAllFilters,
@@ -314,8 +323,6 @@ export function useInvestigationPanels({ onSetupAI }: { onSetupAI: () => void })
       logs.length,
       messageTypeCounts,
       onboardingCompleted,
-      onSetupAI,
-      provider,
       removeFile,
       selectedMessageTypeFilter,
       setSelectedMessageTypeFilter,

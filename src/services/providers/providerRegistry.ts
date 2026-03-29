@@ -2,6 +2,7 @@ import type { AIProviderId } from '../../types/ai';
 import { ClaudeProvider } from './ClaudeProvider';
 import { CodexProvider } from './CodexProvider';
 import { GeminiProvider } from './GeminiProvider';
+import { UnleashProvider } from './UnleashProvider';
 import type { LLMProvider } from './types';
 
 /**
@@ -13,6 +14,7 @@ export class ProviderRegistry {
 
   private constructor() {
     this.providers = new Map<AIProviderId, LLMProvider>([
+      ['unleash', new UnleashProvider()],
       ['gemini', new GeminiProvider()],
       ['claude', new ClaudeProvider()],
       ['codex', new CodexProvider()],
