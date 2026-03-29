@@ -166,7 +166,7 @@ export default function AIButton({
       const history = aiReply
         ? [{ role: 'User' as const, text: promptText }, { role: 'Assistant' as const, text: aiReply }]
         : [];
-      const reply = await chatWithLogs(settings, msg, logs ?? [], history.map(h => ({ role: h.role === 'User' ? 'user' : 'assistant' as const, content: h.text })));
+      const reply = await chatWithLogs(settings, msg, logs ?? [], history);
       setAiReply(prev => (prev ? `${prev}\n\n---\n\n**Q: ${msg}**\n\n${reply}` : reply));
     } catch (e: any) {
       setAiError(e.message);
@@ -181,6 +181,8 @@ export default function AIButton({
   // Disable when no logs or external disabled (no longer require apiKeyConfigured since Unleash handles it)
   const isDisabled =
     externalDisabled ||
+    !apiKeyConfigured ||
+    !isEnabled ||
     isLoading ||
     !hasLogs;
 
@@ -198,16 +200,6 @@ export default function AIButton({
     }
     setIsPanelOpen(true);
   }, [isDisabled]);
-
-  /**
-   * Handle panel close
-   * 
-   * Why: Cleans up state and calls success callback
-   */
-  const handlePanelClose = useCallback(() => {
-    setIsPanelOpen(false);
-    onSuccess?.();
-  }, [onSuccess]);
 
   // Size classes
   const sizeClasses = {
@@ -243,6 +235,8 @@ export default function AIButton({
   const tooltipText =
     tooltip ||
     (!hasLogs ? 'Load logs first to use AI analysis' :
+     !apiKeyConfigured ? 'Configure API key in settings to use AI features' :
+     !isEnabled ? 'Enable AI features in settings' :
      isLoading ? 'AI analysis in progress...' :
      undefined);
 

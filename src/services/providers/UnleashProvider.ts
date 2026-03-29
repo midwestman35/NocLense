@@ -83,12 +83,11 @@ export class UnleashProvider implements LLMProvider {
 
   private token = '';
   private assistantId = '';
-  private usageStats: AIUsageStats = {
-    requestsToday: 0,
-    requestsThisMinute: 0,
-    lastRequestTime: null,
-    lastResetDate: new Date().toDateString(),
-  };
+  private requestsToday = 0;
+  private requestsThisMinute = 0;
+  private lastMinuteReset = Date.now();
+  private lastDailyReset = Date.now();
+  private totalTokensUsed = 0;
   private dailyLimit = 0; // 0 = unlimited (managed by Unleash platform)
 
   /**
@@ -124,7 +123,13 @@ export class UnleashProvider implements LLMProvider {
   }
 
   public getUsageStats(): AIUsageStats {
-    return { ...this.usageStats };
+    return {
+      requestsToday: this.requestsToday,
+      requestsThisMinute: this.requestsThisMinute,
+      totalTokensUsed: this.totalTokensUsed,
+      lastDailyReset: this.lastDailyReset,
+      lastMinuteReset: this.lastMinuteReset,
+    };
   }
 
   /**
@@ -182,7 +187,7 @@ export class UnleashProvider implements LLMProvider {
       throw new Error('Unleash token not configured. Go to AI Settings and paste your Bearer token.');
     }
 
-    this.trackRequest();
+    this.checkRateLimits();
 
     const res = await this.fetchChat(messages, this.token);
 
@@ -194,6 +199,7 @@ export class UnleashProvider implements LLMProvider {
 
     const data: unknown = await res.json();
     const content = extractContent(data);
+    this.incrementUsage(0);
 
     return {
       content,
@@ -219,13 +225,30 @@ export class UnleashProvider implements LLMProvider {
   }
 
   private trackRequest(): void {
-    const today = new Date().toDateString();
-    if (this.usageStats.lastResetDate !== today) {
-      this.usageStats.requestsToday = 0;
-      this.usageStats.lastResetDate = today;
+    const now = Date.now();
+    if (now - this.lastMinuteReset > 60000) {
+      this.requestsThisMinute = 0;
+      this.lastMinuteReset = now;
     }
-    this.usageStats.requestsToday++;
-    this.usageStats.requestsThisMinute++;
-    this.usageStats.lastRequestTime = new Date();
+    if (now - this.lastDailyReset > 24 * 60 * 60 * 1000) {
+      this.requestsToday = 0;
+      this.lastDailyReset = now;
+    }
+  }
+
+  private checkRateLimits(): void {
+    this.trackRequest();
+    if (this.requestsThisMinute >= 15) {
+      throw new Error('Too many requests. Please try again shortly.');
+    }
+    if (this.dailyLimit > 0 && this.requestsToday >= this.dailyLimit) {
+      throw new Error(`Daily limit reached (${this.dailyLimit} requests).`);
+    }
+  }
+
+  private incrementUsage(tokensUsed: number): void {
+    this.requestsToday += 1;
+    this.requestsThisMinute += 1;
+    this.totalTokensUsed += tokensUsed;
   }
 }

@@ -11,6 +11,24 @@ interface ChangelogEntry {
 
 const changelogEntries: ChangelogEntry[] = [
   {
+    version: '2.1.0',
+    date: '2026-03-29',
+    features: [
+      'Unleashed AI is now the default provider with Summary, Anomalies, Chat, Auto-tag, and Ticket workflows in one panel.',
+      'Zendesk ticket lookup can pull ticket details into the AI workflow for direct log-to-ticket analysis.',
+      'AI settings now support Unleash and Zendesk credentials with local overrides on top of environment defaults.',
+    ],
+    changes: [
+      'Replaced the modal AI assistant flow with an inline results panel for faster follow-up questions against the current log set.',
+      'Updated onboarding and welcome copy to match the team-managed Unleashed AI setup.',
+    ],
+    fixes: [
+      'Aligned the new Unleash chat flows with the existing chat message contract so the branch builds again.',
+      'Restored AI button gating when AI is disabled or no provider token is configured.',
+      'Brought the new provider usage tracking back into the shared stats interface used by the rest of the AI stack.',
+    ],
+  },
+  {
     version: '2.0.0',
     date: '2026-03-08',
     features: [

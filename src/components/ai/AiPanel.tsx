@@ -132,12 +132,12 @@ export default function AiPanel({ onClose }: Props) {
     if (!msg || chatLoading) return;
     setChatInput('');
     setChatError(null);
-    const newHistory: ChatMessage[] = [...chatHistory, { role: 'user', content: msg }];
+    const newHistory: ChatMessage[] = [...chatHistory, { role: 'User', text: msg }];
     setChatHistory(newHistory);
     setChatLoading(true);
     try {
       const reply = await chatWithLogs(settings, msg, activeLogs, chatHistory);
-      setChatHistory(h => [...h, { role: 'assistant', content: reply }]);
+      setChatHistory(h => [...h, { role: 'Assistant', text: reply }]);
     } catch (e: any) {
       setChatError(e.message);
     } finally {
@@ -425,11 +425,11 @@ export default function AiPanel({ onClose }: Props) {
                   {chatHistory.map((msg, i) => (
                     <div key={i} style={{
                       maxWidth: '90%', padding: '9px 12px', borderRadius: '10px', fontSize: '12px', lineHeight: '1.5',
-                      alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                      backgroundColor: msg.role === 'user' ? 'var(--success)' : 'var(--muted)',
-                      color: msg.role === 'user' ? '#fff' : 'var(--foreground)',
+                      alignSelf: msg.role === 'User' ? 'flex-end' : 'flex-start',
+                      backgroundColor: msg.role === 'User' ? 'var(--success)' : 'var(--muted)',
+                      color: msg.role === 'User' ? '#fff' : 'var(--foreground)',
                     }}>
-                      {msg.content}
+                      {msg.text}
                     </div>
                   ))}
                   {chatLoading && (
