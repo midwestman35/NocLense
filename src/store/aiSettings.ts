@@ -6,6 +6,15 @@ export interface AiSettings {
   zendeskSubdomain: string;
   zendeskEmail: string;
   zendeskToken: string;
+  jiraSubdomain: string;
+  jiraEmail: string;
+  jiraToken: string;
+  jiraProjectKey: string;
+  datadogApiKey: string;
+  datadogAppKey: string;
+  datadogSite: string;        // e.g. 'datadoghq.com'
+  datadogDefaultIndexes: string; // comma-separated, blank = all
+  datadogDefaultHosts: string;   // comma-separated default stations/hosts
 }
 
 const STORAGE_KEY = 'unleash_ai_settings';
@@ -18,6 +27,15 @@ export const DEFAULT_AI_SETTINGS: AiSettings = {
   zendeskSubdomain: '',
   zendeskEmail: '',
   zendeskToken: '',
+  jiraSubdomain: '',
+  jiraEmail: '',
+  jiraToken: '',
+  jiraProjectKey: '',
+  datadogApiKey: '',
+  datadogAppKey: '',
+  datadogSite: 'datadoghq.com',
+  datadogDefaultIndexes: '',
+  datadogDefaultHosts: '',
 };
 
 export function loadAiSettings(): AiSettings {
@@ -28,6 +46,13 @@ export function loadAiSettings(): AiSettings {
   const envZdSubdomain = import.meta.env.VITE_ZENDESK_SUBDOMAIN as string | undefined;
   const envZdEmail = import.meta.env.VITE_ZENDESK_EMAIL as string | undefined;
   const envZdToken = import.meta.env.VITE_ZENDESK_TOKEN as string | undefined;
+  const envJiraSubdomain = import.meta.env.VITE_JIRA_SUBDOMAIN as string | undefined;
+  const envJiraEmail = import.meta.env.VITE_JIRA_EMAIL as string | undefined;
+  const envJiraToken = import.meta.env.VITE_JIRA_TOKEN as string | undefined;
+  const envJiraProjectKey = import.meta.env.VITE_JIRA_PROJECT_KEY as string | undefined;
+  const envDdApiKey = import.meta.env.VITE_DATADOG_API_KEY as string | undefined;
+  const envDdAppKey = import.meta.env.VITE_DATADOG_APP_KEY as string | undefined;
+  const envDdSite = import.meta.env.VITE_DATADOG_SITE as string | undefined;
 
   // Env-var base (used as fallback for any field not explicitly saved)
   const envBase: AiSettings = {
@@ -38,6 +63,15 @@ export function loadAiSettings(): AiSettings {
     zendeskSubdomain: envZdSubdomain ?? '',
     zendeskEmail: envZdEmail ?? '',
     zendeskToken: envZdToken ?? '',
+    jiraSubdomain: envJiraSubdomain ?? '',
+    jiraEmail: envJiraEmail ?? '',
+    jiraToken: envJiraToken ?? '',
+    jiraProjectKey: envJiraProjectKey ?? '',
+    datadogApiKey: envDdApiKey ?? '',
+    datadogAppKey: envDdAppKey ?? '',
+    datadogSite: envDdSite ?? 'datadoghq.com',
+    datadogDefaultIndexes: '',
+    datadogDefaultHosts: '',
   };
 
   // 1. Check localStorage — merge with env base so new env fields are picked up
@@ -56,6 +90,13 @@ export function loadAiSettings(): AiSettings {
           zendeskEmail: parsed.zendeskEmail || envZdEmail || '',
           zendeskToken: parsed.zendeskToken || envZdToken || '',
           assistantId: parsed.assistantId || envAssistantId || '',
+          jiraSubdomain: parsed.jiraSubdomain || envJiraSubdomain || '',
+          jiraEmail: parsed.jiraEmail || envJiraEmail || '',
+          jiraToken: parsed.jiraToken || envJiraToken || '',
+          jiraProjectKey: parsed.jiraProjectKey || envJiraProjectKey || '',
+          datadogApiKey: parsed.datadogApiKey || envDdApiKey || '',
+          datadogAppKey: parsed.datadogAppKey || envDdAppKey || '',
+          datadogSite: parsed.datadogSite || envDdSite || 'datadoghq.com',
         };
       }
     }

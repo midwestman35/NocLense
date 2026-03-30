@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { AlertTriangle, FileUp, Files, PencilLine } from 'lucide-react';
+import { AlertTriangle, FileUp, Files, PencilLine, Stethoscope } from 'lucide-react';
 import { Button } from '../ui';
 import { useLogContext } from '../../contexts/LogContext';
 import { useCase } from '../../store/caseContext';
@@ -39,7 +39,13 @@ function mergeAttachments(existing: Attachment[], datasets: ImportedDataset[]): 
   return next.sort((a, b) => a.importedAt - b.importedAt);
 }
 
-export function WorkspaceImportPanel({ onComplete }: { onComplete?: () => void }) {
+interface WorkspaceImportPanelProps {
+  onComplete?: () => void;
+  /** Called after successful import when a Zendesk ticket # was entered — begins investigation */
+  onInvestigationReady?: (ticketId: string) => void;
+}
+
+export function WorkspaceImportPanel({ onComplete, onInvestigationReady }: WorkspaceImportPanelProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [mode, setMode] = useState<'files' | 'paste'>('files');
   const [sourceType, setSourceType] = useState<LogSourceType>('apex');
@@ -47,6 +53,7 @@ export function WorkspaceImportPanel({ onComplete }: { onComplete?: () => void }
   const [pasteLabel, setPasteLabel] = useState('aws-console-paste.log');
   const [error, setError] = useState<string | null>(null);
   const [notices, setNotices] = useState<string[]>([]);
+  const [zdTicketInput, setZdTicketInput] = useState('');
 
   const {
     logs,
@@ -127,6 +134,8 @@ export function WorkspaceImportPanel({ onComplete }: { onComplete?: () => void }
       attachToCase(result.datasets);
       setSelectedLogId(null);
       setNotices(result.warnings.length > 0 ? result.warnings : [`Imported ${result.datasets.length} dataset${result.datasets.length === 1 ? '' : 's'}.`]);
+      const zdId = zdTicketInput.trim().replace(/\D/g, '');
+      if (zdId) onInvestigationReady?.(zdId);
       onComplete?.();
     } catch (importError) {
       setError(importError instanceof Error ? importError.message : 'Failed to import files.');
@@ -163,6 +172,8 @@ export function WorkspaceImportPanel({ onComplete }: { onComplete?: () => void }
       attachToCase([result.dataset]);
       setSelectedLogId(null);
       setNotices(result.warnings.length > 0 ? result.warnings : [`Imported ${result.dataset.logCount.toLocaleString()} pasted events.`]);
+      const zdId = zdTicketInput.trim().replace(/\D/g, '');
+      if (zdId) onInvestigationReady?.(zdId);
       onComplete?.();
     } catch (importError) {
       setError(importError instanceof Error ? importError.message : 'Failed to import pasted logs.');
@@ -246,6 +257,52 @@ export function WorkspaceImportPanel({ onComplete }: { onComplete?: () => void }
           </div>
         </div>
       )}
+
+      {/* ── Zendesk Investigation ───────────────────────────────────── */}
+      <div className="rounded border border-[var(--border)] bg-[var(--muted)] px-3 py-2.5">
+        <div className="mb-1.5 flex items-center gap-2">
+          <span className="text-[11px] font-semibold text-[var(--foreground)]">
+            Zendesk Ticket
+          </span>
+          <span className="rounded bg-[var(--success)]/15 px-1.5 py-0.5 text-[9px] font-medium text-[var(--success)]">
+            optional
+          </span>
+        </div>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={zdTicketInput}
+            onChange={e => setZdTicketInput(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && zdTicketInput.trim().replace(/\D/g, '') && onInvestigationReady) {
+                onInvestigationReady(zdTicketInput.trim().replace(/\D/g, ''));
+                onComplete?.();
+              }
+            }}
+            placeholder="Ticket # or URL"
+            className="flex-1 rounded border border-[var(--input)] bg-transparent px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-[var(--ring-width)] focus:ring-[var(--ring)]"
+          />
+          {onInvestigationReady && (
+            <button
+              type="button"
+              disabled={!zdTicketInput.trim().replace(/\D/g, '')}
+              onClick={() => {
+                const id = zdTicketInput.trim().replace(/\D/g, '');
+                if (id) { onInvestigationReady(id); onComplete?.(); }
+              }}
+              className="flex shrink-0 items-center gap-1.5 rounded border px-3 py-2 text-[11px] font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ borderColor: '#7c3aed', backgroundColor: '#7c3aed', color: '#fff' }}
+              title="Open in Diagnose tab — no log file required"
+            >
+              <Stethoscope size={13} />
+              Investigate
+            </button>
+          )}
+        </div>
+        <p className="mt-1.5 text-[10px] text-[var(--muted-foreground)]">
+          Enter a ticket number to begin a Diagnose session. Log files are optional — AI can pull context from Datadog and the ticket itself.
+        </p>
+      </div>
 
       {mode === 'files' ? (
         <div className="space-y-3">

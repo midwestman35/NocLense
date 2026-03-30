@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Sparkles, AlertTriangle, MessageSquare, Tag, Settings, X, Send, Loader2, RefreshCw, Ticket, Download } from 'lucide-react';
+import { Sparkles, AlertTriangle, MessageSquare, Tag, Settings, X, Send, Loader2, RefreshCw, Stethoscope, Maximize2, Minimize2 } from 'lucide-react';
 import { useLogContext } from '../../contexts/LogContext';
 import { loadAiSettings, type AiSettings } from '../../store/aiSettings';
 import {
@@ -7,13 +7,12 @@ import {
   detectAnomalies,
   autoTagLogs,
   chatWithLogs,
-  analyzeTicket,
   type ChatMessage,
 } from '../../services/unleashService';
-import { fetchZendeskTicket, formatTicketForAi, type ZendeskTicket } from '../../services/zendeskService';
 import AiSettingsModal from './AiSettingsModal';
+import DiagnoseTab from './DiagnoseTab';
 
-type Tab = 'summary' | 'anomalies' | 'chat' | 'tags' | 'ticket';
+type Tab = 'diagnose' | 'summary' | 'anomalies' | 'chat' | 'tags';
 
 interface TabResult {
   content: string;
@@ -26,13 +25,22 @@ const WELCOME_DISMISSED_KEY = 'unleash_welcome_dismissed';
 
 interface Props {
   onClose: () => void;
+  /** Ticket ID arriving from the Import screen — auto-switches to Diagnose tab */
+  pendingTicketId?: string;
+  /** Call once the pending ticket has been handed off to DiagnoseTab */
+  onTicketHandled?: () => void;
+  /** Full investigation setup from InvestigationSetupModal — triggers auto-scan */
+  pendingSetup?: import('../../types/investigation').InvestigationSetup | null;
+  /** Call once the setup has been consumed */
+  onSetupConsumed?: () => void;
 }
 
-export default function AiPanel({ onClose }: Props) {
+export default function AiPanel({ onClose, pendingTicketId, onTicketHandled, pendingSetup, onSetupConsumed }: Props) {
   const { filteredLogs, logs } = useLogContext();
   const activeLogs = filteredLogs.length > 0 ? filteredLogs : logs;
 
-  const [tab, setTab] = useState<Tab>('summary');
+  const [tab, setTab] = useState<Tab>('diagnose');
+  const [popped, setPopped] = useState(false);
   const [settings, setSettings] = useState<AiSettings>(() => loadAiSettings());
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [welcomeDismissed, setWelcomeDismissed] = useState<boolean>(
@@ -42,12 +50,6 @@ export default function AiPanel({ onClose }: Props) {
   const [summary, setSummary] = useState<TabResult>(EMPTY_RESULT);
   const [anomalies, setAnomalies] = useState<TabResult>(EMPTY_RESULT);
   const [tagsResult, setTagsResult] = useState<TabResult>(EMPTY_RESULT);
-  const [ticketResult, setTicketResult] = useState<TabResult>(EMPTY_RESULT);
-  const [ticketInput, setTicketInput] = useState('');
-  const [ticketIdInput, setTicketIdInput] = useState('');
-  const [fetchedTicket, setFetchedTicket] = useState<ZendeskTicket | null>(null);
-  const [zdFetching, setZdFetching] = useState(false);
-  const [zdError, setZdError] = useState<string | null>(null);
 
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState('');
@@ -59,6 +61,13 @@ export default function AiPanel({ onClose }: Props) {
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatHistory]);
+
+  // When a ticket arrives from the Import screen, switch to Diagnose tab automatically
+  useEffect(() => {
+    if (pendingTicketId) {
+      setTab('diagnose');
+    }
+  }, [pendingTicketId]);
 
   function dismissWelcome() {
     localStorage.setItem(WELCOME_DISMISSED_KEY, 'true');
@@ -98,35 +107,6 @@ export default function AiPanel({ onClose }: Props) {
     }
   }
 
-  async function runTicketAnalysis() {
-    const ticket = ticketInput.trim();
-    if (!ticket) return;
-    setTicketResult({ content: '', error: null, loading: true });
-    try {
-      const result = await analyzeTicket(settings, ticket, activeLogs);
-      setTicketResult({ content: result, error: null, loading: false });
-    } catch (e: any) {
-      setTicketResult({ content: '', error: e.message, loading: false });
-    }
-  }
-
-  async function fetchFromZendesk() {
-    const id = ticketIdInput.trim();
-    if (!id) return;
-    setZdFetching(true);
-    setZdError(null);
-    setFetchedTicket(null);
-    try {
-      const ticket = await fetchZendeskTicket(settings, id);
-      setFetchedTicket(ticket);
-      setTicketInput(formatTicketForAi(ticket));
-    } catch (e: any) {
-      setZdError(e.message);
-    } finally {
-      setZdFetching(false);
-    }
-  }
-
   async function sendChat() {
     const msg = chatInput.trim();
     if (!msg || chatLoading) return;
@@ -146,12 +126,26 @@ export default function AiPanel({ onClose }: Props) {
   }
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
+    { id: 'diagnose', label: 'Diagnose', icon: <Stethoscope size={14} /> },
     { id: 'summary', label: 'Summary', icon: <Sparkles size={14} /> },
     { id: 'anomalies', label: 'Anomalies', icon: <AlertTriangle size={14} /> },
     { id: 'chat', label: 'Chat', icon: <MessageSquare size={14} /> },
     { id: 'tags', label: 'Auto-tag', icon: <Tag size={14} /> },
-    { id: 'ticket', label: 'Ticket', icon: <Ticket size={14} /> },
   ];
+
+  const panelStyle: React.CSSProperties = popped
+    ? {
+        position: 'fixed', top: 0, right: 0, bottom: 0, zIndex: 200,
+        width: 'min(55vw, 960px)',
+        display: 'flex', flexDirection: 'column',
+        backgroundColor: 'var(--card)', color: 'var(--card-foreground)',
+        boxShadow: '-8px 0 32px rgba(0,0,0,0.35)',
+        borderLeft: '1px solid var(--border)',
+      }
+    : {
+        width: '100%', height: '100%', display: 'flex', flexDirection: 'column',
+        backgroundColor: 'var(--card)', color: 'var(--card-foreground)',
+      };
 
   return (
     <>
@@ -161,10 +155,15 @@ export default function AiPanel({ onClose }: Props) {
         onSave={s => setSettings(s)}
       />
 
-      <div style={{
-        width: '100%', height: '100%', display: 'flex', flexDirection: 'column',
-        backgroundColor: 'var(--card)', color: 'var(--card-foreground)',
-      }}>
+      {/* Semi-transparent backdrop when popped out */}
+      {popped && (
+        <div
+          style={{ position: 'fixed', inset: 0, zIndex: 199, backgroundColor: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(1px)' }}
+          onClick={() => setPopped(false)}
+        />
+      )}
+
+      <div style={panelStyle}>
         {/* Panel Header */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -193,7 +192,14 @@ export default function AiPanel({ onClose }: Props) {
             >
               <Settings size={15} />
             </button>
-            {onClose && (
+            <button
+              onClick={() => setPopped(p => !p)}
+              title={popped ? 'Collapse panel' : 'Expand panel'}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted-foreground)', padding: '4px', borderRadius: '6px' }}
+            >
+              {popped ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+            </button>
+            {onClose && !popped && (
               <button
                 onClick={onClose}
                 title="Close"
@@ -219,9 +225,13 @@ export default function AiPanel({ onClose }: Props) {
                   <p style={{ fontSize: '12px', fontWeight: '600', color: 'var(--foreground)', marginBottom: '4px' }}>
                     Unleashed AI is ready for your team
                   </p>
-                  <p style={{ fontSize: '11px', color: 'var(--muted-foreground)', lineHeight: '1.5' }}>
-                    Pre-configured with NOC context — no setup needed. Responses may take
-                    15–30 seconds. Use <strong>Ticket</strong> to correlate a Zendesk ticket with your logs.
+                  <p style={{ fontSize: '11px', color: 'var(--muted-foreground)', lineHeight: '1.6' }}>
+                    Pre-configured with your team's Confluence, Zendesk, and Slack knowledge — no setup needed.<br />
+                    <strong style={{ color: 'var(--foreground)' }}>Summary / Anomalies / Auto-tag</strong> — one-click log analysis.{' '}
+                    <strong style={{ color: 'var(--foreground)' }}>Chat</strong> — ask anything about your logs.{' '}
+                    <strong style={{ color: 'var(--foreground)' }}>Ticket</strong> — fetch a Zendesk ticket for context.{' '}
+                    <strong style={{ color: 'var(--foreground)' }}>Diagnose</strong> — AI correlates the ticket with your logs, highlights relevant entries in violet, and guides you to resolution with Zendesk + Jira integration.<br />
+                    <span style={{ opacity: 0.7 }}>Responses may take 15–30 seconds.</span>
                   </p>
                 </div>
               </div>
@@ -260,20 +270,22 @@ export default function AiPanel({ onClose }: Props) {
           ))}
         </div>
 
-        {/* No logs state */}
-        {!hasLogs && (
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px', textAlign: 'center' }}>
-            <div>
-              <Sparkles size={28} style={{ color: 'var(--muted-foreground)', margin: '0 auto 10px' }} />
-              <p style={{ fontSize: '13px', color: 'var(--foreground)', marginBottom: '4px' }}>No logs loaded</p>
-              <p style={{ fontSize: '11px', color: 'var(--muted-foreground)' }}>Open a log file to use AI analysis</p>
-            </div>
-          </div>
-        )}
+        {/* Tab Content — Diagnose always mounts (works without logs); others gate on hasLogs */}
+        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
 
-        {/* Tab Content */}
-        {hasLogs && (
-          <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+          {/* No logs placeholder — only shown when not on Diagnose tab */}
+          {!hasLogs && tab !== 'diagnose' && (
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px', textAlign: 'center' }}>
+              <div>
+                <Sparkles size={28} style={{ color: 'var(--muted-foreground)', margin: '0 auto 10px' }} />
+                <p style={{ fontSize: '13px', color: 'var(--foreground)', marginBottom: '4px' }}>No logs loaded</p>
+                <p style={{ fontSize: '11px', color: 'var(--muted-foreground)' }}>Open a log file to use AI analysis</p>
+              </div>
+            </div>
+          )}
+
+          {hasLogs && (
+          <>
 
             {tab === 'summary' && (
               <AnalysisTab
@@ -305,188 +317,94 @@ export default function AiPanel({ onClose }: Props) {
               />
             )}
 
-            {tab === 'ticket' && (
-              <div style={{ padding: '14px', display: 'flex', flexDirection: 'column', gap: '10px', flex: 1 }}>
-
-                {/* Zendesk auto-fetch */}
-                <div style={{ padding: '10px 12px', borderRadius: '8px', backgroundColor: 'var(--muted)', border: '1px solid var(--border)' }}>
-                  <p style={{ fontSize: '11px', fontWeight: '600', color: 'var(--foreground)', marginBottom: '6px' }}>
-                    Pull from Zendesk
-                  </p>
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    <input
-                      type="text"
-                      value={ticketIdInput}
-                      onChange={e => setTicketIdInput(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') void fetchFromZendesk(); }}
-                      placeholder="Ticket # or URL"
-                      disabled={zdFetching}
-                      style={{
-                        flex: 1, padding: '7px 10px', borderRadius: '6px', fontSize: '12px',
-                        backgroundColor: 'var(--input)', border: '1px solid var(--border)',
-                        color: 'var(--foreground)', outline: 'none',
-                      }}
-                    />
-                    <button
-                      onClick={() => void fetchFromZendesk()}
-                      disabled={!ticketIdInput.trim() || zdFetching}
-                      style={{
-                        padding: '7px 10px', borderRadius: '6px', border: 'none', cursor: 'pointer',
-                        backgroundColor: ticketIdInput.trim() && !zdFetching ? 'var(--success)' : 'var(--border)',
-                        color: ticketIdInput.trim() && !zdFetching ? '#fff' : 'var(--muted-foreground)',
-                        fontSize: '11px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px',
-                        transition: 'all 0.15s', whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {zdFetching
-                        ? <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} />
-                        : <Download size={12} />
-                      }
-                      {zdFetching ? 'Fetching...' : 'Fetch'}
-                    </button>
-                  </div>
-                  {zdError && (
-                    <p style={{ fontSize: '11px', color: 'var(--destructive)', marginTop: '6px' }}>{zdError}</p>
-                  )}
-                  {fetchedTicket && (
-                    <div style={{ marginTop: '6px', fontSize: '11px', color: 'var(--muted-foreground)' }}>
-                      ✓ Ticket #{fetchedTicket.id} — <strong style={{ color: 'var(--foreground)' }}>{fetchedTicket.subject}</strong>
-                      {' '}· {fetchedTicket.requesterName}
-                      {fetchedTicket.tags.length > 0 && ` · ${fetchedTicket.tags.slice(0, 3).join(', ')}`}
-                    </div>
-                  )}
-                  {!settings.zendeskToken && (
-                    <p style={{ fontSize: '10px', color: 'var(--muted-foreground)', marginTop: '6px' }}>
-                      Configure Zendesk credentials in the gear icon → settings to enable auto-fetch.
+            {/* Chat tab — always mounted, hidden when inactive to preserve history */}
+            <div style={{ flex: 1, display: tab === 'chat' ? 'flex' : 'none', flexDirection: 'column' }}>
+              <div style={{ flex: 1, overflowY: 'auto', padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {chatHistory.length === 0 && (
+                  <div style={{ textAlign: 'center', padding: '24px 0' }}>
+                    <MessageSquare size={24} style={{ color: 'var(--muted-foreground)', margin: '0 auto 8px' }} />
+                    <p style={{ fontSize: '13px', color: 'var(--foreground)' }}>Ask anything about the loaded logs</p>
+                    <p style={{ fontSize: '11px', color: 'var(--muted-foreground)', marginTop: '4px' }}>
+                      e.g. "What caused the 500 error?" — responses take 15–30 sec
                     </p>
-                  )}
-                </div>
+                  </div>
+                )}
+                {chatHistory.map((msg, i) => (
+                  <div key={i} style={{
+                    maxWidth: '90%', padding: '9px 12px', borderRadius: '10px', fontSize: '12px', lineHeight: '1.5',
+                    alignSelf: msg.role === 'User' ? 'flex-end' : 'flex-start',
+                    backgroundColor: msg.role === 'User' ? 'var(--success)' : 'var(--muted)',
+                    color: msg.role === 'User' ? '#fff' : 'var(--foreground)',
+                  }}>
+                    {msg.text}
+                  </div>
+                ))}
+                {chatLoading && (
+                  <div style={{
+                    alignSelf: 'flex-start', padding: '9px 12px', borderRadius: '10px',
+                    backgroundColor: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '8px',
+                  }}>
+                    <Loader2 size={13} style={{ animation: 'spin 1s linear infinite', color: 'var(--success)' }} />
+                    <span style={{ fontSize: '12px', color: 'var(--muted-foreground)' }}>Thinking... (15–30 sec)</span>
+                  </div>
+                )}
+                {chatError && <ErrorBox message={chatError} onDismiss={() => setChatError(null)} />}
+                <div ref={chatBottomRef} />
+              </div>
 
-                <div style={{ fontSize: '11px', color: 'var(--muted-foreground)' }}>
-                  Or paste ticket content manually:
+              {chatHistory.length > 0 && (
+                <div style={{ padding: '0 12px 4px' }}>
+                  <button
+                    onClick={() => { setChatHistory([]); setChatError(null); }}
+                    style={{ fontSize: '11px', color: 'var(--muted-foreground)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    <RefreshCw size={11} /> Clear chat
+                  </button>
                 </div>
-                <textarea
-                  value={ticketInput}
-                  onChange={e => setTicketInput(e.target.value)}
-                  placeholder="Paste ticket title, description, or customer complaint here..."
-                  rows={5}
+              )}
+
+              <div style={{ padding: '10px 12px', borderTop: '1px solid var(--border)', flexShrink: 0, display: 'flex', gap: '8px' }}>
+                <input
+                  type="text"
+                  value={chatInput}
+                  onChange={e => setChatInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void sendChat(); } }}
+                  placeholder="Ask about these logs..."
+                  disabled={chatLoading}
                   style={{
-                    width: '100%', padding: '10px 12px', borderRadius: '8px', fontSize: '12px',
+                    flex: 1, padding: '8px 12px', borderRadius: '8px', fontSize: '12px',
                     backgroundColor: 'var(--input)', border: '1px solid var(--border)',
-                    color: 'var(--foreground)', outline: 'none', resize: 'vertical',
-                    lineHeight: '1.5', boxSizing: 'border-box', fontFamily: 'inherit',
+                    color: 'var(--foreground)', outline: 'none',
                   }}
                 />
                 <button
-                  onClick={() => void runTicketAnalysis()}
-                  disabled={!ticketInput.trim() || ticketResult.loading}
+                  onClick={() => void sendChat()}
+                  disabled={!chatInput.trim() || chatLoading}
                   style={{
-                    width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid var(--border)',
-                    cursor: !ticketInput.trim() || ticketResult.loading ? 'not-allowed' : 'pointer',
-                    backgroundColor: !ticketInput.trim() || ticketResult.loading ? 'var(--muted)' : 'var(--success)',
-                    color: !ticketInput.trim() || ticketResult.loading ? 'var(--muted-foreground)' : '#fff',
-                    fontSize: '12px', fontWeight: '600', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                    padding: '8px 12px', borderRadius: '8px', border: 'none', cursor: 'pointer',
+                    backgroundColor: chatInput.trim() && !chatLoading ? 'var(--success)' : 'var(--muted)',
+                    color: chatInput.trim() && !chatLoading ? '#fff' : 'var(--muted-foreground)',
                     transition: 'all 0.15s',
                   }}
                 >
-                  {ticketResult.loading
-                    ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Analyzing ticket...</>
-                    : <><Ticket size={14} /> Analyze Against Logs</>
-                  }
+                  <Send size={14} />
                 </button>
-
-                {ticketResult.error && <ErrorBox message={ticketResult.error} onDismiss={() => setTicketResult(EMPTY_RESULT)} />}
-
-                {ticketResult.content && (
-                  <div style={{
-                    fontSize: '12px', lineHeight: '1.6', color: 'var(--foreground)',
-                    backgroundColor: 'var(--muted)', borderRadius: '8px', padding: '12px',
-                    whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                    border: '1px solid var(--border)',
-                  }}>
-                    {ticketResult.content}
-                  </div>
-                )}
               </div>
-            )}
+            </div>
 
-            {tab === 'chat' && (
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                <div style={{ flex: 1, overflowY: 'auto', padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {chatHistory.length === 0 && (
-                    <div style={{ textAlign: 'center', padding: '24px 0' }}>
-                      <MessageSquare size={24} style={{ color: 'var(--muted-foreground)', margin: '0 auto 8px' }} />
-                      <p style={{ fontSize: '13px', color: 'var(--foreground)' }}>Ask anything about the loaded logs</p>
-                      <p style={{ fontSize: '11px', color: 'var(--muted-foreground)', marginTop: '4px' }}>
-                        e.g. "What caused the 500 error?" — responses take 15–30 sec
-                      </p>
-                    </div>
-                  )}
-                  {chatHistory.map((msg, i) => (
-                    <div key={i} style={{
-                      maxWidth: '90%', padding: '9px 12px', borderRadius: '10px', fontSize: '12px', lineHeight: '1.5',
-                      alignSelf: msg.role === 'User' ? 'flex-end' : 'flex-start',
-                      backgroundColor: msg.role === 'User' ? 'var(--success)' : 'var(--muted)',
-                      color: msg.role === 'User' ? '#fff' : 'var(--foreground)',
-                    }}>
-                      {msg.text}
-                    </div>
-                  ))}
-                  {chatLoading && (
-                    <div style={{
-                      alignSelf: 'flex-start', padding: '9px 12px', borderRadius: '10px',
-                      backgroundColor: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '8px',
-                    }}>
-                      <Loader2 size={13} style={{ animation: 'spin 1s linear infinite', color: 'var(--success)' }} />
-                      <span style={{ fontSize: '12px', color: 'var(--muted-foreground)' }}>Thinking... (15–30 sec)</span>
-                    </div>
-                  )}
-                  {chatError && <ErrorBox message={chatError} onDismiss={() => setChatError(null)} />}
-                  <div ref={chatBottomRef} />
-                </div>
+          </>
+          )}
 
-                {chatHistory.length > 0 && (
-                  <div style={{ padding: '0 12px 4px' }}>
-                    <button
-                      onClick={() => { setChatHistory([]); setChatError(null); }}
-                      style={{ fontSize: '11px', color: 'var(--muted-foreground)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-                    >
-                      <RefreshCw size={11} /> Clear chat
-                    </button>
-                  </div>
-                )}
-
-                <div style={{ padding: '10px 12px', borderTop: '1px solid var(--border)', flexShrink: 0, display: 'flex', gap: '8px' }}>
-                  <input
-                    type="text"
-                    value={chatInput}
-                    onChange={e => setChatInput(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void sendChat(); } }}
-                    placeholder="Ask about these logs..."
-                    disabled={chatLoading}
-                    style={{
-                      flex: 1, padding: '8px 12px', borderRadius: '8px', fontSize: '12px',
-                      backgroundColor: 'var(--input)', border: '1px solid var(--border)',
-                      color: 'var(--foreground)', outline: 'none',
-                    }}
-                  />
-                  <button
-                    onClick={() => void sendChat()}
-                    disabled={!chatInput.trim() || chatLoading}
-                    style={{
-                      padding: '8px 12px', borderRadius: '8px', border: 'none', cursor: 'pointer',
-                      backgroundColor: chatInput.trim() && !chatLoading ? 'var(--success)' : 'var(--muted)',
-                      color: chatInput.trim() && !chatLoading ? '#fff' : 'var(--muted-foreground)',
-                      transition: 'all 0.15s',
-                    }}
-                  >
-                    <Send size={14} />
-                  </button>
-                </div>
-              </div>
-            )}
+          {/* Diagnose tab — always mounted, works with or without local logs */}
+          <div style={{ display: tab === 'diagnose' ? 'flex' : 'none', flex: 1, flexDirection: 'column', overflow: 'hidden' }}>
+            <DiagnoseTab
+              initialTicketId={pendingTicketId}
+              onTicketConsumed={onTicketHandled}
+              pendingSetup={pendingSetup}
+              onSetupConsumed={onSetupConsumed}
+            />
           </div>
-        )}
+        </div>
       </div>
 
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
@@ -502,7 +420,7 @@ function AnalysisTab({ result, onRun, runLabel, emptyPrompt, icon }: {
   icon: React.ReactNode;
 }) {
   return (
-    <div style={{ padding: '14px', display: 'flex', flexDirection: 'column', gap: '10px', flex: 1 }}>
+    <div style={{ padding: '14px', display: 'flex', flexDirection: 'column', gap: '10px', flex: 1, overflowY: 'auto', minHeight: 0 }}>
       <button
         onClick={onRun}
         disabled={result.loading}

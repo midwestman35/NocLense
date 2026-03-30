@@ -3,7 +3,6 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { useLogContext } from '../contexts/LogContext';
 import LogRow from './LogRow';
 import { ArrowUp, ArrowDown, Filter, ChevronRight, ChevronDown } from 'lucide-react';
-import AIButton from './AIButton';
 import serviceMappings from '../../public/service-mappings.json';
 
 const LogHeader = () => {
@@ -72,13 +71,19 @@ const LogHeader = () => {
   );
 };
 
+const LEVEL_BADGE: Record<string, { bg: string; text: string; label: string }> = {
+  ERROR: { bg: 'bg-red-500/15', text: 'text-red-400', label: 'ERR' },
+  WARN:  { bg: 'bg-amber-500/15', text: 'text-amber-400', label: 'WRN' },
+  INFO:  { bg: 'bg-blue-500/15', text: 'text-blue-400', label: 'INF' },
+  DEBUG: { bg: 'bg-[var(--muted)]', text: 'text-[var(--muted-foreground)]', label: 'DBG' },
+};
+
 function TimeWindowStrip() {
   const {
     filteredLogs,
     availableMessageTypes,
     selectedMessageTypeFilter,
     setSelectedMessageTypeFilter,
-    visibleRange,
     setScrollTargetTimestamp,
   } = useLogContext();
   const [isOpen, setIsOpen] = useState(false);
@@ -92,29 +97,52 @@ function TimeWindowStrip() {
     return counts;
   }, [filteredLogs]);
 
+  // Level breakdown across all filtered logs
+  const levelCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const log of filteredLogs) {
+      counts[log.level] = (counts[log.level] ?? 0) + 1;
+    }
+    return counts;
+  }, [filteredLogs]);
+
+  // Show range from first to last log timestamp (not just visible viewport)
   const rangeLabel = useMemo(() => {
-    if (!visibleRange || visibleRange.start === 0 || visibleRange.end === 1) return 'Full dataset';
-    return `${new Date(visibleRange.start).toLocaleTimeString()} - ${new Date(visibleRange.end).toLocaleTimeString()}`;
-  }, [visibleRange]);
+    if (filteredLogs.length === 0) return 'No logs';
+    const first = filteredLogs[0].timestamp;
+    const last = filteredLogs[filteredLogs.length - 1].timestamp;
+    if (first === last) return new Date(first).toLocaleTimeString();
+    return `${new Date(first).toLocaleTimeString()} – ${new Date(last).toLocaleTimeString()}`;
+  }, [filteredLogs]);
 
   return (
     <div className="border-b border-[var(--border)] bg-[var(--card)] shrink-0">
       <div className="flex items-center gap-3 h-9 px-3 text-xs">
         <button type="button" onClick={() => setIsOpen((prev) => !prev)} className="flex items-center gap-1 text-[var(--foreground)]">
           {isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-          Time-window investigation
+          Log window
         </button>
-        <span className="text-[var(--muted-foreground)]">{filteredLogs.length.toLocaleString()} events</span>
-        <span className="text-[var(--muted-foreground)]">{rangeLabel}</span>
-        <div className="ml-auto">
-          <AIButton variant="secondary" size="sm" logs={filteredLogs} promptType="analyze" label="Analyze visible" />
+        <span className="text-[var(--muted-foreground)] tabular-nums">{filteredLogs.length.toLocaleString()} events</span>
+        <span className="text-[var(--muted-foreground)] tabular-nums">{rangeLabel}</span>
+        {/* Level breakdown badges */}
+        <div className="flex items-center gap-1 ml-1">
+          {(['ERROR', 'WARN', 'INFO', 'DEBUG'] as const).map(lvl => {
+            const count = levelCounts[lvl];
+            if (!count) return null;
+            const s = LEVEL_BADGE[lvl];
+            return (
+              <span key={lvl} className={`rounded px-1.5 py-0.5 text-[10px] font-mono font-semibold ${s.bg} ${s.text}`} title={`${lvl}: ${count}`}>
+                {s.label} {count.toLocaleString()}
+              </span>
+            );
+          })}
         </div>
       </div>
       {isOpen && (
         <div className="px-3 pb-3 pt-1 border-t border-[var(--border)] bg-[var(--workspace)]">
           <div className="flex flex-wrap items-center gap-2 text-[11px]">
-            <button type="button" className="rounded border border-[var(--border)] px-2 py-1 text-[var(--muted-foreground)] hover:text-[var(--foreground)]" onClick={() => setScrollTargetTimestamp(visibleRange.start || null)}>
-              Jump to range start
+            <button type="button" className="rounded border border-[var(--border)] px-2 py-1 text-[var(--muted-foreground)] hover:text-[var(--foreground)]" onClick={() => setScrollTargetTimestamp(filteredLogs[0]?.timestamp ?? null)}>
+              Jump to start
             </button>
             <button type="button" className="rounded border border-[var(--border)] px-2 py-1 text-[var(--muted-foreground)] hover:text-[var(--foreground)]" onClick={() => setSelectedMessageTypeFilter(null)}>
               Full dataset
@@ -150,6 +178,7 @@ const LogViewer = () => {
     filterText,
     favoriteLogIds,
     toggleFavorite,
+    aiHighlightedLogIds,
     hoveredCorrelation,
     useIndexedDBMode,
     loadLogsFromIndexedDB,
@@ -289,6 +318,7 @@ const LogViewer = () => {
                   filterText={filteredLogs !== logs ? filterText : ''}
                   isFavorite={favoriteLogIds.has(log.id)}
                   onToggleFavorite={() => toggleFavorite(log.id)}
+                  isAiHighlighted={aiHighlightedLogIds.has(log.id)}
                   style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${virtualRow.start}px)` }}
                 />
               );

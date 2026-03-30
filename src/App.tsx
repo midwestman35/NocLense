@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { LogProvider, useLogContext } from './contexts/LogContext';
 import { AIProvider, useAI } from './contexts/AIContext';
 import { CaseProvider } from './store/caseContext';
-import FileUploader from './components/FileUploader';
 import FilterBar from './components/FilterBar';
 import LogViewer from './components/LogViewer';
 import { AISidebar } from './components/AISidebar';
@@ -20,6 +19,8 @@ import { ProductUpdateWizard } from './components/onboarding/ProductUpdateWizard
 import { WorkspaceImportPanel } from './components/import/WorkspaceImportPanel';
 import { CaseHeader } from './components/case/CaseHeader';
 import { CaseStateBridge } from './components/case/CaseStateBridge';
+import InvestigationSetupModal from './components/InvestigationSetupModal';
+import type { InvestigationSetup } from './types/investigation';
 
 const PRODUCT_UPDATE_KEY = 'noclense-v2-product-update-seen';
 
@@ -64,6 +65,10 @@ const MainLayout = () => {
   const [showOnboardingWizard, setShowOnboardingWizard] = useState(false);
   const [showProductUpdateWizard, setShowProductUpdateWizard] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
+  const [pendingZdTicketId, setPendingZdTicketId] = useState<string>('');
+  // Investigation setup modal
+  const [investigationModalTicketId, setInvestigationModalTicketId] = useState<string | null>(null);
+  const [pendingSetup, setPendingSetup] = useState<InvestigationSetup | null>(null);
 
   useEffect(() => {
     initTheme();
@@ -186,7 +191,15 @@ const MainLayout = () => {
         onActivePanelChange={setActivePanel}
         panelContent={panelContent}
         headerContent={headerContent}
-        rightSidebar={<AISidebar onSetupAI={() => setShowOnboardingWizard(true)} />}
+        rightSidebar={
+          <AISidebar
+            onSetupAI={() => setShowOnboardingWizard(true)}
+            pendingTicketId={pendingZdTicketId}
+            onTicketHandled={() => setPendingZdTicketId('')}
+            pendingSetup={pendingSetup}
+            onSetupConsumed={() => setPendingSetup(null)}
+          />
+        }
       >
         <CaseStateBridge activePanel={activePanel} onActivePanelChange={setActivePanel} />
 
@@ -219,7 +232,9 @@ const MainLayout = () => {
               <p className="text-xs text-[var(--muted-foreground)] mb-4">
                 Start with exported files or pasted AWS console logs, then move straight into case building, evidence capture, and stakeholder handoff.
               </p>
-              <FileUploader />
+              <WorkspaceImportPanel
+                onInvestigationReady={(id) => setInvestigationModalTicketId(id)}
+              />
             </div>
           </div>
         ) : (
@@ -242,8 +257,23 @@ const MainLayout = () => {
         )}
       </AppLayout>
 
+      {/* Investigation Setup Modal — shown when agent clicks "Investigate" from the Import screen */}
+      {investigationModalTicketId && (
+        <InvestigationSetupModal
+          ticketId={investigationModalTicketId}
+          onConfirm={(setup) => {
+            setInvestigationModalTicketId(null);
+            setPendingSetup(setup);
+          }}
+          onCancel={() => setInvestigationModalTicketId(null)}
+        />
+      )}
+
       <Dialog open={showImportDialog} onClose={() => setShowImportDialog(false)} title="Import Incident Data">
-        <WorkspaceImportPanel onComplete={() => setShowImportDialog(false)} />
+        <WorkspaceImportPanel
+          onComplete={() => setShowImportDialog(false)}
+          onInvestigationReady={(id) => { setInvestigationModalTicketId(id); setShowImportDialog(false); }}
+        />
       </Dialog>
 
       <ProductUpdateWizard

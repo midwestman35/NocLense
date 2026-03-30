@@ -53,6 +53,7 @@ interface LogRowProps {
   isFavorite?: boolean;
   onToggleFavorite?: () => void;
   isHighlighted?: boolean;
+  isAiHighlighted?: boolean;
   collapseCount?: number;
 }
 
@@ -68,6 +69,7 @@ const LogRow: React.FC<LogRowProps> = ({
   isFavorite = false,
   onToggleFavorite,
   isHighlighted = false,
+  isAiHighlighted = false,
   collapseCount,
 }) => {
   const [expanded, setExpanded] = useState(false);
@@ -84,7 +86,8 @@ const LogRow: React.FC<LogRowProps> = ({
       className={clsx(
         'flex flex-col border-b border-[var(--border)] cursor-pointer font-mono transition-colors duration-[var(--duration-fast)]',
         active ? 'bg-[var(--muted)]' : 'hover:bg-[var(--muted)]/70',
-        isHighlighted && 'bg-[var(--warning)]/8 ring-1 ring-inset ring-[var(--warning)]/25'
+        isHighlighted && 'bg-[var(--warning)]/8 ring-1 ring-inset ring-[var(--warning)]/25',
+        isAiHighlighted && 'bg-violet-500/10 ring-1 ring-inset ring-violet-500/30'
       )}
       onClick={() => onClick(log)}
     >

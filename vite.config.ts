@@ -13,6 +13,17 @@ export default defineConfig(({ mode }) => {
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Split heavy libraries into separate chunks for faster initial load on Vercel
+          'pdf-worker': ['pdfjs-dist'],
+          'zip-lib': ['jszip'],
+          'react-vendor': ['react', 'react-dom'],
+          'virtual-list': ['@tanstack/react-virtual'],
+        },
+      },
+    },
   },
   server: {
     port: 5173,
@@ -28,6 +39,34 @@ export default defineConfig(({ mode }) => {
           proxy.on('proxyReq', (proxyReq, req) => {
             const auth = req.headers['authorization'];
             if (auth) proxyReq.setHeader('Authorization', auth as string);
+          });
+        },
+      },
+      // Proxy Jira API calls in dev to avoid CORS
+      '/jira-proxy': {
+        target: `https://${env.VITE_JIRA_SUBDOMAIN || 'placeholder.atlassian.net'}`,
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/jira-proxy/, ''),
+        secure: true,
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq, req) => {
+            const auth = req.headers['authorization'];
+            if (auth) proxyReq.setHeader('Authorization', auth as string);
+          });
+        },
+      },
+      // Proxy Datadog API calls in dev to avoid CORS
+      '/datadog-proxy': {
+        target: `https://api.${env.VITE_DATADOG_SITE || 'datadoghq.com'}`,
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/datadog-proxy/, ''),
+        secure: true,
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq, req) => {
+            const ddApiKey = req.headers['dd-api-key'];
+            const ddAppKey = req.headers['dd-application-key'];
+            if (ddApiKey) proxyReq.setHeader('DD-API-KEY', ddApiKey as string);
+            if (ddAppKey) proxyReq.setHeader('DD-APPLICATION-KEY', ddAppKey as string);
           });
         },
       },

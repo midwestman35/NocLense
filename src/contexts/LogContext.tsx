@@ -62,6 +62,10 @@ interface LogContextType extends LogState {
     selectedMessageTypeFilter: string | null;
     setSelectedMessageTypeFilter: (type: string | null) => void;
     availableMessageTypes: string[];
+    // Log source filter (e.g. "Datadog", "Call Log", "Homer SIP", "APEX/FDX")
+    selectedSourceFilter: string | null;
+    setSelectedSourceFilter: (source: string | null) => void;
+    availableSources: string[];
     // Collapse similar consecutive rows (6.3 Option A)
     isCollapseSimilarEnabled: boolean;
     setIsCollapseSimilarEnabled: (enabled: boolean) => void;
@@ -118,7 +122,17 @@ interface LogContextType extends LogState {
     toggleFavorite: (logId: number) => void;
     isShowFavoritesOnly: boolean;
     setIsShowFavoritesOnly: (show: boolean) => void;
-    
+
+    // AI Highlighted Logs
+    aiHighlightedLogIds: Set<number>;
+    setAiHighlightedLogIds: (ids: Set<number>) => void;
+    /** Maps log ID → AI explanation for why it was correlated to the ticket */
+    aiHighlightReasons: Map<number, string>;
+    setAiHighlightReasons: (reasons: Map<number, string>) => void;
+    clearAiHighlights: () => void;
+    isShowAiHighlightOnly: boolean;
+    setIsShowAiHighlightOnly: (show: boolean) => void;
+
     // IndexedDB support (for large files)
     useIndexedDBMode: boolean;
     totalLogCount: number;
@@ -222,6 +236,7 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
     const [excludedMessageTypes, setExcludedMessageTypes] = useState<Set<string>>(new Set());
     const [selectedMessageTypeFilter, setSelectedMessageTypeFilter] = useState<string | null>(null);
     const [isCollapseSimilarEnabled, setIsCollapseSimilarEnabled] = useState(false);
+    const [selectedSourceFilter, setSelectedSourceFilter] = useState<string | null>(null);
     const [visibleRange, setVisibleRange] = useState<{ start: number; end: number }>({ start: 0, end: 1 });
     const [scrollTargetTimestamp, setScrollTargetTimestamp] = useState<number | null>(null);
     const [timelineZoomRange, setTimelineZoomRange] = useState<{ start: number; end: number } | null>(null);
@@ -239,6 +254,16 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
     // Favorites State
     const [favoriteLogIds, setFavoriteLogIds] = useState<Set<number>>(new Set());
     const [isShowFavoritesOnly, setIsShowFavoritesOnly] = useState(false);
+
+    // AI Highlight State
+    const [aiHighlightedLogIds, setAiHighlightedLogIds] = useState<Set<number>>(new Set());
+    const [aiHighlightReasons, setAiHighlightReasons] = useState<Map<number, string>>(new Map());
+    const [isShowAiHighlightOnly, setIsShowAiHighlightOnly] = useState(false);
+    const clearAiHighlights = useCallback(() => {
+        setAiHighlightedLogIds(new Set());
+        setAiHighlightReasons(new Map());
+    }, []);
+
     const [importedDatasets, setImportedDatasets] = useState<ImportedDataset[]>([]);
 
     useEffect(() => {
@@ -676,6 +701,35 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         return Array.from(set).sort();
     }, [useIndexedDBMode, logs, indexedDBLogs]);
 
+    // Compute available log sources from loaded logs
+    const availableSources = useMemo(() => {
+        const source = useIndexedDBMode ? indexedDBLogs : logs;
+        const set = new Set<string>();
+        source.forEach(log => {
+            // Derive a human-readable source label from component/sourceType/fileName
+            if (log.sourceType === 'datadog' || log.sourceLabel?.startsWith('DD:')) {
+                set.add('Datadog');
+            } else if (log.component === 'Homer SIP') {
+                set.add('Homer SIP');
+            } else if (log.component === 'Call Log') {
+                set.add('Call Log');
+            } else if (log.fileName?.toLowerCase().includes('export_')) {
+                set.add('Homer SIP');
+            } else {
+                // FDX / CCS-SDK / APEX local logs
+                const comp = log.displayComponent || log.component || '';
+                if (comp.includes('FDX') || comp.includes('FDXMessage')) {
+                    set.add('FDX');
+                } else if (comp.includes('CCS') || comp.includes('PBX')) {
+                    set.add('CCS/PBX');
+                } else {
+                    set.add('APEX Local');
+                }
+            }
+        });
+        return Array.from(set).sort();
+    }, [useIndexedDBMode, logs, indexedDBLogs]);
+
     const toggleExcludedMessageType = useCallback((type: string) => {
         setExcludedMessageTypes(prev => {
             const next = new Set(prev);
@@ -754,6 +808,28 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
                 if (!log.messageType || log.messageType !== selectedMessageTypeFilter) return false;
             }
 
+            // Source filter
+            if (selectedSourceFilter) {
+                let logSource = '';
+                if (log.sourceType === 'datadog' || log.sourceLabel?.startsWith('DD:')) {
+                    logSource = 'Datadog';
+                } else if (log.component === 'Homer SIP' || log.fileName?.toLowerCase().includes('export_')) {
+                    logSource = 'Homer SIP';
+                } else if (log.component === 'Call Log') {
+                    logSource = 'Call Log';
+                } else {
+                    const comp = log.displayComponent || log.component || '';
+                    if (comp.includes('FDX') || comp.includes('FDXMessage')) {
+                        logSource = 'FDX';
+                    } else if (comp.includes('CCS') || comp.includes('PBX')) {
+                        logSource = 'CCS/PBX';
+                    } else {
+                        logSource = 'APEX Local';
+                    }
+                }
+                if (logSource !== selectedSourceFilter) return false;
+            }
+
             // Level Filter (multi-select: show only logs whose level is in selectedLevels)
             if (selectedLevels.size > 0 && !selectedLevels.has(log.level)) return false;
 
@@ -781,9 +857,14 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         });
 
 
-        // Favorites filter (applied last)
+        // Favorites filter
         if (isShowFavoritesOnly) {
             result = result.filter(log => favoriteLogIds.has(log.id));
+        }
+
+        // AI highlight filter (applied last)
+        if (isShowAiHighlightOnly && aiHighlightedLogIds.size > 0) {
+            result = result.filter(log => aiHighlightedLogIds.has(log.id));
         }
 
         // Sorting
@@ -799,7 +880,7 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         });
 
         return result;
-    }, [logs, selectedLogId, correlationIndexes, selectedComponentFilter, selectedLevels, isSipFilterEnabled, normalizedSelectedSipMethods, lowerFilterText, sortConfig, isShowFavoritesOnly, favoriteLogIds, useIndexedDBMode, indexedDBLogs, excludedMessageTypes, selectedMessageTypeFilter]);
+    }, [logs, selectedLogId, correlationIndexes, selectedComponentFilter, selectedLevels, isSipFilterEnabled, normalizedSelectedSipMethods, lowerFilterText, sortConfig, isShowFavoritesOnly, favoriteLogIds, isShowAiHighlightOnly, aiHighlightedLogIds, useIndexedDBMode, indexedDBLogs, excludedMessageTypes, selectedMessageTypeFilter, selectedSourceFilter]);
 
     // Collapse similar: group consecutive rows with same (displayComponent, summaryMessage/displayMessage) (6.3 Option A)
     const collapsedViewList = useMemo((): Array<{ firstLog: LogEntry; count: number }> | null => {
@@ -827,8 +908,10 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         if (isSipFilterEnabled) return true;
         if (activeCorrelations.length > 0) return true;
         if (isShowFavoritesOnly) return true;
+        if (isShowAiHighlightOnly) return true;
+        if (selectedSourceFilter != null) return true;
         return false;
-    }, [filterText, selectedLevels, selectedComponentFilter, excludedMessageTypes, selectedMessageTypeFilter, isSipFilterEnabled, activeCorrelations, isShowFavoritesOnly]);
+    }, [filterText, selectedLevels, selectedComponentFilter, excludedMessageTypes, selectedMessageTypeFilter, isSipFilterEnabled, activeCorrelations, isShowFavoritesOnly, isShowAiHighlightOnly, selectedSourceFilter]);
 
     // Phase 2 Optimization: Wrap event handlers in useCallback
     const addToSearchHistory = useCallback((term: string) => {
@@ -853,6 +936,8 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         setActiveCorrelations([]);
         setSelectedLogId(null);
         setIsShowFavoritesOnly(false);
+        setIsShowAiHighlightOnly(false);
+        setSelectedSourceFilter(null);
     }, []);
 
     const clearFilterSelections = useCallback(() => {
@@ -1052,6 +1137,9 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         selectedMessageTypeFilter,
         setSelectedMessageTypeFilter,
         availableMessageTypes,
+        selectedSourceFilter,
+        setSelectedSourceFilter,
+        availableSources,
         isCollapseSimilarEnabled,
         setIsCollapseSimilarEnabled,
         collapsedViewList,
@@ -1086,6 +1174,13 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         toggleFavorite,
         isShowFavoritesOnly,
         setIsShowFavoritesOnly,
+        aiHighlightedLogIds,
+        setAiHighlightedLogIds,
+        aiHighlightReasons,
+        setAiHighlightReasons,
+        clearAiHighlights,
+        isShowAiHighlightOnly,
+        setIsShowAiHighlightOnly,
         // IndexedDB support (for large files)
         useIndexedDBMode,
         totalLogCount,
@@ -1116,6 +1211,8 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         excludedMessageTypes,
         selectedMessageTypeFilter,
         availableMessageTypes,
+        selectedSourceFilter,
+        availableSources,
         isCollapseSimilarEnabled,
         collapsedViewList,
         visibleRange,
@@ -1134,6 +1231,9 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         correlationData,
         favoriteLogIds,
         isShowFavoritesOnly,
+        aiHighlightedLogIds,
+        aiHighlightReasons,
+        isShowAiHighlightOnly,
         totalLogCount,
         importedDatasets,
         // Stable callbacks - included to satisfy exhaustive-deps but won't cause unnecessary recalculations
@@ -1143,6 +1243,7 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         toggleCorrelation,
         setOnlyCorrelation,
         toggleFavorite,
+        clearAiHighlights,
         loadLogsFromIndexedDB,
         enhancedSetLogs,
         removeFile,

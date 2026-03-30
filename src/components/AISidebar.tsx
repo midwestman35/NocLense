@@ -1,6 +1,26 @@
 import AiPanel from './ai/AiPanel';
+import type { InvestigationSetup } from '../types/investigation';
 
-export function AISidebar({ onSetupAI: _onSetupAI }: { onSetupAI?: () => void }) {
-  // Rendered inside the fixed right sidebar — no close button needed
-  return <AiPanel onClose={() => {}} />;
+interface AISidebarProps {
+  onSetupAI?: () => void;
+  /** Ticket ID pre-loaded from the Import screen — auto-switches to Diagnose tab */
+  pendingTicketId?: string;
+  /** Called once DiagnoseTab has consumed the pending ticket */
+  onTicketHandled?: () => void;
+  /** Full investigation setup from the setup modal — triggers auto-scan in DiagnoseTab */
+  pendingSetup?: InvestigationSetup | null;
+  /** Called once DiagnoseTab has consumed the setup */
+  onSetupConsumed?: () => void;
+}
+
+export function AISidebar({ onSetupAI: _onSetupAI, pendingTicketId, onTicketHandled, pendingSetup, onSetupConsumed }: AISidebarProps) {
+  return (
+    <AiPanel
+      onClose={() => {}}
+      pendingTicketId={pendingTicketId}
+      onTicketHandled={onTicketHandled}
+      pendingSetup={pendingSetup}
+      onSetupConsumed={onSetupConsumed}
+    />
+  );
 }
