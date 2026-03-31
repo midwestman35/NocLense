@@ -210,7 +210,8 @@ export class UnleashProvider implements LLMProvider {
   }
 
   private fetchChat(messages: UnleashMessage[], token: string): Promise<Response> {
-    const url = import.meta.env.DEV ? DEV_PROXY_PATH : `${UNLEASH_ENDPOINT}/chats`;
+    const isElectron = typeof window !== 'undefined' && !!(window as any).electronAPI;
+    const url = import.meta.env.DEV ? DEV_PROXY_PATH : (isElectron ? `${UNLEASH_ENDPOINT}/chats` : '/api/ai-proxy/chats');
     const body: UnleashChatBody = { messages };
     if (this.assistantId) body.assistantId = this.assistantId;
 

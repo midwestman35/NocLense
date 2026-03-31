@@ -30,12 +30,13 @@ export interface DatadogLogEntry {
 }
 
 function datadogBase(settings: AiSettings): string {
-  const isDev = import.meta.env.DEV as boolean;
-  if (isDev) return '/datadog-proxy';
-  const site = settings.datadogSite || 'datadoghq.com';
-  // Datadog API lives at api.<site>, not just <site>
-  const apiHost = site.startsWith('api.') ? site : `api.${site}`;
-  return `https://${apiHost}`;
+  if (import.meta.env.DEV) return '/datadog-proxy';
+  if (typeof window !== 'undefined' && (window as any).electronAPI) {
+    const site = settings.datadogSite || 'datadoghq.com';
+    const apiHost = site.startsWith('api.') ? site : `api.${site}`;
+    return `https://${apiHost}`;
+  }
+  return '/api/datadog-proxy';
 }
 
 function datadogHeaders(settings: AiSettings): Record<string, string> {

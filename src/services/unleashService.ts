@@ -44,12 +44,15 @@ export function formatLogsForAi(logs: LogEntry[]): string {
   return lines.join('\n');
 }
 
-/** Use Vite dev proxy in development to avoid CORS; direct URL in production/Electron */
+/** Use Vite dev proxy in development; serverless proxy in production Vercel; direct in Electron */
 function resolveUrl(settings: AiSettings): string {
   if (import.meta.env.DEV) {
     return '/ai-proxy/chats';
   }
-  return `${settings.endpoint}/chats`;
+  if (typeof window !== 'undefined' && (window as any).electronAPI) {
+    return `${settings.endpoint}/chats`;
+  }
+  return '/api/ai-proxy/chats';
 }
 
 /** Extract text from ChatCompletionResponse message.parts */

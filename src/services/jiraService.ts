@@ -14,12 +14,15 @@ export interface JiraIssueCreatedResponse {
   url: string;
 }
 
-/** Use Vite dev proxy in development to avoid CORS; direct URL in production/Electron */
+/** Use Vite dev proxy in development; serverless proxy in production Vercel; direct in Electron */
 function resolveJiraUrl(settings: AiSettings, path: string): string {
   if (import.meta.env.DEV) {
     return `/jira-proxy${path}`;
   }
-  return `https://${settings.jiraSubdomain}${path}`;
+  if (typeof window !== 'undefined' && (window as any).electronAPI) {
+    return `https://${settings.jiraSubdomain}${path}`;
+  }
+  return `/api/jira-proxy${path}`;
 }
 
 function jiraHeaders(settings: AiSettings): HeadersInit {

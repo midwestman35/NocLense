@@ -28,7 +28,10 @@ export interface ConfluenceSearchResult {
 
 function confluenceBase(settings: AiSettings): string {
   if (import.meta.env.DEV) return '/confluence-proxy';
-  return `https://${settings.jiraSubdomain}`;
+  if (typeof window !== 'undefined' && (window as any).electronAPI) {
+    return `https://${settings.jiraSubdomain}`;
+  }
+  return '/api/confluence-proxy';
 }
 
 function confluenceHeaders(settings: AiSettings): Record<string, string> {

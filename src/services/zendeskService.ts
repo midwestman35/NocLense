@@ -40,7 +40,12 @@ function resolveZendeskUrl(settings: AiSettings, path: string): string {
   if (import.meta.env.DEV) {
     return `/zendesk-proxy${path}`;
   }
-  return `https://${settings.zendeskSubdomain}.zendesk.com${path}`;
+  // Production Vercel: use serverless proxy to bypass CORS
+  // Electron: direct URL (no CORS in desktop app)
+  if (typeof window !== 'undefined' && (window as any).electronAPI) {
+    return `https://${settings.zendeskSubdomain}.zendesk.com${path}`;
+  }
+  return `/api/zendesk-proxy${path}`;
 }
 
 function zendeskHeaders(settings: AiSettings): HeadersInit {
@@ -270,12 +275,22 @@ export async function downloadZendeskAttachment(
 
   // In DEV: rewrite the CDN/subdomain URL through the local proxy
   let url: string;
+  const isElectron = typeof window !== 'undefined' && !!(window as any).electronAPI;
   if (import.meta.env.DEV) {
     url = attachment.contentUrl.replace(
       new RegExp(`https://${settings.zendeskSubdomain}\\.zendesk\\.com`, 'i'),
       '/zendesk-proxy'
     );
     // If rewrite didn't match (different subdomain or CDN URL), fall through to direct
+    if (url === attachment.contentUrl) {
+      url = attachment.contentUrl;
+    }
+  } else if (!isElectron) {
+    // Production Vercel: proxy through serverless function
+    url = attachment.contentUrl.replace(
+      new RegExp(`https://${settings.zendeskSubdomain}\\.zendesk\\.com`, 'i'),
+      '/api/zendesk-proxy'
+    );
     if (url === attachment.contentUrl) {
       url = attachment.contentUrl;
     }
