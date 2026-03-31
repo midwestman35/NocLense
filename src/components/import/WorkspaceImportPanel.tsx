@@ -117,13 +117,19 @@ export function WorkspaceImportPanel({ onComplete, onInvestigationReady }: Works
 
       // --- Server mode: upload to backend for parsing ---
       if (serverMode) {
-        const result = await serverUploadAndParse(files, setParsingProgress);
-        setSelectedLogId(null);
-        setNotices([`Server parsed ${result.count.toLocaleString()} log entries from ${files.length} file${files.length === 1 ? '' : 's'}.`]);
-        const zdId = zdTicketInput.trim().replace(/\D/g, '');
-        if (zdId) onInvestigationReady?.(zdId);
-        onComplete?.();
-        return;
+        try {
+          const result = await serverUploadAndParse(files, setParsingProgress);
+          setSelectedLogId(null);
+          setNotices([`Server parsed ${result.count.toLocaleString()} log entries from ${files.length} file${files.length === 1 ? '' : 's'}.`]);
+          const zdId = zdTicketInput.trim().replace(/\D/g, '');
+          if (zdId) onInvestigationReady?.(zdId);
+          onComplete?.();
+          return;
+        } catch {
+          // Server unreachable — fall through to local parsing so upload isn't blocked.
+          setParsingProgress(0);
+          setNotices(['Server mode unavailable — parsing locally instead.']);
+        }
       }
 
       // --- Local mode: parse client-side (existing behavior) ---
