@@ -16,7 +16,8 @@ import { useLogContext } from '../../contexts/LogContext';
 import { useCase } from '../../store/caseContext';
 import { loadAiSettings } from '../../store/aiSettings';
 import { diagnoseLogs, generateInternalNote, refineInternalNote } from '../../services/unleashService';
-import { downloadZendeskAttachment, formatTicketForAi, type ZendeskTicket } from '../../services/zendeskService';
+import { downloadZendeskAttachment, formatTicketForAi, searchZendeskTickets, type ZendeskTicket } from '../../services/zendeskService';
+import { searchConfluenceInvestigations } from '../../services/confluenceService';
 import { searchDatadogLogs, formatDatadogLogsForAi, type DatadogEnrichmentOptions } from '../../services/datadogService';
 import { importFiles } from '../../services/importService';
 import { isZipFile, extractLogFilesFromZip } from '../../utils/zipExtractor';
@@ -189,6 +190,9 @@ export default function DiagnoseTab({ initialTicketId, onTicketConsumed, pending
       const reasons = new Map(result.correlatedLogs.map(l => [l.logId, l.reason]));
       setAiHighlightReasons(reasons);
 
+      // Search for similar past tickets (non-blocking)
+      searchSimilarTicketsAsync(result);
+
       // 4. Generate internal note draft
       const note = await generateInternalNote(settings, result, ticketText, tz, getNocTimezone());
       setInternalNote(note);
@@ -243,6 +247,9 @@ export default function DiagnoseTab({ initialTicketId, onTicketConsumed, pending
       const reasons = new Map(result.correlatedLogs.map(l => [l.logId, l.reason]));
       setAiHighlightReasons(reasons);
 
+      // Search for similar past tickets (non-blocking)
+      searchSimilarTicketsAsync(result);
+
       // Generate internal note draft
       const note = await generateInternalNote(
         settings,
@@ -259,6 +266,54 @@ export default function DiagnoseTab({ initialTicketId, onTicketConsumed, pending
     } finally {
       setScanning(false);
     }
+  }
+
+  // ── Similar past tickets + investigations (async, non-blocking) ─────────────
+  function searchSimilarTicketsAsync(result: DiagnosisResult) {
+    const keywords: string[] = [];
+    if (result.rootCause && result.rootCause !== 'Insufficient data') {
+      const words = result.rootCause.split(/\s+/).filter(w => w.length > 3);
+      if (words.length > 0) keywords.push(words.slice(0, 4).join(' '));
+    }
+    const components = [...new Set(result.correlatedLogs.map(l => l.component))].filter(Boolean);
+    keywords.push(...components.slice(0, 2));
+    const idMatches = (result.summary ?? '').match(/(?:station|cnc|ccs|pbx|sip)\S*/gi);
+    if (idMatches) keywords.push(...idMatches.slice(0, 2));
+
+    if (keywords.length === 0) return;
+
+    // Search both Zendesk and Confluence in parallel
+    const zdSearch = searchZendeskTickets(settings, keywords, 5)
+      .then(results => {
+        const filtered = ticket ? results.filter(r => r.id !== ticket.id) : results;
+        return filtered.map(r => ({ ...r, closureNote: undefined, source: 'zendesk' as const }));
+      })
+      .catch(() => [] as Array<{ id: number; subject: string; status: string; createdAt: string; tags: string[]; closureNote: undefined; source: 'zendesk' }>);
+
+    const confSearch = searchConfluenceInvestigations(settings, keywords, 5)
+      .then(results => results.map(r => ({
+        id: parseInt(r.pageId, 10) || 0,
+        subject: r.title,
+        status: 'closed',
+        createdAt: r.lastModified || '',
+        tags: [] as string[],
+        closureNote: r.excerpt || undefined,
+        source: 'confluence' as const,
+        url: r.url,
+      })))
+      .catch(() => [] as Array<{ id: number; subject: string; status: string; createdAt: string; tags: string[]; closureNote: string | undefined; source: 'confluence'; url: string }>);
+
+    Promise.all([zdSearch, confSearch]).then(([zdResults, confResults]) => {
+      // Confluence results first (past investigations are richer than raw Zendesk results)
+      const combined = [...confResults, ...zdResults].slice(0, 8);
+      if (combined.length > 0) {
+        const updated = {
+          ...result,
+          similarPastTickets: combined,
+        };
+        setDiagnosisResult(updated);
+      }
+    });
   }
 
   // ── Phase 2 — AI note refinement ────────────────────────────────────────────
@@ -367,6 +422,8 @@ export default function DiagnoseTab({ initialTicketId, onTicketConsumed, pending
           <DiagnosePhase3
             settings={settings}
             ticket={ticket}
+            diagnosisResult={diagnosisResult}
+            customerTimezone={customerTimezone}
             internalNote={internalNote}
             logs={activeLogs}
             defaultFilename={archiveFilename}

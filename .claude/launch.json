@@ -2,21 +2,21 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "Vite Dev (Web)",
-      "runtimeExecutable": "cmd",
-      "runtimeArgs": ["/c", "npm run dev"],
+      "name": "vite-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
       "port": 5173
     },
     {
-      "name": "Electron Dev (Desktop)",
-      "runtimeExecutable": "cmd",
-      "runtimeArgs": ["/c", "npm run electron:dev"],
+      "name": "electron-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "electron:dev"],
       "port": 5173
     },
     {
-      "name": "Vite Preview (Production Build)",
-      "runtimeExecutable": "cmd",
-      "runtimeArgs": ["/c", "npm run preview"],
+      "name": "vite-preview",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "preview"],
       "port": 4173
     }
   ]

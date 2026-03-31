@@ -20,12 +20,16 @@ import {
   uploadZendeskAttachment,
   createZendeskTicket,
 } from '../../../services/zendeskService';
+import { saveInvestigationToConfluence, type SavedInvestigation } from '../../../services/confluenceService';
 import { generateLogArchive, downloadBlob } from '../../../utils/logArchive';
 import type { LogEntry } from '../../../types';
+import type { DiagnosisResult } from '../../../types/diagnosis';
 
 interface Props {
   settings: AiSettings;
   ticket: ZendeskTicket | null;
+  diagnosisResult: DiagnosisResult | null;
+  customerTimezone: string;
   internalNote: string;
   logs: LogEntry[];
   defaultFilename: string;
@@ -39,6 +43,8 @@ const LABEL = 'block text-[11px] font-medium text-[var(--muted-foreground)] mb-1
 export default function DiagnosePhase3({
   settings,
   ticket,
+  diagnosisResult,
+  customerTimezone,
   internalNote,
   logs,
   defaultFilename,
@@ -55,6 +61,7 @@ export default function DiagnosePhase3({
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState<{ ticketId: number | string } | null>(null);
+  const [confluenceResult, setConfluenceResult] = useState<SavedInvestigation | null>(null);
 
   // Copy state
   const [copied, setCopied] = useState(false);
@@ -91,6 +98,13 @@ export default function DiagnosePhase3({
 
       await postZendeskComment(settings, targetTicket.id, internalNote, uploadToken);
       setSubmitSuccess({ ticketId: targetTicket.id });
+
+      // Save investigation to Confluence (non-blocking — don't fail the submit)
+      if (diagnosisResult) {
+        saveInvestigationToConfluence(settings, targetTicket, diagnosisResult, internalNote, customerTimezone)
+          .then(result => setConfluenceResult(result))
+          .catch(err => console.warn('[Confluence] Failed to save investigation:', err));
+      }
     } catch (e: unknown) {
       setSubmitError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -142,6 +156,14 @@ export default function DiagnosePhase3({
             </p>
           )}
         </div>
+        {confluenceResult && (
+          <p className="text-[11px]" style={{ color: 'var(--muted-foreground)' }}>
+            Investigation saved to{' '}
+            <a href={confluenceResult.url} target="_blank" rel="noreferrer" className="text-violet-400 hover:text-violet-300 underline">
+              Confluence
+            </a>
+          </p>
+        )}
         <div className="flex gap-2">
           {settings.zendeskSubdomain && (
             <a

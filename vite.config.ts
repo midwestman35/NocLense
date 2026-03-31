@@ -55,6 +55,19 @@ export default defineConfig(({ mode }) => {
           });
         },
       },
+      // Proxy Confluence API calls in dev to avoid CORS (same Atlassian site as Jira)
+      '/confluence-proxy': {
+        target: `https://${env.VITE_JIRA_SUBDOMAIN || 'placeholder.atlassian.net'}`,
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/confluence-proxy/, ''),
+        secure: true,
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq, req) => {
+            const auth = req.headers['authorization'];
+            if (auth) proxyReq.setHeader('Authorization', auth as string);
+          });
+        },
+      },
       // Proxy Datadog API calls in dev to avoid CORS
       '/datadog-proxy': {
         target: `https://api.${env.VITE_DATADOG_SITE || 'datadoghq.com'}`,

@@ -114,9 +114,10 @@ const LogRow: React.FC<LogRowProps> = ({
             {log.displayComponent}
           </span>
           <span className={clsx('w-1.5 h-1.5 rounded-full shrink-0', LEVEL_DOT[log.level] ?? LEVEL_DOT.INFO)} title={log.level} />
-          <span className={clsx('min-w-0 text-[var(--foreground)] text-[11px]', isTextWrap ? 'break-all' : 'truncate')}>
+          <span className={clsx('min-w-0 text-[11px]', isTextWrap ? 'break-all' : 'truncate', !(log.summaryMessage ?? log.displayMessage) ? 'text-[var(--muted-foreground)] italic' : 'text-[var(--foreground)]')}>
             {(() => {
               const fullMessage = log.summaryMessage ?? log.displayMessage;
+              if (!fullMessage) return `[Empty entry — ${log.sourceLabel ?? log.component ?? 'unknown source'}]`;
               const maxLength = 180;
               const truncatedMessage = fullMessage.length > maxLength ? `${fullMessage.slice(0, maxLength)}...` : fullMessage;
               return highlightText(truncatedMessage, filterText || '');

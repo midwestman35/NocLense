@@ -2,6 +2,7 @@ import type { AiSettings } from '../store/aiSettings';
 import type { LogEntry } from '../types';
 import type { DiagnosisResult, AiCorrelatedLog, LogSuggestion } from '../types/diagnosis';
 import { estimateTokens, recordTokenUsage } from '../utils/tokenEstimator';
+import { matchTemplate } from '../templates/nocTemplates';
 
 export interface ChatMessage {
   role: 'User' | 'Assistant';
@@ -65,7 +66,7 @@ function extractAnswer(data: any): string {
   return data?.message?.text ?? data?.answer ?? data?.text ?? JSON.stringify(data);
 }
 
-async function post(settings: AiSettings, messages: ChatMessage[]): Promise<string> {
+async function post(settings: AiSettings, messages: ChatMessage[], opts?: { skipAssistant?: boolean }): Promise<string> {
   if (!settings.token) {
     throw new Error('No API token configured. Click the gear icon to add your Unleashed token.');
   }
@@ -73,7 +74,10 @@ async function post(settings: AiSettings, messages: ChatMessage[]): Promise<stri
   const url = resolveUrl(settings);
 
   const body: Record<string, unknown> = { messages };
-  if (settings.assistantId) body.assistantId = settings.assistantId;
+  // Only attach assistantId for calls that rely on the assistant's built-in knowledge.
+  // Calls that supply their own full system prompt (e.g. diagnoseLogs) should skip it
+  // to avoid "Assistant must be of type general" errors.
+  if (settings.assistantId && !opts?.skipAssistant) body.assistantId = settings.assistantId;
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -113,7 +117,7 @@ export async function summarizeLogs(settings: AiSettings, logs: LogEntry[]): Pro
   return post(settings, [{
     role: 'User',
     text: `You are a NOC (Network Operations Center) log analyst. Summarize the following log session in plain language. Identify what happened, the sequence of key events, any errors, and the overall outcome.\n\nLOGS:\n${logText}`,
-  }]);
+  }], { skipAssistant: true });
 }
 
 export async function detectAnomalies(settings: AiSettings, logs: LogEntry[]): Promise<string> {
@@ -121,7 +125,7 @@ export async function detectAnomalies(settings: AiSettings, logs: LogEntry[]): P
   return post(settings, [{
     role: 'User',
     text: `You are a NOC log analyst. Analyze the following logs for anomalies, errors, and root causes. For each issue found: describe the problem, its likely cause, and any recommended action. Format as a numbered list.\n\nLOGS:\n${logText}`,
-  }]);
+  }], { skipAssistant: true });
 }
 
 export async function autoTagLogs(settings: AiSettings, logs: LogEntry[]): Promise<string> {
@@ -129,7 +133,7 @@ export async function autoTagLogs(settings: AiSettings, logs: LogEntry[]): Promi
   return post(settings, [{
     role: 'User',
     text: `You are a NOC log classifier. Review these log entries and group them into categories (e.g. SIP, AUTHENTICATION, NETWORK, MEDIA, SYSTEM, DATABASE, TIMEOUT, ERROR). Return a summary of how many entries belong to each category and what they indicate.\n\nLOGS:\n${logText}`,
-  }]);
+  }], { skipAssistant: true });
 }
 
 export async function analyzeTicket(
@@ -141,7 +145,7 @@ export async function analyzeTicket(
   return post(settings, [{
     role: 'User',
     text: `You are a NOC analyst. A technician has submitted the following support ticket:\n\n--- TICKET ---\n${ticketText}\n--- END TICKET ---\n\nUsing the log data below, identify any log entries or patterns that relate to the reported issue. Provide:\n1. Relevant log evidence (timestamps and messages)\n2. Likely root cause based on the logs\n3. Recommended next steps\n\nLOGS:\n${logText}`,
-  }]);
+  }], { skipAssistant: true });
 }
 
 export async function chatWithLogs(
@@ -152,6 +156,12 @@ export async function chatWithLogs(
 ): Promise<string> {
   const logText = formatLogsForAi(logs);
 
+  // Check if the user's message triggers a NOC template (e.g. closure note)
+  const template = matchTemplate(userMessage);
+  const effectiveMessage = template
+    ? `${template.prompt}\n\nUser's original request: "${userMessage}"`
+    : userMessage;
+
   // Build full conversation: system context + history + new user message
   const messages: ChatMessage[] = [
     {
@@ -160,10 +170,10 @@ export async function chatWithLogs(
     },
     { role: 'Assistant', text: 'Understood. I have reviewed the logs and am ready to answer your questions.' },
     ...history.slice(-6), // last 3 exchanges
-    { role: 'User', text: userMessage },
+    { role: 'User', text: effectiveMessage },
   ];
 
-  return post(settings, messages);
+  return post(settings, messages, { skipAssistant: true });
 }
 
 /**
@@ -183,8 +193,9 @@ const MAX_DIAGNOSIS_LOG_CHARS = 100_000;
 function formatLogEntryForDiagnosis(l: LogEntry, idx: number): string {
   const parts: string[] = [];
 
-  // Core log line with index
-  parts.push(`[${idx}] ${l.rawTimestamp} ${l.level} ${l.displayComponent}: ${l.displayMessage}`);
+  // Core log line with index and source label
+  const sourceTag = l.sourceLabel || (l.sourceType === 'datadog' ? 'Datadog' : l.component || 'unknown');
+  parts.push(`[${idx}] ${l.rawTimestamp} ${l.level} [${sourceTag}] ${l.displayComponent}: ${l.displayMessage}`);
 
   // Include source file info so AI knows which log source this is from
   if (l.fileName) {
@@ -312,8 +323,14 @@ export function formatLogsForDiagnosis(logs: LogEntry[]): { text: string; indexT
   let chars = 0;
   let idx = 1;
 
-  // Add summary header
-  const summaryLine = `LOG OVERVIEW: ${logs.length} total logs | ${errors.length} errors | ${warns.length} warnings | ${sipRelevant.length} SIP | Files: ${[...new Set(logs.map(l => l.fileName).filter(Boolean))].join(', ')}`;
+  // Add summary header with source breakdown
+  const sourceCounts = new Map<string, number>();
+  logs.forEach(l => {
+    const src = l.sourceLabel || (l.sourceType === 'datadog' ? 'Datadog' : l.component || 'APEX Local');
+    sourceCounts.set(src, (sourceCounts.get(src) ?? 0) + 1);
+  });
+  const sourceBreakdown = [...sourceCounts.entries()].map(([s, c]) => `${s}:${c}`).join(', ');
+  const summaryLine = `LOG OVERVIEW: ${logs.length} total logs | ${errors.length} errors | ${warns.length} warnings | ${sipRelevant.length} SIP | Sources: [${sourceBreakdown}] | Files: ${[...new Set(logs.map(l => l.fileName).filter(Boolean))].join(', ')}`;
   lines.push(summaryLine);
   chars += summaryLine.length + 1;
 
@@ -472,8 +489,10 @@ Cross-reference the enrichment data above with the log entries below. Match by:
 - Call-ID / Event-ID correlation
 ` : ''}
 ## LOADED LOG ENTRIES
-Each log is prefixed with a 1-based index [N]. Use these indices in your response.
+Each log is prefixed with a 1-based index [N] and a **[Source]** tag (e.g. [Datadog], [Homer SIP], [CCS/PBX], [FDX], [Call Log], [APEX Local]).
 Logs include correlation IDs (callId, reportId, operatorId, etc.) and file source info.
+
+**CRITICAL: Cross-reference across ALL loaded sources.** Match timestamps, call IDs, station IDs, and error patterns between different log sources. For example, if a Homer SIP log shows a failed INVITE at 14:32, look for CCS/Datadog errors in the same ±2 minute window. The NOC agent loaded multiple sources specifically to find cross-source correlations.
 
 --- LOGS ---
 ${logText}
@@ -512,7 +531,7 @@ Provide a brief prose explanation, then a REQUIRED JSON block:
 
 You MUST include the JSON block. If evidence is weak, still correlate the most likely entries and note uncertainty in reasons.`;
 
-  const responseText = await post(settings, [{ role: 'User', text: prompt }]);
+  const responseText = await post(settings, [{ role: 'User', text: prompt }], { skipAssistant: true });
   return parseDiagnosisResponse(responseText, indexToId, logs);
 }
 
@@ -577,7 +596,7 @@ ADDITIONAL LOGS TO CHECK:
 
 Keep each section concise and factual. Use plain text, no markdown.`;
 
-  return post(settings, [{ role: 'User', text: prompt }]);
+  return post(settings, [{ role: 'User', text: prompt }], { skipAssistant: true });
 }
 
 /**
@@ -589,6 +608,12 @@ export async function refineInternalNote(
   currentNote: string,
   agentInstruction: string
 ): Promise<string> {
+  // Check if the agent's instruction triggers a NOC template (e.g. closure note)
+  const template = matchTemplate(agentInstruction);
+  const effectiveInstruction = template
+    ? `${template.prompt}\n\nAgent's original request: "${agentInstruction}"`
+    : agentInstruction;
+
   const prompt = `You are helping a NOC agent refine an internal ticket note. Here is the current draft:
 
 --- CURRENT NOTE ---
@@ -596,9 +621,9 @@ ${currentNote}
 --- END NOTE ---
 
 The agent has requested the following change:
-"${agentInstruction}"
+"${effectiveInstruction}"
 
 Return the complete updated note with the requested change applied. Keep the same structure and all other content intact. Return ONLY the note text, no preamble.`;
 
-  return post(settings, [{ role: 'User', text: prompt }]);
+  return post(settings, [{ role: 'User', text: prompt }], { skipAssistant: true });
 }

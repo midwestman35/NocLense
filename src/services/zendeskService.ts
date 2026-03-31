@@ -156,6 +156,52 @@ export async function fetchZendeskTicket(
   };
 }
 
+/**
+ * Search Zendesk for closed tickets matching keywords.
+ * Uses the Zendesk Search API with OR-joined keywords.
+ * Rate limit: 10 requests/minute for search endpoints.
+ */
+export async function searchZendeskTickets(
+  settings: AiSettings,
+  keywords: string[],
+  limit: number = 5
+): Promise<Array<{ id: number; subject: string; status: string; createdAt: string; tags: string[]; description: string }>> {
+  if (!settings.zendeskSubdomain || !settings.zendeskEmail || !settings.zendeskToken) {
+    throw new Error('Zendesk is not configured.');
+  }
+
+  const cleaned = keywords
+    .map(k => k.trim().replace(/['"]/g, ''))
+    .filter(k => k.length > 2);
+  if (cleaned.length === 0) return [];
+
+  const searchTerms = cleaned.map(k => `"${k}"`).join(' ');
+  const query = `type:ticket status:closed ${searchTerms}`;
+  const url = resolveZendeskUrl(
+    settings,
+    `/api/v2/search.json?query=${encodeURIComponent(query)}&sort_by=created_at&sort_order=desc&per_page=${limit}`
+  );
+
+  const res = await fetch(url, { headers: zendeskHeaders(settings) });
+  if (!res.ok) {
+    if (res.status === 429) {
+      console.warn('[Zendesk Search] Rate limited — try again in a moment.');
+      return [];
+    }
+    throw new Error(`Zendesk search failed (${res.status})`);
+  }
+
+  const data = await res.json();
+  return (data.results ?? []).slice(0, limit).map((t: Record<string, unknown>) => ({
+    id: t.id as number,
+    subject: (t.subject as string) ?? '',
+    status: (t.status as string) ?? 'closed',
+    createdAt: (t.created_at as string) ?? '',
+    tags: (t.tags as string[]) ?? [],
+    description: ((t.description as string) ?? '').slice(0, 300),
+  }));
+}
+
 export async function createZendeskTicket(
   settings: AiSettings,
   draft: ZendeskTicketDraft

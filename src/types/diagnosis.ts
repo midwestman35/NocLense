@@ -22,6 +22,16 @@ export interface LogSuggestion {
   query?: string;
 }
 
+export interface SimilarPastTicket {
+  id: number;
+  subject: string;
+  status: string;
+  createdAt: string;
+  tags: string[];
+  /** Full closure note fetched on-demand when expanded */
+  closureNote?: string;
+}
+
 export interface DiagnosisResult {
   summary: string;
   rootCause: string;
@@ -29,6 +39,8 @@ export interface DiagnosisResult {
   logSuggestions: LogSuggestion[];
   appliedTroubleshooting: string;
   rawResponse: string;
+  /** Similar past tickets found via Zendesk search (populated async after diagnosis) */
+  similarPastTickets?: SimilarPastTicket[];
 }
 
 export interface JiraTicketDraft {

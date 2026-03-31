@@ -229,6 +229,29 @@ export interface DatadogStation {
  * @param windowMs How far back to look in milliseconds (default: 2 hours)
  * @returns Array of discovered stations sorted by log count (descending)
  */
+/** Session-level cache for station discovery (15-min TTL). */
+const stationCache = new Map<string, { stations: DatadogStation[]; expiry: number }>();
+const STATION_CACHE_TTL = 15 * 60 * 1000; // 15 minutes
+
+/** Fetch with retry + exponential backoff for 429 rate limits. */
+async function fetchWithRetry(url: string, init: RequestInit, maxRetries = 3): Promise<Response> {
+  let lastResponse: Response | null = null;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const response = await fetch(url, init);
+    if (response.status !== 429 || attempt === maxRetries) {
+      return response;
+    }
+    lastResponse = response;
+    // Log rate limit headers
+    const remaining = response.headers.get('x-ratelimit-remaining');
+    const reset = response.headers.get('x-ratelimit-reset');
+    console.warn(`[DD] Rate limited (429). Remaining: ${remaining}, Reset: ${reset}s. Retry ${attempt + 1}/${maxRetries}…`);
+    const backoffMs = Math.min(1000 * Math.pow(2, attempt), 8000);
+    await new Promise(resolve => setTimeout(resolve, backoffMs));
+  }
+  return lastResponse!;
+}
+
 export async function discoverStationsForCnc(
   settings: AiSettings,
   cncName: string,
@@ -239,6 +262,14 @@ export async function discoverStationsForCnc(
     throw new Error('Datadog credentials required.');
   }
 
+  // Check session cache first
+  const cacheKey = `${cncName}::${indexes.join(',')}`;
+  const cached = stationCache.get(cacheKey);
+  if (cached && Date.now() < cached.expiry) {
+    console.log(`[DD Station Discovery] Cache hit for "${cncName}" (${cached.stations.length} stations)`);
+    return cached.stations;
+  }
+
   const base = datadogBase(settings);
   const url = `${base}/api/v2/logs/analytics/aggregate`;
   const now = Date.now();
@@ -247,11 +278,8 @@ export async function discoverStationsForCnc(
 
   // Try multiple query strategies — the field path or index might differ
   const queries = [
-    // Strategy 1: Exact facet path with wildcard match + service:prod
     `@log.machineData.callCenterName:*${cncName}* service:prod`,
-    // Strategy 2: Same but without service filter
     `@log.machineData.callCenterName:*${cncName}*`,
-    // Strategy 3: Free-text search for the CNC name (catches different field paths)
     `*${cncName}*`,
   ];
 
@@ -274,11 +302,19 @@ export async function discoverStationsForCnc(
 
       console.log(`[DD Station Discovery] Trying: query="${query}" indexes=${JSON.stringify(idxList)}`);
 
-      const response = await fetch(url, {
+      const response = await fetchWithRetry(url, {
         method: 'POST',
         headers: datadogHeaders(settings),
         body: JSON.stringify(body),
       });
+
+      // Log rate limit headers on every response for debugging
+      const rlRemaining = response.headers.get('x-ratelimit-remaining');
+      const rlLimit = response.headers.get('x-ratelimit-limit');
+      const rlReset = response.headers.get('x-ratelimit-reset');
+      if (rlRemaining != null) {
+        console.log(`[DD Rate Limit] ${rlRemaining}/${rlLimit} remaining, resets in ${rlReset}s`);
+      }
 
       if (!response.ok) {
         const text = await response.text().catch(() => response.statusText);
@@ -288,12 +324,16 @@ export async function discoverStationsForCnc(
             `Go to Datadog → Organization Settings → Application Keys → Scopes → enable "logs_read_data".`
           );
         }
-        // For 400/429, skip this strategy and try the next
         if (response.status === 400) {
           console.warn(`[DD Station Discovery] 400 for query="${query}", trying next strategy…`);
           continue;
         }
-        if (response.status === 429) throw new Error('Datadog: Rate limited — wait a moment and try again.');
+        if (response.status === 429) {
+          throw new Error(
+            `Datadog rate limit reached — try again in ${rlReset ?? '~30'} seconds.\n` +
+            `Tip: Station results are cached for 15 min after a successful discovery.`
+          );
+        }
         throw new Error(`Datadog aggregate error ${response.status}: ${text.slice(0, 200)}`);
       }
 
@@ -323,14 +363,14 @@ export async function discoverStationsForCnc(
 
       if (stations.length > 0) {
         console.log(`[DD Station Discovery] Found ${stations.length} stations with query="${query}" indexes=${JSON.stringify(idxList)}`);
+        // Cache the results
+        stationCache.set(cacheKey, { stations, expiry: Date.now() + STATION_CACHE_TTL });
         return stations;
       }
-      // Empty result — try next strategy
       console.log(`[DD Station Discovery] 0 results for query="${query}" indexes=${JSON.stringify(idxList)}, trying next…`);
     }
   }
 
-  // All strategies exhausted — return empty
   console.log('[DD Station Discovery] All strategies returned 0 results.');
   return [];
 }

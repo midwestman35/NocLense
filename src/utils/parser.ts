@@ -404,13 +404,14 @@ const parseHomerText = (text: string, fileColor: string, startId: number, fileNa
                     sipMethod: null,
                     fileName: fileName,
                     fileColor,
+                    sourceLabel: 'Homer SIP',
                     _messageLower: message.toLowerCase(),
                     _componentLower: 'homer sip'
                 };
 
                 // Process SIP payload to extract Call-ID, methods, etc.
                 processLogPayload(entry);
-                
+
                 // Update level based on SIP response code (4xx=WARN, 5xx/6xx=ERROR)
                 const sipLevel = getSipResponseLevel(entry.sipMethod);
                 if (sipLevel) {
@@ -476,18 +477,19 @@ const parseHomerText = (text: string, fileColor: string, startId: number, fileNa
             sipMethod: null,
             fileName: fileName,
             fileColor,
+            sourceLabel: 'Homer SIP',
             _messageLower: message.toLowerCase(),
             _componentLower: 'homer sip'
         };
 
         processLogPayload(entry);
-        
+
         // Update level based on SIP response code (4xx=WARN, 5xx/6xx=ERROR)
         const sipLevel = getSipResponseLevel(entry.sipMethod);
         if (sipLevel) {
             entry.level = sipLevel;
         }
-        
+
         parsedLogs.push(entry);
     }
 
@@ -1394,5 +1396,19 @@ function processLogPayload(log: LogEntry) {
     // Phase 2 Optimization: Pre-compute lowercase for callId if not already set (from message extraction)
     if (log.callId && !log._callIdLower) {
         log._callIdLower = log.callId.toLowerCase();
+    }
+
+    // Auto-derive sourceLabel if not already set by a specialized parser (Datadog, Call Log, Homer)
+    if (!log.sourceLabel) {
+        const comp = (log.displayComponent || log.component || '').toLowerCase();
+        if (log.isSip || comp === 'homer sip') {
+            log.sourceLabel = 'Homer SIP';
+        } else if (comp.includes('fdx') || comp.includes('fdxmessage')) {
+            log.sourceLabel = 'FDX';
+        } else if (comp.includes('ccs') || comp.includes('pbx')) {
+            log.sourceLabel = 'CCS/PBX';
+        } else {
+            log.sourceLabel = 'APEX Local';
+        }
     }
 }

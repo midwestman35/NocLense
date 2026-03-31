@@ -1,6 +1,5 @@
 import React, { memo, useCallback } from 'react';
 import {
-  Ticket,
   FileText,
   Hash,
   BarChart3,
@@ -21,7 +20,6 @@ interface IconRailProps {
 }
 
 const PANEL_ITEMS: { id: PanelId; icon: React.ElementType; label: string }[] = [
-  { id: 'case', icon: Ticket, label: 'Tickets' },
   { id: 'files', icon: FileText, label: 'Files' },
   { id: 'callIds', icon: Hash, label: 'Call IDs' },
   { id: 'reports', icon: BarChart3, label: 'Reports' },

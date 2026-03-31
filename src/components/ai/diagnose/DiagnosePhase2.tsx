@@ -24,6 +24,7 @@ import type { AiSettings } from '../../../store/aiSettings';
 import type { LogEntry } from '../../../types';
 import { useLogContext } from '../../../contexts/LogContext';
 import ResizableSplit from './ResizableSplit';
+import SimilarTicketsPanel from './SimilarTicketsPanel';
 
 interface CaseRef {
   id: string;
@@ -50,6 +51,7 @@ export default function DiagnosePhase2({
   onNext,
   onBack,
   refining,
+  settings,
   activeCase,
   addBookmark,
 }: Props) {
@@ -345,6 +347,14 @@ export default function DiagnosePhase2({
               ))}
             </div>
           </>
+        )}
+
+        {/* Similar Past Tickets — async-populated after diagnosis */}
+        {diagnosisResult.similarPastTickets && diagnosisResult.similarPastTickets.length > 0 && (
+          <SimilarTicketsPanel
+            tickets={diagnosisResult.similarPastTickets}
+            settings={settings}
+          />
         )}
       </div>
     </div>

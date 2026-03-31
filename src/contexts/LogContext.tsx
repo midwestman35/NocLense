@@ -3,6 +3,23 @@ import type { ImportedDataset, LogEntry, LogLevel, LogState } from '../types';
 import { loadSearchHistory, addToSearchHistory as saveToHistory, clearSearchHistory as clearHistoryStorage } from '../store/searchHistory';
 import { dbManager } from '../utils/indexedDB';
 
+/** Derive a human-readable source label for a log entry (used by filter + dropdown). */
+function deriveSourceLabel(log: LogEntry): string {
+    // Use explicit sourceLabel if it's a recognized category
+    if (log.sourceLabel) {
+        if (log.sourceLabel.startsWith('DD:') || log.sourceType === 'datadog') return 'Datadog';
+        if (log.sourceLabel === 'Homer SIP' || log.sourceLabel === 'FDX' || log.sourceLabel === 'CCS/PBX' || log.sourceLabel === 'APEX Local' || log.sourceLabel === 'Call Log') return log.sourceLabel;
+    }
+    if (log.sourceType === 'datadog') return 'Datadog';
+    if (log.component === 'Homer SIP') return 'Homer SIP';
+    if (log.component === 'Call Log') return 'Call Log';
+    if (log.fileName?.toLowerCase().includes('export_')) return 'Homer SIP';
+    const comp = log.displayComponent || log.component || '';
+    if (comp.includes('FDX') || comp.includes('FDXMessage')) return 'FDX';
+    if (comp.includes('CCS') || comp.includes('PBX')) return 'CCS/PBX';
+    return 'APEX Local';
+}
+
 const SIP_RESPONSE_METHOD_PATTERN = /^(\d{3})\s+(\w+)(?:\s+.*)?$/i;
 const LOG_LEVEL_RANK: Record<LogLevel, number> = {
     ERROR: 3,
@@ -706,26 +723,7 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         const source = useIndexedDBMode ? indexedDBLogs : logs;
         const set = new Set<string>();
         source.forEach(log => {
-            // Derive a human-readable source label from component/sourceType/fileName
-            if (log.sourceType === 'datadog' || log.sourceLabel?.startsWith('DD:')) {
-                set.add('Datadog');
-            } else if (log.component === 'Homer SIP') {
-                set.add('Homer SIP');
-            } else if (log.component === 'Call Log') {
-                set.add('Call Log');
-            } else if (log.fileName?.toLowerCase().includes('export_')) {
-                set.add('Homer SIP');
-            } else {
-                // FDX / CCS-SDK / APEX local logs
-                const comp = log.displayComponent || log.component || '';
-                if (comp.includes('FDX') || comp.includes('FDXMessage')) {
-                    set.add('FDX');
-                } else if (comp.includes('CCS') || comp.includes('PBX')) {
-                    set.add('CCS/PBX');
-                } else {
-                    set.add('APEX Local');
-                }
-            }
+            set.add(deriveSourceLabel(log));
         });
         return Array.from(set).sort();
     }, [useIndexedDBMode, logs, indexedDBLogs]);
@@ -810,24 +808,7 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
 
             // Source filter
             if (selectedSourceFilter) {
-                let logSource = '';
-                if (log.sourceType === 'datadog' || log.sourceLabel?.startsWith('DD:')) {
-                    logSource = 'Datadog';
-                } else if (log.component === 'Homer SIP' || log.fileName?.toLowerCase().includes('export_')) {
-                    logSource = 'Homer SIP';
-                } else if (log.component === 'Call Log') {
-                    logSource = 'Call Log';
-                } else {
-                    const comp = log.displayComponent || log.component || '';
-                    if (comp.includes('FDX') || comp.includes('FDXMessage')) {
-                        logSource = 'FDX';
-                    } else if (comp.includes('CCS') || comp.includes('PBX')) {
-                        logSource = 'CCS/PBX';
-                    } else {
-                        logSource = 'APEX Local';
-                    }
-                }
-                if (logSource !== selectedSourceFilter) return false;
+                if (deriveSourceLabel(log) !== selectedSourceFilter) return false;
             }
 
             // Level Filter (multi-select: show only logs whose level is in selectedLevels)

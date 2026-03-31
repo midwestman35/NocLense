@@ -15,6 +15,8 @@ export interface AiSettings {
   datadogSite: string;        // e.g. 'datadoghq.com'
   datadogDefaultIndexes: string; // comma-separated, blank = all
   datadogDefaultHosts: string;   // comma-separated default stations/hosts
+  confluenceSpaceId: string;       // Confluence space ID for investigation store
+  confluenceParentPageId: string;  // Parent page ID under which investigations are saved
 }
 
 const STORAGE_KEY = 'unleash_ai_settings';
@@ -36,6 +38,8 @@ export const DEFAULT_AI_SETTINGS: AiSettings = {
   datadogSite: 'datadoghq.com',
   datadogDefaultIndexes: '',
   datadogDefaultHosts: '',
+  confluenceSpaceId: '',
+  confluenceParentPageId: '',
 };
 
 export function loadAiSettings(): AiSettings {
@@ -53,6 +57,8 @@ export function loadAiSettings(): AiSettings {
   const envDdApiKey = import.meta.env.VITE_DATADOG_API_KEY as string | undefined;
   const envDdAppKey = import.meta.env.VITE_DATADOG_APP_KEY as string | undefined;
   const envDdSite = import.meta.env.VITE_DATADOG_SITE as string | undefined;
+  const envConfSpaceId = import.meta.env.VITE_CONFLUENCE_SPACE_ID as string | undefined;
+  const envConfParentPageId = import.meta.env.VITE_CONFLUENCE_PARENT_PAGE_ID as string | undefined;
 
   // Env-var base (used as fallback for any field not explicitly saved)
   const envBase: AiSettings = {
@@ -70,6 +76,8 @@ export function loadAiSettings(): AiSettings {
     datadogApiKey: envDdApiKey ?? '',
     datadogAppKey: envDdAppKey ?? '',
     datadogSite: envDdSite ?? 'datadoghq.com',
+    confluenceSpaceId: envConfSpaceId ?? '',
+    confluenceParentPageId: envConfParentPageId ?? '',
     datadogDefaultIndexes: '',
     datadogDefaultHosts: '',
   };

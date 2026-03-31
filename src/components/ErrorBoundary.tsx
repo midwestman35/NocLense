@@ -47,6 +47,10 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
     });
   }
 
+  private handleRetry = (): void => {
+    this.setState({ hasError: false, reportId: null });
+  };
+
   private handleReload = (): void => {
     window.location.reload();
   };
@@ -71,13 +75,21 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
               Crash reference: <span className="font-mono">{this.state.reportId}</span>
             </p>
           )}
-          <button
-            onClick={this.handleReload}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded bg-[var(--foreground)] text-white hover:bg-[var(--foreground)]/90"
-          >
-            <RefreshCw size={14} />
-            Reload Application
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={this.handleRetry}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded bg-[var(--foreground)] text-white hover:bg-[var(--foreground)]/90"
+            >
+              <RefreshCw size={14} />
+              Try Again
+            </button>
+            <button
+              onClick={this.handleReload}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+            >
+              Hard Reload
+            </button>
+          </div>
         </div>
       </div>
     );

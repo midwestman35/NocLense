@@ -115,6 +115,14 @@ To change AI behavior, edit `unleashService.ts`. The diagnosis prompt in `diagno
 - Not yet deployed — needs Vercel project setup and env vars configured there.
 - The app is heavy (PDF parsing, ZIP extraction, virtual scrolling) but should work as a web app with the lazy loading in place.
 
+### AI Analysis Speed Optimization
+- **Problem:** Diagnosis scan takes 15–30 seconds. The bottleneck is the Unleashed API response time, not data prep — we send up to 100KB of context in a single request and wait for the full response.
+- **Option 1 — Streaming (best UX, needs API support):** If Unleashed supports SSE/streaming, render the diagnosis progressively instead of showing a blank spinner. Same total wait, but perceived speed is much better. **Ask Leandro if the Unleashed API has a streaming endpoint.**
+- **Option 2 — Two-pass diagnosis (no API changes needed):** First pass sends only ERROR + WARN logs (~10–20KB) for a quick 5–10 second result. Then offer a "Deep Analysis" button that sends the full 100KB context. Most of the time the errors tell the story.
+- **Option 3 — Smarter pre-filtering:** If the ticket mentions audio/SIP, deprioritize Datadog INFO entries and prioritize Homer + CCS logs. Less input = faster response. Could cut context 30–50%.
+- **Not worth pursuing:** Parallelizing Datadog fetch (already fast), caching AI responses (every investigation is unique), model switching (we don't control Unleashed's model).
+- **Files:** `src/services/unleashService.ts` (streaming support, tiered context), `src/components/ai/diagnose/DiagnosePhase2.tsx` (progressive rendering, cancel button).
+
 ### Modal Accidentally Closing
 - Reported: clicking/highlighting text in the Investigation Setup Modal sometimes closes it.
 - Likely cause: mouse events bubbling to the backdrop click handler.

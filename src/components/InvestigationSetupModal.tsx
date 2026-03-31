@@ -11,7 +11,7 @@
  * On "Start Investigation" it returns an InvestigationSetup object to the parent,
  * which feeds it into DiagnoseTab to run the AI scan.
  */
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Loader2, AlertTriangle, FileText, CheckCircle2,
   Database, Globe, ChevronDown, ChevronRight, X, Zap, Search,
@@ -63,6 +63,9 @@ const LABEL = 'block text-[11px] font-medium text-[var(--muted-foreground)] mb-1
 export default function InvestigationSetupModal({ ticketId, onConfirm, onCancel }: Props) {
   const settings = loadAiSettings();
   const hasDdCreds = !!(settings.datadogApiKey && settings.datadogAppKey);
+
+  // Track where mousedown started so we only close when both down+up are on the backdrop
+  const mouseDownOnBackdrop = useRef(false);
 
   // ── Ticket state ──
   const [ticket, setTicket] = useState<ZendeskTicket | null>(null);
@@ -258,11 +261,16 @@ export default function InvestigationSetupModal({ ticketId, onConfirm, onCancel 
   const canStart = !!ticket && !scanningPdfs && (selectedIds.size > 0 || (ddEnabled && hasDdCreds));
 
   return (
-    /* Backdrop */
+    /* Backdrop — only close when both mousedown AND mouseup are on the backdrop itself.
+       This prevents accidental closes when users drag-select text inside the modal. */
     <div
       className="fixed inset-0 z-[300] flex items-center justify-center p-4"
       style={{ backgroundColor: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(2px)' }}
-      onMouseDown={e => { if (e.target === e.currentTarget) onCancel(); }}
+      onMouseDown={e => { mouseDownOnBackdrop.current = e.target === e.currentTarget; }}
+      onMouseUp={e => {
+        if (mouseDownOnBackdrop.current && e.target === e.currentTarget) onCancel();
+        mouseDownOnBackdrop.current = false;
+      }}
     >
       {/* Panel */}
       <div
