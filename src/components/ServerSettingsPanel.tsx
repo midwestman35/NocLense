@@ -3,16 +3,11 @@ import { Server, CheckCircle2, XCircle, Loader2, Unplug, Plug } from 'lucide-rea
 import { loadServerConfig, saveServerConfig, checkServerHealth, type ServerConfig } from '../services/serverService';
 import { useLogContext } from '../contexts/LogContext';
 
-interface ServerSettingsPanelProps {
-  onClose?: () => void;
-}
-
-export default function ServerSettingsPanel({ onClose }: ServerSettingsPanelProps) {
-  const { serverMode, setServerMode } = useLogContext();
+export default function ServerSettingsPanel() {
+  const { setServerMode } = useLogContext();
   const [config, setConfig] = useState<ServerConfig>(loadServerConfig);
   const [status, setStatus] = useState<'idle' | 'checking' | 'connected' | 'error'>('idle');
   const [statusMessage, setStatusMessage] = useState('');
-  const [logCount, setLogCount] = useState(0);
 
   const testConnection = useCallback(async (url?: string) => {
     setStatus('checking');
@@ -24,7 +19,6 @@ export default function ServerSettingsPanel({ onClose }: ServerSettingsPanelProp
       const health = await checkServerHealth();
       if (health.status === 'ok' || health.status === 'degraded') {
         setStatus('connected');
-        setLogCount(health.database.logCount);
         setStatusMessage(
           health.status === 'ok'
             ? `Connected. ${health.database.logCount.toLocaleString()} logs in database.`

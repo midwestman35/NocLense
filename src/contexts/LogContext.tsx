@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useMemo, useEffect, useCallback, t
 import type { ImportedDataset, LogEntry, LogLevel, LogState } from '../types';
 import { loadSearchHistory, addToSearchHistory as saveToHistory, clearSearchHistory as clearHistoryStorage } from '../store/searchHistory';
 import { dbManager } from '../utils/indexedDB';
-import { loadServerConfig, saveServerConfig, queryLogs as serverQueryLogs, createSession, uploadAndParse, type ServerConfig } from '../services/serverService';
+import { loadServerConfig, saveServerConfig, queryLogs as serverQueryLogs, createSession, uploadAndParse } from '../services/serverService';
 
 /** Derive a human-readable source label for a log entry (used by filter + dropdown). */
 function deriveSourceLabel(log: LogEntry): string {

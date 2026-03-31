@@ -35,6 +35,7 @@ const PANEL_TITLES: Record<PanelId, string> = {
   stations: 'Stations',
   ai: 'AI Analysis',
   filters: 'Filters',
+  server: 'Server Mode',
 };
 
 interface AppLayoutProps {
