@@ -65,6 +65,8 @@ export function WorkspaceImportPanel({ onComplete, onInvestigationReady }: Works
     enableIndexedDBMode,
     useIndexedDBMode,
     addImportedDatasets,
+    serverMode,
+    serverUploadAndParse,
   } = useLogContext();
   const { activeCase, updateCase } = useCase();
 
@@ -112,6 +114,19 @@ export function WorkspaceImportPanel({ onComplete, onInvestigationReady }: Works
 
     try {
       const files = Array.from(fileList);
+
+      // --- Server mode: upload to backend for parsing ---
+      if (serverMode) {
+        const result = await serverUploadAndParse(files, setParsingProgress);
+        setSelectedLogId(null);
+        setNotices([`Server parsed ${result.count.toLocaleString()} log entries from ${files.length} file${files.length === 1 ? '' : 's'}.`]);
+        const zdId = zdTicketInput.trim().replace(/\D/g, '');
+        if (zdId) onInvestigationReady?.(zdId);
+        onComplete?.();
+        return;
+      }
+
+      // --- Local mode: parse client-side (existing behavior) ---
       const nextId = await getNextLogId();
       const shouldUseIndexedDB = useIndexedDBMode || logs.length === 0;
       const result = await importFiles(files, {

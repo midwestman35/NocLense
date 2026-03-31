@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useMemo, useEffect, useCallback, t
 import type { ImportedDataset, LogEntry, LogLevel, LogState } from '../types';
 import { loadSearchHistory, addToSearchHistory as saveToHistory, clearSearchHistory as clearHistoryStorage } from '../store/searchHistory';
 import { dbManager } from '../utils/indexedDB';
+import { loadServerConfig, saveServerConfig, queryLogs as serverQueryLogs, createSession, uploadAndParse, type ServerConfig } from '../services/serverService';
 
 /** Derive a human-readable source label for a log entry (used by filter + dropdown). */
 function deriveSourceLabel(log: LogEntry): string {
@@ -150,6 +151,13 @@ interface LogContextType extends LogState {
     isShowAiHighlightOnly: boolean;
     setIsShowAiHighlightOnly: (show: boolean) => void;
 
+    // Server mode (offload parsing to backend)
+    serverMode: boolean;
+    serverSessionId: string | null;
+    setServerMode: (enabled: boolean) => void;
+    serverUploadAndParse: (files: File[], onProgress?: (progress: number) => void) => Promise<{ count: number }>;
+    refreshServerLogs: () => Promise<void>;
+
     // IndexedDB support (for large files)
     useIndexedDBMode: boolean;
     totalLogCount: number;
@@ -241,6 +249,77 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         }
     }, [useIndexedDBMode]);
     
+    // --- Server Mode ---
+    const [serverMode, setServerModeState] = useState(() => loadServerConfig().enabled);
+    const [serverSessionId, setServerSessionId] = useState<string | null>(() => loadServerConfig().sessionId || null);
+
+    const setServerMode = useCallback((enabled: boolean) => {
+        setServerModeState(enabled);
+        const config = loadServerConfig();
+        saveServerConfig({ ...config, enabled });
+    }, []);
+
+    const FILE_COLORS = ['#3b82f6', '#eab308', '#06b6d4', '#22c55e', '#f97316', '#a855f7', '#ec4899', '#64748b'];
+
+    const serverUploadAndParse = useCallback(async (files: File[], onProgress?: (progress: number) => void) => {
+        setLoading(true);
+        setParsingProgress(0);
+        try {
+            // Create session if we don't have one
+            let sessionId = serverSessionId;
+            if (!sessionId) {
+                const { sessionId: newId } = await createSession(`session-${Date.now()}`);
+                sessionId = newId;
+                setServerSessionId(newId);
+                const config = loadServerConfig();
+                saveServerConfig({ ...config, sessionId: newId });
+            }
+
+            let totalCount = 0;
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const color = FILE_COLORS[i % FILE_COLORS.length];
+                const fileProgress = (progress: number) => {
+                    const overall = (i + progress) / files.length;
+                    setParsingProgress(overall);
+                    onProgress?.(overall);
+                };
+                const result = await uploadAndParse(file, sessionId, color, fileProgress);
+                totalCount += result.count;
+            }
+
+            // Fetch the first page of logs from the server to populate the UI
+            const { logs: serverLogs, total } = await serverQueryLogs({
+                sessionId,
+                limit: 5000,
+                offset: 0,
+            });
+            setLogs(serverLogs);
+            setTotalLogCount(total);
+            setParsingProgress(1);
+            return { count: totalCount };
+        } finally {
+            setLoading(false);
+            setParsingProgress(0);
+        }
+    }, [serverSessionId]);
+
+    const refreshServerLogs = useCallback(async () => {
+        if (!serverMode || !serverSessionId) return;
+        setLoading(true);
+        try {
+            const { logs: serverLogs, total } = await serverQueryLogs({
+                sessionId: serverSessionId,
+                limit: 5000,
+                offset: 0,
+            });
+            setLogs(serverLogs);
+            setTotalLogCount(total);
+        } finally {
+            setLoading(false);
+        }
+    }, [serverMode, serverSessionId]);
+
     // Load search history on mount
     useEffect(() => {
         setSearchHistory(loadSearchHistory());
@@ -1162,6 +1241,12 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         clearAiHighlights,
         isShowAiHighlightOnly,
         setIsShowAiHighlightOnly,
+        // Server mode
+        serverMode,
+        serverSessionId,
+        setServerMode,
+        serverUploadAndParse,
+        refreshServerLogs,
         // IndexedDB support (for large files)
         useIndexedDBMode,
         totalLogCount,
@@ -1217,7 +1302,12 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         isShowAiHighlightOnly,
         totalLogCount,
         importedDatasets,
+        serverMode,
+        serverSessionId,
         // Stable callbacks - included to satisfy exhaustive-deps but won't cause unnecessary recalculations
+        setServerMode,
+        serverUploadAndParse,
+        refreshServerLogs,
         addToSearchHistory,
         clearSearchHistory,
         clearAllFilters,

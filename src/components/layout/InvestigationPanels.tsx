@@ -9,6 +9,7 @@ import type { PanelId } from './IconRail';
 import { ZendeskPanel } from '../zendesk/ZendeskPanel';
 import AiSettingsModal from '../ai/AiSettingsModal';
 import { loadAiSettings } from '../../store/aiSettings';
+import ServerSettingsPanel from '../ServerSettingsPanel';
 
 function PanelSection({ title, meta, children }: { title: string; meta?: string; children: ReactNode }) {
   return (
@@ -243,6 +244,11 @@ export function useInvestigationPanels({ onSetupAI: _onSetupAI }: { onSetupAI: (
               </Button>
             </div>
           </PanelSection>
+        </div>
+      ),
+      server: (
+        <div className="h-full overflow-y-auto">
+          <ServerSettingsPanel />
         </div>
       ),
       filters: (

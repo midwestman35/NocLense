@@ -7,11 +7,12 @@ import {
   Sparkles,
   Filter,
   Settings,
+  Server,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { Tooltip } from '../ui';
 
-export type PanelId = 'case' | 'files' | 'callIds' | 'reports' | 'stations' | 'ai' | 'filters';
+export type PanelId = 'case' | 'files' | 'callIds' | 'reports' | 'stations' | 'ai' | 'filters' | 'server';
 
 interface IconRailProps {
   activePanel: PanelId | null;
@@ -26,6 +27,7 @@ const PANEL_ITEMS: { id: PanelId; icon: React.ElementType; label: string }[] = [
   { id: 'stations', icon: Radio, label: 'Stations' },
   { id: 'ai', icon: Sparkles, label: 'AI Analysis' },
   { id: 'filters', icon: Filter, label: 'Filters' },
+  { id: 'server', icon: Server, label: 'Server Mode' },
 ];
 
 const RailButton = memo(function RailButton({
