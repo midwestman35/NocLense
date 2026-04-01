@@ -1,11 +1,8 @@
 /**
- * NewWorkspaceLayout — Phase 2 feature-flagged replacement for MainLayout.
+ * NewWorkspaceLayout — the primary application layout.
  *
  * Uses RoomRouter with three rooms: Import, Investigate, Submit.
- * Wraps existing components (FilterBar, LogViewer, AiPanel, etc.)
- * inside WorkspaceCard containers in the Investigate room.
- *
- * Feature flag: localStorage key 'noclense-use-workspace-ui'
+ * Each room has a distinct layout with WorkspaceCard containers.
  */
 
 import { useState, useCallback, useMemo } from 'react';
@@ -30,6 +27,7 @@ import InvestigationSetupModal from '../InvestigationSetupModal';
 import { AIOnboardingWizard } from '../onboarding/AIOnboardingWizard';
 import ExportModal from '../export/ExportModal';
 
+import { CaseStateBridge } from '../case/CaseStateBridge';
 import { Sparkles, FileText, Bookmark, Clock, Search, Database, AlertTriangle } from 'lucide-react';
 import type { InvestigationSetup } from '../../types/investigation';
 
@@ -294,6 +292,7 @@ export function NewWorkspaceLayout() {
 
   return (
     <>
+      <CaseStateBridge />
       <RoomRouter
         phase={derivedPhase}
         onPhaseChange={handlePhaseChange}

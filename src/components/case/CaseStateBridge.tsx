@@ -1,15 +1,13 @@
 import { useEffect, useRef } from 'react';
 import { useCase } from '../../store/caseContext';
 import { useLogContext, type CorrelationItem } from '../../contexts/LogContext';
-import type { PanelId } from '../layout/IconRail';
 
-export function CaseStateBridge({
-  activePanel,
-  onActivePanelChange,
-}: {
-  activePanel: PanelId | null;
-  onActivePanelChange: (panel: PanelId | null) => void;
-}) {
+/**
+ * CaseStateBridge — syncs active case state with LogContext filters.
+ * When a case is selected, restores its saved filter/correlation state.
+ * When filters change, persists them to the active case.
+ */
+export function CaseStateBridge() {
   const { activeCase, updateCaseState } = useCase();
   const {
     activeCorrelations,
@@ -24,6 +22,7 @@ export function CaseStateBridge({
   } = useLogContext();
   const restoringCaseId = useRef<string | null>(null);
 
+  // Restore case state when active case changes
   useEffect(() => {
     if (!activeCase) {
       restoringCaseId.current = null;
@@ -40,12 +39,12 @@ export function CaseStateBridge({
       setActiveCorrelations((state.filters.activeCorrelations as CorrelationItem[] | undefined) ?? []);
       setSelectedMessageTypeFilter(state.filters.selectedMessageTypeFilter ?? null);
       setSelectedLogId(state.selectedLogId ?? null);
-      onActivePanelChange((state.activePanel as PanelId | null | undefined) ?? null);
     }
 
     restoringCaseId.current = activeCase.id;
-  }, [activeCase, onActivePanelChange, setActiveCorrelations, setFilterText, setSelectedLogId, setSelectedMessageTypeFilter]);
+  }, [activeCase, setActiveCorrelations, setFilterText, setSelectedLogId, setSelectedMessageTypeFilter]);
 
+  // Persist case state when filters change
   useEffect(() => {
     if (!activeCase) return;
 
@@ -59,12 +58,11 @@ export function CaseStateBridge({
         },
         timeWindow: activeCase.timeWindow ?? visibleRange,
         selectedLogId,
-        activePanel,
       });
     }, 250);
 
     return () => window.clearTimeout(timeoutId);
-  }, [activeCase, activeCorrelations, activePanel, filterText, selectedLogId, selectedMessageTypeFilter, updateCaseState, visibleRange]);
+  }, [activeCase, activeCorrelations, filterText, selectedLogId, selectedMessageTypeFilter, updateCaseState, visibleRange]);
 
   return null;
 }

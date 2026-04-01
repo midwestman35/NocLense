@@ -37,7 +37,7 @@ npx vitest -- logContextBuilder
 
 ### Global State (Context Providers)
 
-Both providers wrap the entire app (`App.tsx`: `AIProvider → LogProvider → MainLayout`).
+Both providers wrap the entire app (`App.tsx`: `ToastProvider → AIProvider → CaseProvider → LogProvider → NewWorkspaceLayout`).
 
 | Context | File | Manages |
 |---|---|---|
@@ -84,6 +84,34 @@ Users filter logs by faceted correlations (Call-ID, Report-ID, Operator-ID, Exte
 | `src/services/promptTemplates.ts` | All pre-built AI prompts |
 | `src/styles/theme.css` | Theme color variables (light / dark / red themes) |
 
+### Workspace Layout (Hybrid Redesign)
+
+The UI uses a **Phase Rooms + Card Workspace** architecture. Three rooms with distinct layouts:
+
+- **Import Room** — Centered card on empty canvas. Calm, focused on data intake.
+- **Investigate Room** — CSS grid with 6 WorkspaceCards: Log Stream (large), AI Assistant, Evidence, Similar Tickets, Correlation Graph, Datadog Live. Maximum density.
+- **Submit Room** — Two centered cards: Closure Note + Evidence Summary. Calm, focused on handoff.
+
+Key components in `src/components/workspace/`:
+- `NewWorkspaceLayout` — top-level layout, owns phase state, renders room content
+- `RoomRouter` — composes PhaseHeader + WorkspaceGrid, delegates transitions
+- `WorkspaceCard` — expandable card with accent dot, chevron, meta/badge slots
+- `WorkspaceGrid` — CSS grid manager per room type
+- `PhaseHeader` — header with logo, ticket context, PhaseDots, theme/settings
+- `PhaseDots` — animated phase stepper (completed=clickable, future=disabled)
+- `useRoomTransition` — exit/enter animation choreography between rooms
+
+Phase navigation: forward via workflow actions (file upload, "Next: Submit" button). Back via phase dot clicks on completed phases. Room transitions use CSS fade+scale animations with card stagger entrance.
+
+**Removed:** `AppLayout`, `IconRail`, `SidebarPanel`, `InvestigationPanels` — replaced by the workspace card system.
+
+### Animation Architecture
+
+- **Motion (Framer Motion)** — mount/unmount animations (Dialog, Sheet, AnimatePresence)
+- **anime.js v4** — stagger effects, timeline orchestration, SVG, value tweening. Hooks in `src/utils/anime.ts`: `useAnimeStagger`, `useAnimeTimeline`, `useAnimeValue`
+- **CSS transitions** — hover states, focus rings, room container transitions
+- **CSS keyframes** — skeleton shimmer, toast entrance, phase dot pulse, evidence bounce
+
 ## Coding Conventions
 
 - **TypeScript strict mode** — no `any` (use `unknown` for dynamic data); explicit return types on exported functions; interfaces for object shapes, type aliases for unions.
@@ -97,6 +125,9 @@ Users filter logs by faceted correlations (Call-ID, Report-ID, Operator-ID, Exte
 
 - State management → `src/contexts/LogContext.tsx`
 - External data / error handling → `src/components/FileUploader.tsx`
-- Toolbar UI → `src/components/FilterBar.tsx`
+- Toolbar UI → `src/components/filter/FilterBar.tsx` (decomposed into SearchBar, FilterChips, FilterControls, FilterStatus)
+- Workspace card → `src/components/workspace/WorkspaceCard.tsx`
+- Room layout → `src/components/workspace/NewWorkspaceLayout.tsx`
+- Animation hooks → `src/utils/anime.ts`
 - AI implementation phases → `docs/plans/LLM_INTEGRATION_IMPLEMENTATION_PLAN.md`
 
