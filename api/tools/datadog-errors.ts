@@ -3,14 +3,24 @@
  * Query Datadog Logs API for errors in a time window for Unleash agent tool.
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { validateSecret, datadogAuth } from './_auth';
+
+function validateSecret(req: VercelRequest, res: VercelResponse): boolean {
+  const secret = process.env.TOOL_SECRET;
+  if (!secret) { res.status(500).json({ error: 'TOOL_SECRET not configured' }); return false; }
+  if (req.headers['x-tool-secret'] !== secret) { res.status(401).json({ error: 'Unauthorized' }); return false; }
+  return true;
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
   if (!validateSecret(req, res)) return;
 
-  const auth = datadogAuth(res);
-  if (!auth) return;
+  const apiKey = process.env.VITE_DATADOG_API_KEY;
+  const appKey = process.env.VITE_DATADOG_APP_KEY;
+  const site = process.env.VITE_DATADOG_SITE || 'datadoghq.com';
+  if (!apiKey || !appKey) { res.status(500).json({ error: 'Datadog credentials not configured' }); return; }
+
+  const ddHeaders = { 'Content-Type': 'application/json', 'DD-API-KEY': apiKey, 'DD-APPLICATION-KEY': appKey };
 
   const body = req.body ?? {};
   const from = body.from;
@@ -30,7 +40,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const apiHost = auth.site.startsWith('api.') ? auth.site : `api.${auth.site}`;
+    const apiHost = site.startsWith('api.') ? site : `api.${site}`;
     const url = `https://${apiHost}/api/v2/logs/events/search`;
 
     const ddBody = {
@@ -41,7 +51,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const ddRes = await fetch(url, {
       method: 'POST',
-      headers: auth.headers,
+      headers: ddHeaders,
       body: JSON.stringify(ddBody),
     });
 

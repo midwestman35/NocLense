@@ -3,14 +3,25 @@
  * Search Confluence knowledge base for Unleash agent tool.
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { validateSecret, confluenceAuth } from './_auth';
+
+function validateSecret(req: VercelRequest, res: VercelResponse): boolean {
+  const secret = process.env.TOOL_SECRET;
+  if (!secret) { res.status(500).json({ error: 'TOOL_SECRET not configured' }); return false; }
+  if (req.headers['x-tool-secret'] !== secret) { res.status(401).json({ error: 'Unauthorized' }); return false; }
+  return true;
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') { res.status(405).json({ error: 'Method not allowed' }); return; }
   if (!validateSecret(req, res)) return;
 
-  const auth = confluenceAuth(res);
-  if (!auth) return;
+  const subdomain = process.env.VITE_JIRA_SUBDOMAIN;
+  const email = process.env.VITE_JIRA_EMAIL;
+  const token = process.env.VITE_JIRA_TOKEN;
+  if (!subdomain || !email || !token) { res.status(500).json({ error: 'Confluence/Jira credentials not configured' }); return; }
+
+  const credentials = Buffer.from(`${email}/token:${token}`).toString('base64');
+  const headers = { 'Content-Type': 'application/json', Authorization: `Basic ${credentials}` };
 
   const q = String(req.query.q ?? '').trim();
   if (!q) { res.status(400).json({ error: 'Missing required parameter: q' }); return; }
@@ -26,9 +37,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     else if (spaceId) cql = `space.id = ${spaceId} AND ${cql}`;
     cql += ' ORDER BY lastmodified DESC';
 
-    const url = `https://${auth.subdomain}/wiki/rest/api/content/search?cql=${encodeURIComponent(cql)}&limit=10`;
+    const url = `https://${subdomain}/wiki/rest/api/content/search?cql=${encodeURIComponent(cql)}&limit=10`;
 
-    const confRes = await fetch(url, { headers: auth.headers });
+    const confRes = await fetch(url, { headers });
 
     if (!confRes.ok) {
       const text = await confRes.text().catch(() => confRes.statusText);

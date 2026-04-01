@@ -3,24 +3,35 @@
  * Fetch a single Zendesk ticket with structured summary for Unleash agent tool.
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { validateSecret, zendeskAuth } from './_auth';
+
+function validateSecret(req: VercelRequest, res: VercelResponse): boolean {
+  const secret = process.env.TOOL_SECRET;
+  if (!secret) { res.status(500).json({ error: 'TOOL_SECRET not configured' }); return false; }
+  if (req.headers['x-tool-secret'] !== secret) { res.status(401).json({ error: 'Unauthorized' }); return false; }
+  return true;
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') { res.status(405).json({ error: 'Method not allowed' }); return; }
   if (!validateSecret(req, res)) return;
 
-  const auth = zendeskAuth(res);
-  if (!auth) return;
+  const subdomain = process.env.VITE_ZENDESK_SUBDOMAIN;
+  const email = process.env.VITE_ZENDESK_EMAIL;
+  const token = process.env.VITE_ZENDESK_TOKEN;
+  if (!subdomain || !email || !token) { res.status(500).json({ error: 'Zendesk credentials not configured' }); return; }
+
+  const credentials = Buffer.from(`${email}/token:${token}`).toString('base64');
+  const headers = { 'Content-Type': 'application/json', Authorization: `Basic ${credentials}` };
 
   const id = String(req.query.id ?? '').replace(/\D/g, '');
   if (!id) { res.status(400).json({ error: 'Missing required parameter: id' }); return; }
 
   try {
-    const base = `https://${auth.subdomain}.zendesk.com`;
+    const base = `https://${subdomain}.zendesk.com`;
 
     const [ticketRes, commentsRes] = await Promise.all([
-      fetch(`${base}/api/v2/tickets/${id}.json`, { headers: auth.headers }),
-      fetch(`${base}/api/v2/tickets/${id}/comments.json`, { headers: auth.headers }),
+      fetch(`${base}/api/v2/tickets/${id}.json`, { headers }),
+      fetch(`${base}/api/v2/tickets/${id}/comments.json`, { headers }),
     ]);
 
     if (!ticketRes.ok) {
@@ -35,7 +46,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let requester = 'Unknown';
     let requesterTimezone: string | null = null;
     try {
-      const userRes = await fetch(`${base}/api/v2/users/${ticket.requester_id}.json`, { headers: auth.headers });
+      const userRes = await fetch(`${base}/api/v2/users/${ticket.requester_id}.json`, { headers });
       if (userRes.ok) {
         const userData = await userRes.json();
         requester = userData.user?.name ?? 'Unknown';
@@ -47,7 +58,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let orgName: string | null = null;
     if (ticket.organization_id) {
       try {
-        const orgRes = await fetch(`${base}/api/v2/organizations/${ticket.organization_id}.json`, { headers: auth.headers });
+        const orgRes = await fetch(`${base}/api/v2/organizations/${ticket.organization_id}.json`, { headers });
         if (orgRes.ok) {
           const orgData = await orgRes.json();
           orgName = orgData.organization?.name ?? null;
