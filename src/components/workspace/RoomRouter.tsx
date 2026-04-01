@@ -1,7 +1,7 @@
 import { useCallback, useRef, type ReactNode } from 'react';
 import { PhaseHeader } from './PhaseHeader';
 import { WorkspaceGrid } from './WorkspaceGrid';
-import { useAnimeTimeline, type TimelineStep } from '../../utils/anime';
+import { useRoomTransition } from './useRoomTransition';
 import type { Phase } from './types';
 
 interface RoomRouterProps {
@@ -29,15 +29,22 @@ export function RoomRouter({
   investigateContent,
   submitContent,
 }: RoomRouterProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const currentPhaseRef = useRef<Phase>(phase);
+  currentPhaseRef.current = phase;
 
-  // Build transition timeline steps (placeholder — Phase 4 will implement the full choreography)
-  const transitionSteps: TimelineStep[] = [];
-  useAnimeTimeline(transitionSteps, [phase]);
+  const { transitionTo } = useRoomTransition({
+    containerRef: gridRef,
+  });
 
   const handlePhaseChange = useCallback((nextPhase: Phase) => {
-    onPhaseChange(nextPhase);
-  }, [onPhaseChange]);
+    if (nextPhase === currentPhaseRef.current) return;
+    const from = currentPhaseRef.current;
+
+    transitionTo(from, nextPhase, () => {
+      onPhaseChange(nextPhase);
+    });
+  }, [onPhaseChange, transitionTo]);
 
   const roomContent: Record<Phase, ReactNode> = {
     import: importContent,
@@ -46,7 +53,7 @@ export function RoomRouter({
   };
 
   return (
-    <div ref={containerRef} className="flex h-screen flex-col bg-[var(--background)] text-[var(--foreground)]">
+    <div className="flex h-screen flex-col bg-[var(--background)] text-[var(--foreground)]">
       <PhaseHeader
         phase={phase}
         onPhaseChange={handlePhaseChange}
@@ -55,9 +62,11 @@ export function RoomRouter({
         statusLabel={statusLabel}
         onSettingsClick={onSettingsClick}
       />
-      <WorkspaceGrid layout={phase}>
-        {roomContent[phase]}
-      </WorkspaceGrid>
+      <div ref={gridRef} className="flex-1 min-h-0">
+        <WorkspaceGrid layout={phase}>
+          {roomContent[phase]}
+        </WorkspaceGrid>
+      </div>
     </div>
   );
 }

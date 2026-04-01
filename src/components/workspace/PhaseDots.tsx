@@ -44,7 +44,7 @@ export function PhaseDots({ current, onNavigate, className }: PhaseDotsProps) {
               <span
                 className={clsx(
                   'block rounded-full transition-all duration-300',
-                  isActive && 'shadow-[var(--phase-dot-glow)]',
+                  isActive && 'animate-phase-pulse',
                 )}
                 style={{
                   width: 'var(--phase-dot-size)',
