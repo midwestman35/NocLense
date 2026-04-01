@@ -174,8 +174,14 @@ export function NewWorkspaceLayout() {
         accentColor="#f59e0b"
         className={CARD_GRID_CLASSES['evidence']}
       >
-        <div className="p-3 text-xs text-[var(--muted-foreground)]">
-          <p>Evidence bookmarks and internal notes will appear here during investigation.</p>
+        <div className="p-3 flex flex-col gap-3">
+          <p className="text-xs text-[var(--muted-foreground)]">Evidence bookmarks and internal notes will appear here during investigation.</p>
+          <button
+            onClick={() => setExplicitPhase('submit')}
+            className="w-full h-8 rounded-[var(--radius-md)] bg-[var(--success)] text-white text-xs font-semibold hover:bg-[var(--success)]/90 transition-colors"
+          >
+            Next: Submit →
+          </button>
         </div>
       </WorkspaceCard>
 
@@ -233,6 +239,14 @@ export function NewWorkspaceLayout() {
         accentColor="#76ce40"
         className="w-[400px]"
       >
+        <div className="px-5 pt-2">
+          <button
+            onClick={() => setExplicitPhase('investigate')}
+            className="text-[10px] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+          >
+            ← Back to Investigate
+          </button>
+        </div>
         <div className="p-5">
           <p className="text-xs text-[var(--muted-foreground)] mb-3">
             AI-generated closure note for the investigation. Edit before posting.
