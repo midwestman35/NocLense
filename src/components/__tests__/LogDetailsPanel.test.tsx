@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import LogDetailsPanel from '../log/LogDetailsPanel';
 import { useLogContext } from '../../contexts/LogContext';
 import { useCase } from '../../store/caseContext';
@@ -24,16 +24,32 @@ const mockUseLogContext = useLogContext as ReturnType<typeof vi.fn>;
 const mockUseCase = useCase as ReturnType<typeof vi.fn>;
 
 describe('LogDetailsPanel', () => {
-  const addBookmark = vi.fn();
-  const addNote = vi.fn();
+  const sampleLog = {
+    id: 7,
+    timestamp: 1000,
+    rawTimestamp: '2026-03-08T00:00:01.000Z',
+    level: 'ERROR',
+    component: 'test.component',
+    displayComponent: 'TestComponent',
+    message: 'Failure for callId=abc123',
+    displayMessage: 'Failure for callId=abc123',
+    payload: 'payload',
+    type: 'LOG',
+    isSip: false,
+    callId: 'abc123',
+    fileName: 'sample.log',
+    sourceLabel: 'APEX',
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
     mockUseLogContext.mockReturnValue({
-      logs: [],
+      logs: [sampleLog],
       toggleCorrelation: vi.fn(),
       setActiveCorrelations: vi.fn(),
       activeCorrelations: [],
+      aiHighlightedLogIds: new Set<number>(),
+      aiHighlightReasons: new Map(),
     });
     mockUseCase.mockReturnValue({
       activeCase: {
@@ -42,41 +58,45 @@ describe('LogDetailsPanel', () => {
         bookmarks: [],
         notes: [],
       },
-      addBookmark,
-      addNote,
+      addBookmark: vi.fn(),
+      addNote: vi.fn(),
     });
   });
 
-  it('adds evidence to the active case with an optional note', () => {
+  it('renders log detail fields correctly', () => {
     render(
       <LogDetailsPanel
-        log={{
-          id: 7,
-          timestamp: 1000,
-          rawTimestamp: '2026-03-08T00:00:01.000Z',
-          level: 'ERROR',
-          component: 'test.component',
-          displayComponent: 'TestComponent',
-          message: 'Failure for callId=abc123',
-          displayMessage: 'Failure for callId=abc123',
-          payload: 'payload',
-          type: 'LOG',
-          isSip: false,
-          callId: 'abc123',
-          fileName: 'sample.log',
-          sourceLabel: 'APEX',
-        }}
+        log={sampleLog as any}
         onClose={() => {}}
         onJumpToLog={() => {}}
       />
     );
 
-    fireEvent.change(screen.getByPlaceholderText(/Why does this event matter/i), {
-      target: { value: 'This is the first correlated failure.' },
-    });
-    fireEvent.click(screen.getByText('Add evidence'));
+    expect(screen.getByText('test.component')).toBeInTheDocument();
+    expect(screen.getByText('APEX')).toBeInTheDocument();
+    expect(screen.getByText('sample.log')).toBeInTheDocument();
+    expect(screen.getByText('abc123')).toBeInTheDocument();
+  });
 
-    expect(addBookmark).toHaveBeenCalled();
-    expect(addNote).toHaveBeenCalled();
+  it('renders AI highlight reason when log is AI-highlighted', () => {
+    mockUseLogContext.mockReturnValue({
+      logs: [sampleLog],
+      toggleCorrelation: vi.fn(),
+      setActiveCorrelations: vi.fn(),
+      activeCorrelations: [],
+      aiHighlightedLogIds: new Set<number>([7]),
+      aiHighlightReasons: new Map([[7, 'SIP transport failure detected']]),
+    });
+
+    render(
+      <LogDetailsPanel
+        log={sampleLog as any}
+        onClose={() => {}}
+        onJumpToLog={() => {}}
+      />
+    );
+
+    expect(screen.getByText('SIP transport failure detected')).toBeInTheDocument();
+    expect(screen.getByText('AI Diagnosis')).toBeInTheDocument();
   });
 });

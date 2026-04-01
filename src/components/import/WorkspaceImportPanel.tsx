@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { AlertTriangle, FileUp, Files, PencilLine, Stethoscope } from 'lucide-react';
-import { Button } from '../ui';
+import { Button, useToast } from '../ui';
 import { useLogContext } from '../../contexts/LogContext';
 import { useCase } from '../../store/caseContext';
 import { dbManager } from '../../utils/indexedDB';
@@ -46,6 +46,7 @@ interface WorkspaceImportPanelProps {
 }
 
 export function WorkspaceImportPanel({ onComplete, onInvestigationReady }: WorkspaceImportPanelProps) {
+  const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [mode, setMode] = useState<'files' | 'paste'>('files');
   const [sourceType, setSourceType] = useState<LogSourceType>('apex');
@@ -121,6 +122,7 @@ export function WorkspaceImportPanel({ onComplete, onInvestigationReady }: Works
           const result = await serverUploadAndParse(files, setParsingProgress);
           setSelectedLogId(null);
           setNotices([`Server parsed ${result.count.toLocaleString()} log entries from ${files.length} file${files.length === 1 ? '' : 's'}.`]);
+          toast(`Server parsed ${result.count.toLocaleString()} logs`, { variant: 'success' });
           const zdId = zdTicketInput.trim().replace(/\D/g, '');
           if (zdId) onInvestigationReady?.(zdId);
           onComplete?.();
@@ -155,11 +157,14 @@ export function WorkspaceImportPanel({ onComplete, onInvestigationReady }: Works
       attachToCase(result.datasets);
       setSelectedLogId(null);
       setNotices(result.warnings.length > 0 ? result.warnings : [`Imported ${result.datasets.length} dataset${result.datasets.length === 1 ? '' : 's'}.`]);
+      toast(`Imported ${result.datasets.length} dataset${result.datasets.length === 1 ? '' : 's'}`, { variant: 'success' });
       const zdId = zdTicketInput.trim().replace(/\D/g, '');
       if (zdId) onInvestigationReady?.(zdId);
       onComplete?.();
     } catch (importError) {
-      setError(importError instanceof Error ? importError.message : 'Failed to import files.');
+      const msg = importError instanceof Error ? importError.message : 'Failed to import files.';
+      setError(msg);
+      toast(msg, { variant: 'error' });
     } finally {
       setLoading(false);
       setParsingProgress(0);
@@ -193,11 +198,14 @@ export function WorkspaceImportPanel({ onComplete, onInvestigationReady }: Works
       attachToCase([result.dataset]);
       setSelectedLogId(null);
       setNotices(result.warnings.length > 0 ? result.warnings : [`Imported ${result.dataset.logCount.toLocaleString()} pasted events.`]);
+      toast(`Imported ${result.dataset.logCount.toLocaleString()} pasted events`, { variant: 'success' });
       const zdId = zdTicketInput.trim().replace(/\D/g, '');
       if (zdId) onInvestigationReady?.(zdId);
       onComplete?.();
     } catch (importError) {
-      setError(importError instanceof Error ? importError.message : 'Failed to import pasted logs.');
+      const msg = importError instanceof Error ? importError.message : 'Failed to import pasted logs.';
+      setError(msg);
+      toast(msg, { variant: 'error' });
     } finally {
       setLoading(false);
       setParsingProgress(0);

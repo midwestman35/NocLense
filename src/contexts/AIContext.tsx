@@ -16,11 +16,7 @@ import {
   DEFAULT_AI_PROVIDER,
   DEFAULT_MODELS_BY_PROVIDER,
   GEMINI_FREE_TIER_DAILY_LIMIT,
-  InvalidApiKeyError,
-  RateLimitError,
-  QuotaExceededError,
-  TokenLimitExceededError,
-  NetworkError,
+  type RateLimitError,
 } from '../types/ai';
 import type { LogEntry } from '../types';
 import ConsentModal from '../components/ConsentModal';
@@ -381,10 +377,11 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
       return true;
     } catch (e) {
       console.error('API key validation error:', e);
-      if (e instanceof InvalidApiKeyError) {
+      const errName = e instanceof Error ? e.name : '';
+      if (errName === 'InvalidApiKeyError') {
         setError('Invalid API key. Please check your API key and try again.');
-      } else if (e instanceof RateLimitError || e instanceof QuotaExceededError || e instanceof NetworkError) {
-        setError(e.message);
+      } else if (errName === 'RateLimitError' || errName === 'QuotaExceededError' || errName === 'NetworkError') {
+        setError((e as Error).message);
       } else {
         const details = e instanceof Error ? e.message : '';
         setError(details || 'Failed to validate API key. Please check your connection and try again.');
@@ -528,17 +525,19 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
       }));
     } catch (e) {
       console.error('AI analysis error:', e);
-      if (e instanceof InvalidApiKeyError) {
+      // Use e.name instead of instanceof to survive module-mock boundaries
+      const errName = e instanceof Error ? e.name : '';
+      if (errName === 'InvalidApiKeyError') {
         setError('Invalid API key. Please open AI Settings to update your key.');
-      } else if (e instanceof RateLimitError) {
-        const resetTime = e.resetTime ? new Date(e.resetTime).toLocaleTimeString() : 'about 1 minute';
+      } else if (errName === 'RateLimitError') {
+        const resetTime = (e as RateLimitError).resetTime ? new Date((e as RateLimitError).resetTime!).toLocaleTimeString() : 'about 1 minute';
         setError(`Too many requests. Please try again after ${resetTime}.`);
-      } else if (e instanceof QuotaExceededError) {
-        setError(e.message);
+      } else if (errName === 'QuotaExceededError') {
+        setError((e as Error).message);
         setShowQuotaExceededModal(true);
-      } else if (e instanceof TokenLimitExceededError) {
+      } else if (errName === 'TokenLimitExceededError') {
         setError('Too many logs selected. Please filter to fewer logs and try again.');
-      } else if (e instanceof NetworkError) {
+      } else if (errName === 'NetworkError') {
         setError('Network error. Please check your connection and try again.');
       } else {
         const message = e instanceof Error ? e.message : '';

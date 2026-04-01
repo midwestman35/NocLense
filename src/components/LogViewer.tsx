@@ -4,6 +4,7 @@ import { useLogContext } from '../contexts/LogContext';
 import LogRow from './LogRow';
 import { ArrowUp, ArrowDown, Filter, ChevronRight, ChevronDown } from 'lucide-react';
 import serviceMappings from '../../public/service-mappings.json';
+import { useAnimeValue, useAnimeStagger } from '../utils/anime';
 
 const LogHeader = () => {
   const { sortConfig, setSortConfig, selectedComponentFilter, setSelectedComponentFilter, logs } = useLogContext();
@@ -87,6 +88,21 @@ function TimeWindowStrip() {
     setScrollTargetTimestamp,
   } = useLogContext();
   const [isOpen, setIsOpen] = useState(false);
+  const badgesRef = useRef<HTMLDivElement>(null);
+  const prevCountRef = useRef(filteredLogs.length);
+
+  const animatedEventCount = useAnimeValue(prevCountRef.current, filteredLogs.length, { duration: 400 });
+
+  useEffect(() => {
+    prevCountRef.current = filteredLogs.length;
+  }, [filteredLogs.length]);
+
+  useAnimeStagger(badgesRef, 'span', [filteredLogs.length], {
+    translateY: [4, 0],
+    opacity: [0, 1],
+    stagger: 50,
+    duration: 200,
+  });
 
   const typeCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -122,10 +138,10 @@ function TimeWindowStrip() {
           {isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
           Log window
         </button>
-        <span className="text-[var(--muted-foreground)] tabular-nums">{filteredLogs.length.toLocaleString()} events</span>
+        <span className="text-[var(--muted-foreground)] tabular-nums">{animatedEventCount.toLocaleString()} events</span>
         <span className="text-[var(--muted-foreground)] tabular-nums">{rangeLabel}</span>
         {/* Level breakdown badges */}
-        <div className="flex items-center gap-1 ml-1">
+        <div ref={badgesRef} className="flex items-center gap-1 ml-1">
           {(['ERROR', 'WARN', 'INFO', 'DEBUG'] as const).map(lvl => {
             const count = levelCounts[lvl];
             if (!count) return null;

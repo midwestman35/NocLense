@@ -13,14 +13,26 @@ import { AppLayout } from './components/layout/AppLayout';
 import type { PanelId } from './components/layout/IconRail';
 import { useInvestigationPanels } from './components/layout/InvestigationPanels';
 import { initTheme } from './utils/theme';
-import { Button, Dialog } from './components/ui';
+import { Button, Dialog, ToastProvider } from './components/ui';
 import { AIOnboardingWizard } from './components/onboarding/AIOnboardingWizard';
 import { ProductUpdateWizard } from './components/onboarding/ProductUpdateWizard';
 import { WorkspaceImportPanel } from './components/import/WorkspaceImportPanel';
 import { CaseHeader } from './components/case/CaseHeader';
 import { CaseStateBridge } from './components/case/CaseStateBridge';
 import InvestigationSetupModal from './components/InvestigationSetupModal';
+import ServerSettingsPanel from './components/ServerSettingsPanel';
+import LogTimeline from './components/timeline/LogTimeline';
 import type { InvestigationSetup } from './types/investigation';
+import { NewWorkspaceLayout } from './components/workspace/NewWorkspaceLayout';
+
+const WORKSPACE_UI_FLAG = 'noclense-use-workspace-ui';
+function useWorkspaceUI(): boolean {
+  try {
+    return localStorage.getItem(WORKSPACE_UI_FLAG) === 'true';
+  } catch {
+    return false;
+  }
+}
 
 const PRODUCT_UPDATE_KEY = 'noclense-v2-product-update-seen';
 
@@ -65,6 +77,7 @@ const MainLayout = () => {
   const [showOnboardingWizard, setShowOnboardingWizard] = useState(false);
   const [showProductUpdateWizard, setShowProductUpdateWizard] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
+  const [showSettingsDialog, setShowSettingsDialog] = useState(false);
   const [pendingZdTicketId, setPendingZdTicketId] = useState<string>('');
   // Investigation setup modal
   const [investigationModalTicketId, setInvestigationModalTicketId] = useState<string | null>(null);
@@ -191,6 +204,7 @@ const MainLayout = () => {
         onActivePanelChange={setActivePanel}
         panelContent={panelContent}
         headerContent={headerContent}
+        onSettingsClick={() => setShowSettingsDialog(true)}
         rightSidebar={
           <AISidebar
             onSetupAI={() => setShowOnboardingWizard(true)}
@@ -244,6 +258,8 @@ const MainLayout = () => {
               <FilterBar />
             </div>
 
+            <LogTimeline />
+
             <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
               <LogViewer />
             </div>
@@ -256,6 +272,11 @@ const MainLayout = () => {
           </div>
         )}
       </AppLayout>
+
+      {/* Settings Dialog */}
+      <Dialog open={showSettingsDialog} onClose={() => setShowSettingsDialog(false)} title="Settings">
+        <ServerSettingsPanel />
+      </Dialog>
 
       {/* Investigation Setup Modal — shown when agent clicks "Investigate" from the Import screen */}
       {investigationModalTicketId && (
@@ -292,14 +313,21 @@ const MainLayout = () => {
   );
 };
 
+function LayoutSwitch() {
+  const isWorkspace = useWorkspaceUI();
+  return isWorkspace ? <NewWorkspaceLayout /> : <MainLayout />;
+}
+
 const App = () => (
-  <AIProvider>
-    <CaseProvider>
-      <LogProvider>
-        <MainLayout />
-      </LogProvider>
-    </CaseProvider>
-  </AIProvider>
+  <ToastProvider>
+    <AIProvider>
+      <CaseProvider>
+        <LogProvider>
+          <LayoutSwitch />
+        </LogProvider>
+      </CaseProvider>
+    </AIProvider>
+  </ToastProvider>
 );
 
 export default App;

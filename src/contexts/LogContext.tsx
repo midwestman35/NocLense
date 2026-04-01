@@ -917,6 +917,11 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         });
 
 
+        // Timeline zoom range filter
+        if (timelineZoomRange) {
+            result = result.filter(log => log.timestamp >= timelineZoomRange.start && log.timestamp <= timelineZoomRange.end);
+        }
+
         // Favorites filter
         if (isShowFavoritesOnly) {
             result = result.filter(log => favoriteLogIds.has(log.id));
@@ -940,7 +945,7 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         });
 
         return result;
-    }, [logs, selectedLogId, correlationIndexes, selectedComponentFilter, selectedLevels, isSipFilterEnabled, normalizedSelectedSipMethods, lowerFilterText, sortConfig, isShowFavoritesOnly, favoriteLogIds, isShowAiHighlightOnly, aiHighlightedLogIds, useIndexedDBMode, indexedDBLogs, excludedMessageTypes, selectedMessageTypeFilter, selectedSourceFilter]);
+    }, [logs, selectedLogId, correlationIndexes, selectedComponentFilter, selectedLevels, isSipFilterEnabled, normalizedSelectedSipMethods, lowerFilterText, sortConfig, isShowFavoritesOnly, favoriteLogIds, isShowAiHighlightOnly, aiHighlightedLogIds, useIndexedDBMode, indexedDBLogs, excludedMessageTypes, selectedMessageTypeFilter, selectedSourceFilter, timelineZoomRange]);
 
     // Collapse similar: group consecutive rows with same (displayComponent, summaryMessage/displayMessage) (6.3 Option A)
     const collapsedViewList = useMemo((): Array<{ firstLog: LogEntry; count: number }> | null => {

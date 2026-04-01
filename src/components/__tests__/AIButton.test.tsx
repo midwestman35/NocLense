@@ -30,15 +30,14 @@ vi.mock('../../contexts/AIContext', () => ({
   useAI: vi.fn(),
 }));
 
-// Mock AIAssistantPanel
-vi.mock('../AIAssistantPanel', () => ({
-  default: ({ onClose, initialQuery }: any) => (
-    <div data-testid="ai-assistant-panel">
-      <div>AI Assistant Panel</div>
-      <div>Query: {initialQuery}</div>
-      <button onClick={onClose}>Close</button>
-    </div>
-  ),
+// Mock unleashService to prevent real API calls
+vi.mock('../../services/unleashService', () => ({
+  chatWithLogs: vi.fn().mockResolvedValue('Mock AI response'),
+}));
+
+// Mock aiSettings store
+vi.mock('../../store/aiSettings', () => ({
+  loadAiSettings: vi.fn(() => ({ endpoint: 'test', token: 'test' })),
 }));
 
 const mockUseAI = useAI as ReturnType<typeof vi.fn>;
@@ -70,11 +69,9 @@ describe('AIButton', () => {
 
   it('opens AI panel when clicked', () => {
     render(<AIButton />);
-    
     const button = screen.getByText('Analyze with AI');
     fireEvent.click(button);
-    
-    expect(screen.getByTestId('ai-assistant-panel')).toBeInTheDocument();
+    expect(screen.getByText('Unleashed AI')).toBeInTheDocument();
   });
 
   it('displays custom label when provided', () => {
@@ -165,26 +162,21 @@ describe('AIButton', () => {
 
   it('closes panel when close button clicked', () => {
     render(<AIButton />);
-    
     const button = screen.getByText('Analyze with AI');
     fireEvent.click(button);
-    
-    const closeButton = screen.getByText('Close');
-    fireEvent.click(closeButton);
-    
-    expect(screen.queryByTestId('ai-assistant-panel')).not.toBeInTheDocument();
+    const backdrop = screen.getByText('Unleashed AI').closest('.fixed');
+    expect(backdrop).toBeInTheDocument();
+    fireEvent.click(backdrop!);
+    expect(screen.queryByText('Unleashed AI')).not.toBeInTheDocument();
   });
 
   it('calls onSuccess when panel closes', () => {
     const onSuccess = vi.fn();
     render(<AIButton onSuccess={onSuccess} />);
-    
     const button = screen.getByText('Analyze with AI');
     fireEvent.click(button);
-    
-    const closeButton = screen.getByText('Close');
-    fireEvent.click(closeButton);
-    
+    const backdrop = screen.getByText('Unleashed AI').closest('.fixed');
+    fireEvent.click(backdrop!);
     expect(onSuccess).toHaveBeenCalled();
   });
 });

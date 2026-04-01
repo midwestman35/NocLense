@@ -164,3 +164,34 @@
   --text-xl: 24px;
 }
 
+/* ── Room & Card System ── */
+:root {
+  --room-transition-duration: 600ms;
+  --room-transition-ease: cubic-bezier(0.33, 1, 0.68, 1);
+
+  --card-radius: 12px;
+  --card-border: #263025;
+  --card-border-hover: #3a5030;
+  --card-header-height: 40px;
+  --card-collapsed-height: 36px;
+  --card-expand-duration: 350ms;
+
+  --room-import-glow: radial-gradient(ellipse at center, rgba(118,206,64,0.03) 0%, transparent 70%);
+  --room-submit-glow: radial-gradient(ellipse at center, rgba(118,206,64,0.02) 0%, transparent 70%);
+  --room-investigate-bg: var(--workspace);
+
+  --phase-dot-size: 8px;
+  --phase-dot-inactive: #263025;
+  --phase-dot-complete: #51912b;
+  --phase-dot-active: #76ce40;
+  --phase-dot-glow: 0 0 8px rgba(118,206,64,0.4);
+}
+
+[data-theme="light"] {
+  --card-border: #e5e5e5;
+  --card-border-hover: #d4d4d4;
+  --phase-dot-inactive: #d4d4d4;
+  --room-import-glow: radial-gradient(ellipse at center, rgba(81,145,43,0.04) 0%, transparent 70%);
+  --room-submit-glow: radial-gradient(ellipse at center, rgba(81,145,43,0.03) 0%, transparent 70%);
+}
+
