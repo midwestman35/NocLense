@@ -28,6 +28,10 @@ dist-electron
 *.sln
 *.sw?
 
+# Environment files with secrets - NEVER commit these
+.env
+.env.*
+
 # User logs
 *.txt
 

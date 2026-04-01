@@ -1,6 +1,5 @@
 import React, { memo, useCallback } from 'react';
 import {
-  Briefcase,
   FileText,
   Hash,
   BarChart3,
@@ -8,11 +7,12 @@ import {
   Sparkles,
   Filter,
   Settings,
+  Server,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { Tooltip } from '../ui';
 
-export type PanelId = 'case' | 'files' | 'callIds' | 'reports' | 'stations' | 'ai' | 'filters';
+export type PanelId = 'case' | 'files' | 'callIds' | 'reports' | 'stations' | 'ai' | 'filters' | 'server';
 
 interface IconRailProps {
   activePanel: PanelId | null;
@@ -21,13 +21,13 @@ interface IconRailProps {
 }
 
 const PANEL_ITEMS: { id: PanelId; icon: React.ElementType; label: string }[] = [
-  { id: 'case', icon: Briefcase, label: 'Case' },
   { id: 'files', icon: FileText, label: 'Files' },
   { id: 'callIds', icon: Hash, label: 'Call IDs' },
   { id: 'reports', icon: BarChart3, label: 'Reports' },
   { id: 'stations', icon: Radio, label: 'Stations' },
   { id: 'ai', icon: Sparkles, label: 'AI Analysis' },
   { id: 'filters', icon: Filter, label: 'Filters' },
+  { id: 'server', icon: Server, label: 'Server Mode' },
 ];
 
 const RailButton = memo(function RailButton({

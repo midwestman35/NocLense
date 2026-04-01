@@ -1,0 +1,20 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/api/zendesk-proxy/(.*)", "destination": "/api/zendesk-proxy" },
+    { "source": "/api/jira-proxy/(.*)", "destination": "/api/jira-proxy" },
+    { "source": "/api/confluence-proxy/(.*)", "destination": "/api/confluence-proxy" },
+    { "source": "/api/datadog-proxy/(.*)", "destination": "/api/datadog-proxy" },
+    { "source": "/api/ai-proxy/(.*)", "destination": "/api/ai-proxy" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    }
+  ]
+}

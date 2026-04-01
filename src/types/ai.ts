@@ -8,12 +8,12 @@ export const GEMINI_FREE_TIER_DAILY_LIMIT = 1500;
 /**
  * Supported LLM providers.
  */
-export type AIProviderId = 'gemini' | 'claude' | 'codex';
+export type AIProviderId = 'gemini' | 'claude' | 'codex' | 'unleash';
 
 /**
  * Default provider used for first-run and migration paths.
  */
-export const DEFAULT_AI_PROVIDER: AIProviderId = 'gemini';
+export const DEFAULT_AI_PROVIDER: AIProviderId = 'unleash';
 
 /**
  * AI Integration Type Definitions
@@ -298,6 +298,13 @@ export interface AIProviderInfo {
  * Known providers and UX metadata.
  */
 export const AI_PROVIDERS: Record<AIProviderId, AIProviderInfo> = {
+  unleash: {
+    id: 'unleash',
+    name: 'Unleashed AI (Carbyne)',
+    keyLabel: 'Unleash Bearer Token',
+    helpUrl: 'https://app.unleash.so',
+    privacyNoticeName: 'Unleash',
+  },
   gemini: {
     id: 'gemini',
     name: 'Google Gemini',
@@ -328,6 +335,15 @@ export const AI_PROVIDERS: Record<AIProviderId, AIProviderInfo> = {
  * Makes it easy to add new models or update descriptions.
  */
 export const AI_MODELS: Record<string, AIModelInfo> = {
+  'unleash-default': {
+    id: 'unleash-default',
+    provider: 'unleash',
+    name: 'Unleash Default Assistant',
+    description: 'Company-approved AI with access to Carbyne knowledge base',
+    speed: 'fast',
+    quality: 'excellent',
+    contextWindow: 32000,
+  },
   'gemini-3.1-flash-lite-preview': {
     id: 'gemini-3.1-flash-lite-preview',
     provider: 'gemini',
@@ -406,6 +422,7 @@ export const AI_MODELS: Record<string, AIModelInfo> = {
  * Provider default models.
  */
 export const DEFAULT_MODELS_BY_PROVIDER: Record<AIProviderId, string> = {
+  unleash: 'unleash-default',
   gemini: 'gemini-3.1-flash-lite-preview',
   claude: 'claude-sonnet-4-6',
   codex: 'gpt-4.1-mini',

@@ -1,12 +1,14 @@
 import type { AIProviderId } from '../../types/ai';
 
 const PROVIDER_COPY: Record<AIProviderId, string> = {
-  gemini: 'Free tier · gemini-3.1-flash-lite-preview',
-  codex: 'Paid · GPT-4.1 Mini',
-  claude: 'Paid · Claude Sonnet 4.6',
+  unleash: 'Company-managed, Unleash Default Assistant',
+  gemini: 'Free tier, gemini-3.1-flash-lite-preview',
+  codex: 'Paid, GPT-4.1 Mini',
+  claude: 'Paid, Claude Sonnet 4.6',
 };
 
 const PROVIDER_LABELS: Record<AIProviderId, string> = {
+  unleash: 'Unleashed AI (Carbyne)',
   gemini: 'Google Gemini',
   codex: 'ChatGPT (OpenAI)',
   claude: 'Claude (Anthropic)',

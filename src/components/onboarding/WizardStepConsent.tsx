@@ -14,7 +14,7 @@ export function WizardStepConsent() {
         <div className="border border-[var(--border)] p-3 bg-[var(--accent)]">
           <div className="font-medium text-[var(--foreground)] mb-2">What we do not send</div>
           <div className="space-y-1 text-[var(--muted-foreground)]">
-            <div>Your API key</div>
+            <div>Your Zendesk or Jira credentials</div>
             <div>Logs you did not explicitly analyze</div>
             <div>Any NocLense server-side copy of your dataset</div>
           </div>

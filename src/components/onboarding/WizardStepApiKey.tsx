@@ -3,12 +3,14 @@ import { Input } from '../ui';
 import type { AIProviderId } from '../../types/ai';
 
 const KEY_LINKS: Record<AIProviderId, string> = {
+  unleash: 'https://app.unleash.so',
   gemini: 'https://aistudio.google.com/apikey',
   codex: 'https://platform.openai.com/api-keys',
   claude: 'https://console.anthropic.com/settings/keys',
 };
 
 const LABELS: Record<AIProviderId, string> = {
+  unleash: 'Unleashed AI',
   gemini: 'Google Gemini',
   codex: 'ChatGPT (OpenAI)',
   claude: 'Claude',

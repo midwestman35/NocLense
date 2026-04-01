@@ -2,7 +2,41 @@ import { createContext, useContext, useState, useMemo, useEffect, useCallback, u
 import type { ImportedDataset, LogEntry, LogLevel, LogState } from '../types';
 import { loadSearchHistory, addToSearchHistory as saveToHistory, clearSearchHistory as clearHistoryStorage } from '../store/searchHistory';
 import { dbManager } from '../utils/indexedDB';
-import { getJobLogs, getJobStats, checkHealth, type StatsResponse, type LogsQueryParams } from '../api/client';
+import { loadServerConfig, saveServerConfig, queryLogs as serverQueryLogs, createSession, uploadAndParse } from '../services/serverService';
+
+/** Derive a human-readable source label for a log entry (used by filter + dropdown). */
+function deriveSourceLabel(log: LogEntry): string {
+    // Use explicit sourceLabel if it's a recognized category
+    if (log.sourceLabel) {
+        if (log.sourceLabel.startsWith('DD:') || log.sourceType === 'datadog') return 'Datadog';
+        if (log.sourceLabel === 'Homer SIP' || log.sourceLabel === 'FDX' || log.sourceLabel === 'CCS/PBX' || log.sourceLabel === 'APEX Local' || log.sourceLabel === 'Call Log') return log.sourceLabel;
+    }
+    if (log.sourceType === 'datadog') return 'Datadog';
+    if (log.component === 'Homer SIP') return 'Homer SIP';
+    if (log.component === 'Call Log') return 'Call Log';
+    if (log.fileName?.toLowerCase().includes('export_')) return 'Homer SIP';
+    const comp = log.displayComponent || log.component || '';
+    if (comp.includes('FDX') || comp.includes('FDXMessage')) return 'FDX';
+    if (comp.includes('CCS') || comp.includes('PBX')) return 'CCS/PBX';
+    return 'APEX Local';
+}
+
+const SIP_RESPONSE_METHOD_PATTERN = /^(\d{3})\s+(\w+)(?:\s+.*)?$/i;
+const LOG_LEVEL_RANK: Record<LogLevel, number> = {
+    ERROR: 3,
+    WARN: 2,
+    INFO: 1,
+    DEBUG: 0,
+};
+
+const normalizeSipMethod = (method: string): string => {
+    const responseMatch = method.match(SIP_RESPONSE_METHOD_PATTERN);
+    if (!responseMatch) return method;
+
+    const code = responseMatch[1];
+    const firstWord = responseMatch[2].charAt(0).toUpperCase() + responseMatch[2].slice(1).toLowerCase();
+    return `${code} ${firstWord}`;
+};
 
 export interface CorrelationItem {
     type: 'report' | 'operator' | 'extension' | 'station' | 'callId' | 'file' | 'cncID' | 'messageID';
@@ -46,6 +80,10 @@ interface LogContextType extends LogState {
     selectedMessageTypeFilter: string | null;
     setSelectedMessageTypeFilter: (type: string | null) => void;
     availableMessageTypes: string[];
+    // Log source filter (e.g. "Datadog", "Call Log", "Homer SIP", "APEX/FDX")
+    selectedSourceFilter: string | null;
+    setSelectedSourceFilter: (source: string | null) => void;
+    availableSources: string[];
     // Collapse similar consecutive rows (6.3 Option A)
     isCollapseSimilarEnabled: boolean;
     setIsCollapseSimilarEnabled: (enabled: boolean) => void;
@@ -102,7 +140,24 @@ interface LogContextType extends LogState {
     toggleFavorite: (logId: number) => void;
     isShowFavoritesOnly: boolean;
     setIsShowFavoritesOnly: (show: boolean) => void;
-    
+
+    // AI Highlighted Logs
+    aiHighlightedLogIds: Set<number>;
+    setAiHighlightedLogIds: (ids: Set<number>) => void;
+    /** Maps log ID → AI explanation for why it was correlated to the ticket */
+    aiHighlightReasons: Map<number, string>;
+    setAiHighlightReasons: (reasons: Map<number, string>) => void;
+    clearAiHighlights: () => void;
+    isShowAiHighlightOnly: boolean;
+    setIsShowAiHighlightOnly: (show: boolean) => void;
+
+    // Server mode (offload parsing to backend)
+    serverMode: boolean;
+    serverSessionId: string | null;
+    setServerMode: (enabled: boolean) => void;
+    serverUploadAndParse: (files: File[], onProgress?: (progress: number) => void) => Promise<{ count: number }>;
+    refreshServerLogs: () => Promise<void>;
+
     // IndexedDB support (for large files)
     useIndexedDBMode: boolean;
     totalLogCount: number;
@@ -146,6 +201,10 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
     const [isSipFilterEnabled, setIsSipFilterEnabled] = useState(false);
     const [selectedLevels, setSelectedLevels] = useState<Set<LogLevel>>(() => new Set());
     const [selectedSipMethods, setSelectedSipMethods] = useState<Set<string>>(() => new Set());
+    const normalizedSelectedSipMethods = useMemo(
+        () => new Set(Array.from(selectedSipMethods, normalizeSipMethod)),
+        [selectedSipMethods]
+    );
     const [selectedLogId, setSelectedLogId] = useState<number | null>(null);
     const [searchHistory, setSearchHistory] = useState<string[]>([]);
     
@@ -205,6 +264,77 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         }
     }, [useIndexedDBMode]);
     
+    // --- Server Mode ---
+    const [serverMode, setServerModeState] = useState(() => loadServerConfig().enabled);
+    const [serverSessionId, setServerSessionId] = useState<string | null>(() => loadServerConfig().sessionId || null);
+
+    const setServerMode = useCallback((enabled: boolean) => {
+        setServerModeState(enabled);
+        const config = loadServerConfig();
+        saveServerConfig({ ...config, enabled });
+    }, []);
+
+    const FILE_COLORS = ['#3b82f6', '#eab308', '#06b6d4', '#22c55e', '#f97316', '#a855f7', '#ec4899', '#64748b'];
+
+    const serverUploadAndParse = useCallback(async (files: File[], onProgress?: (progress: number) => void) => {
+        setLoading(true);
+        setParsingProgress(0);
+        try {
+            // Create session if we don't have one
+            let sessionId = serverSessionId;
+            if (!sessionId) {
+                const { sessionId: newId } = await createSession(`session-${Date.now()}`);
+                sessionId = newId;
+                setServerSessionId(newId);
+                const config = loadServerConfig();
+                saveServerConfig({ ...config, sessionId: newId });
+            }
+
+            let totalCount = 0;
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const color = FILE_COLORS[i % FILE_COLORS.length];
+                const fileProgress = (progress: number) => {
+                    const overall = (i + progress) / files.length;
+                    setParsingProgress(overall);
+                    onProgress?.(overall);
+                };
+                const result = await uploadAndParse(file, sessionId, color, fileProgress);
+                totalCount += result.count;
+            }
+
+            // Fetch the first page of logs from the server to populate the UI
+            const { logs: serverLogs, total } = await serverQueryLogs({
+                sessionId,
+                limit: 5000,
+                offset: 0,
+            });
+            setLogs(serverLogs);
+            setTotalLogCount(total);
+            setParsingProgress(1);
+            return { count: totalCount };
+        } finally {
+            setLoading(false);
+            setParsingProgress(0);
+        }
+    }, [serverSessionId]);
+
+    const refreshServerLogs = useCallback(async () => {
+        if (!serverMode || !serverSessionId) return;
+        setLoading(true);
+        try {
+            const { logs: serverLogs, total } = await serverQueryLogs({
+                sessionId: serverSessionId,
+                limit: 5000,
+                offset: 0,
+            });
+            setLogs(serverLogs);
+            setTotalLogCount(total);
+        } finally {
+            setLoading(false);
+        }
+    }, [serverMode, serverSessionId]);
+
     // Load search history on mount
     useEffect(() => {
         setSearchHistory(loadSearchHistory());
@@ -217,6 +347,7 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
     const [excludedMessageTypes, setExcludedMessageTypes] = useState<Set<string>>(new Set());
     const [selectedMessageTypeFilter, setSelectedMessageTypeFilter] = useState<string | null>(null);
     const [isCollapseSimilarEnabled, setIsCollapseSimilarEnabled] = useState(false);
+    const [selectedSourceFilter, setSelectedSourceFilter] = useState<string | null>(null);
     const [visibleRange, setVisibleRange] = useState<{ start: number; end: number }>({ start: 0, end: 1 });
     const [scrollTargetTimestamp, setScrollTargetTimestamp] = useState<number | null>(null);
     const [timelineZoomRange, setTimelineZoomRange] = useState<{ start: number; end: number } | null>(null);
@@ -234,6 +365,16 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
     // Favorites State
     const [favoriteLogIds, setFavoriteLogIds] = useState<Set<number>>(new Set());
     const [isShowFavoritesOnly, setIsShowFavoritesOnly] = useState(false);
+
+    // AI Highlight State
+    const [aiHighlightedLogIds, setAiHighlightedLogIds] = useState<Set<number>>(new Set());
+    const [aiHighlightReasons, setAiHighlightReasons] = useState<Map<number, string>>(new Map());
+    const [isShowAiHighlightOnly, setIsShowAiHighlightOnly] = useState(false);
+    const clearAiHighlights = useCallback(() => {
+        setAiHighlightedLogIds(new Set());
+        setAiHighlightReasons(new Map());
+    }, []);
+
     const [importedDatasets, setImportedDatasets] = useState<ImportedDataset[]>([]);
 
     useEffect(() => {
@@ -415,22 +556,11 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
                 if (selectedLevels.size > 0) {
                     loadedLogs = loadedLogs.filter(log => selectedLevels.has(log.level));
                 }
-
                 // SIP method filter in memory
-                const normalizeMethod = (method: string): string => {
-                    const responseMatch = method.match(/^(\d{3})\s+(\w+)(?:\s+.*)?$/i);
-                    if (responseMatch) {
-                        const code = responseMatch[1];
-                        const firstWord = responseMatch[2].charAt(0).toUpperCase() + responseMatch[2].slice(1).toLowerCase();
-                        return `${code} ${firstWord}`;
-                    }
-                    return method;
-                };
-                if (isSipFilterEnabled && selectedSipMethods.size > 0) {
+                if (isSipFilterEnabled && normalizedSelectedSipMethods.size > 0) {
                     loadedLogs = loadedLogs.filter(log => {
                         if (!log.isSip || !log.sipMethod) return false;
-                        const normalizedLog = normalizeMethod(log.sipMethod);
-                        return [...selectedSipMethods].some(m => normalizeMethod(m) === normalizedLog);
+                        return normalizedSelectedSipMethods.has(normalizeSipMethod(log.sipMethod));
                     });
                 }
                 
@@ -447,7 +577,7 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
                     loadedLogs = loadedLogs.filter(log => log.messageType === selectedMessageTypeFilter);
                 }
 
-                // Correlation filters (cncID / messageID) – in memory (no IDB index)
+                // Correlation filters (cncID / messageID) - in memory (no IDB index)
                 const cncIdFilters = activeCorrelations.filter(c => c.type === 'cncID' && !c.excluded);
                 const msgIdFilters = activeCorrelations.filter(c => c.type === 'messageID' && !c.excluded);
                 const cncIdExcl = activeCorrelations.filter(c => c.type === 'cncID' && c.excluded);
@@ -497,7 +627,7 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         selectedComponentFilter,
         selectedLevels,
         isSipFilterEnabled,
-        selectedSipMethods,
+        normalizedSelectedSipMethods,
         activeCorrelations,
         filterText,
         isShowFavoritesOnly,
@@ -758,6 +888,16 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         return Array.from(set).sort();
     }, [useIndexedDBMode, logs, indexedDBLogs]);
 
+    // Compute available log sources from loaded logs
+    const availableSources = useMemo(() => {
+        const source = useIndexedDBMode ? indexedDBLogs : logs;
+        const set = new Set<string>();
+        source.forEach(log => {
+            set.add(deriveSourceLabel(log));
+        });
+        return Array.from(set).sort();
+    }, [useIndexedDBMode, logs, indexedDBLogs]);
+
     const toggleExcludedMessageType = useCallback((type: string) => {
         setExcludedMessageTypes(prev => {
             const next = new Set(prev);
@@ -841,27 +981,20 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
                 if (!log.messageType || log.messageType !== selectedMessageTypeFilter) return false;
             }
 
+            // Source filter
+            if (selectedSourceFilter) {
+                if (deriveSourceLabel(log) !== selectedSourceFilter) return false;
+            }
+
             // Level Filter (multi-select: show only logs whose level is in selectedLevels)
             if (selectedLevels.size > 0 && !selectedLevels.has(log.level)) return false;
 
             // SIP Filter (Show Only SIP)
             if (isSipFilterEnabled && !log.isSip) return false;
-
             // SIP Method Filter (multi-select: when methods selected, only show SIP logs matching any of them)
-            const normalizeMethod = (method: string): string => {
-                const responseMatch = method.match(/^(\d{3})\s+(\w+)(?:\s+.*)?$/i);
-                if (responseMatch) {
-                    const code = responseMatch[1];
-                    const firstWord = responseMatch[2].charAt(0).toUpperCase() + responseMatch[2].slice(1).toLowerCase();
-                    return `${code} ${firstWord}`;
-                }
-                return method;
-            };
-            if (isSipFilterEnabled && selectedSipMethods.size > 0) {
+            if (isSipFilterEnabled && normalizedSelectedSipMethods.size > 0) {
                 if (!log.isSip || !log.sipMethod) return false;
-                const normalizedLog = normalizeMethod(log.sipMethod);
-                const matchesAny = [...selectedSipMethods].some(m => normalizeMethod(m) === normalizedLog);
-                if (!matchesAny) return false;
+                if (!normalizedSelectedSipMethods.has(normalizeSipMethod(log.sipMethod))) return false;
             }
 
             // Phase 2 Optimization: Use pre-computed lowercase strings from parsing for O(1) string operations
@@ -880,28 +1013,30 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         });
 
 
-        // Favorites filter (applied last)
+        // Favorites filter
         if (isShowFavoritesOnly) {
             result = result.filter(log => favoriteLogIds.has(log.id));
+        }
+
+        // AI highlight filter (applied last)
+        if (isShowAiHighlightOnly && aiHighlightedLogIds.size > 0) {
+            result = result.filter(log => aiHighlightedLogIds.has(log.id));
         }
 
         // Sorting
         result.sort((a, b) => {
             if (sortConfig.field === 'timestamp') {
-                const timeA = new Date(a.timestamp).getTime();
-                const timeB = new Date(b.timestamp).getTime();
-                return sortConfig.direction === 'asc' ? timeA - timeB : timeB - timeA;
+                return sortConfig.direction === 'asc' ? a.timestamp - b.timestamp : b.timestamp - a.timestamp;
             } else if (sortConfig.field === 'level') {
-                const levels = { ERROR: 3, WARN: 2, INFO: 1, DEBUG: 0 };
-                const valA = levels[a.level] || 0;
-                const valB = levels[b.level] || 0;
+                const valA = LOG_LEVEL_RANK[a.level];
+                const valB = LOG_LEVEL_RANK[b.level];
                 return sortConfig.direction === 'asc' ? valA - valB : valB - valA;
             }
             return 0;
         });
 
         return result;
-    }, [logs, selectedLogId, correlationIndexes, selectedComponentFilter, selectedLevels, isSipFilterEnabled, selectedSipMethods, lowerFilterText, sortConfig, isShowFavoritesOnly, favoriteLogIds, useIndexedDBMode, indexedDBLogs, excludedMessageTypes, selectedMessageTypeFilter]);
+    }, [logs, selectedLogId, correlationIndexes, selectedComponentFilter, selectedLevels, isSipFilterEnabled, normalizedSelectedSipMethods, lowerFilterText, sortConfig, isShowFavoritesOnly, favoriteLogIds, isShowAiHighlightOnly, aiHighlightedLogIds, useIndexedDBMode, indexedDBLogs, excludedMessageTypes, selectedMessageTypeFilter, selectedSourceFilter]);
 
     // Collapse similar: group consecutive rows with same (displayComponent, summaryMessage/displayMessage) (6.3 Option A)
     const collapsedViewList = useMemo((): Array<{ firstLog: LogEntry; count: number }> | null => {
@@ -929,8 +1064,10 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         if (isSipFilterEnabled) return true;
         if (activeCorrelations.length > 0) return true;
         if (isShowFavoritesOnly) return true;
+        if (isShowAiHighlightOnly) return true;
+        if (selectedSourceFilter != null) return true;
         return false;
-    }, [filterText, selectedLevels, selectedComponentFilter, excludedMessageTypes, selectedMessageTypeFilter, isSipFilterEnabled, activeCorrelations, isShowFavoritesOnly]);
+    }, [filterText, selectedLevels, selectedComponentFilter, excludedMessageTypes, selectedMessageTypeFilter, isSipFilterEnabled, activeCorrelations, isShowFavoritesOnly, isShowAiHighlightOnly, selectedSourceFilter]);
 
     // Phase 2 Optimization: Wrap event handlers in useCallback
     const addToSearchHistory = useCallback((term: string) => {
@@ -955,6 +1092,8 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         setActiveCorrelations([]);
         setSelectedLogId(null);
         setIsShowFavoritesOnly(false);
+        setIsShowAiHighlightOnly(false);
+        setSelectedSourceFilter(null);
     }, []);
 
     const clearFilterSelections = useCallback(() => {
@@ -1154,6 +1293,9 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         selectedMessageTypeFilter,
         setSelectedMessageTypeFilter,
         availableMessageTypes,
+        selectedSourceFilter,
+        setSelectedSourceFilter,
+        availableSources,
         isCollapseSimilarEnabled,
         setIsCollapseSimilarEnabled,
         collapsedViewList,
@@ -1188,6 +1330,19 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         toggleFavorite,
         isShowFavoritesOnly,
         setIsShowFavoritesOnly,
+        aiHighlightedLogIds,
+        setAiHighlightedLogIds,
+        aiHighlightReasons,
+        setAiHighlightReasons,
+        clearAiHighlights,
+        isShowAiHighlightOnly,
+        setIsShowAiHighlightOnly,
+        // Server mode
+        serverMode,
+        serverSessionId,
+        setServerMode,
+        serverUploadAndParse,
+        refreshServerLogs,
         // IndexedDB support (for large files)
         useIndexedDBMode,
         totalLogCount,
@@ -1225,6 +1380,8 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         excludedMessageTypes,
         selectedMessageTypeFilter,
         availableMessageTypes,
+        selectedSourceFilter,
+        availableSources,
         isCollapseSimilarEnabled,
         collapsedViewList,
         visibleRange,
@@ -1243,15 +1400,24 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         correlationData,
         favoriteLogIds,
         isShowFavoritesOnly,
+        aiHighlightedLogIds,
+        aiHighlightReasons,
+        isShowAiHighlightOnly,
         totalLogCount,
         importedDatasets,
+        serverMode,
+        serverSessionId,
         // Stable callbacks - included to satisfy exhaustive-deps but won't cause unnecessary recalculations
+        setServerMode,
+        serverUploadAndParse,
+        refreshServerLogs,
         addToSearchHistory,
         clearSearchHistory,
         clearAllFilters,
         toggleCorrelation,
         setOnlyCorrelation,
         toggleFavorite,
+        clearAiHighlights,
         loadLogsFromIndexedDB,
         enhancedSetLogs,
         removeFile,
@@ -1268,3 +1434,4 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         </LogContext.Provider>
     );
 };
+

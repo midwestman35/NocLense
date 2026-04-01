@@ -193,7 +193,7 @@ export default function AISettingsPanel({ onClose }: AISettingsPanelProps) {
                 <div className="flex-1">
                   <div className="font-medium text-sm">{modelInfo.name}</div>
                   <div className="text-xs text-[var(--muted-foreground)] mt-0.5">{modelInfo.description}</div>
-                  <div className="text-xs text-[var(--muted-foreground)] mt-1">Speed: {modelInfo.speed} · Quality: {modelInfo.quality}</div>
+                  <div className="text-xs text-[var(--muted-foreground)] mt-1">Speed: {modelInfo.speed} | Quality: {modelInfo.quality}</div>
                 </div>
               </label>
             ))}

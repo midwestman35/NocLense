@@ -1,10 +1,10 @@
 import { useState, memo } from 'react';
 import { stc, getSipColorClasses } from '../utils/colorUtils';
-import { format } from 'date-fns';
 import { ChevronRight, ChevronDown, Star } from 'lucide-react';
 import clsx from 'clsx';
 import type { LogEntry } from '../types';
 import { highlightText } from '../utils/highlightUtils.tsx';
+import { getLogDisplayTimestamp } from '../utils/logTimestamp';
 import { useLogContext } from '../contexts/LogContext';
 
 const EVENT_TYPE_STYLES: Record<string, string> = {
@@ -53,6 +53,7 @@ interface LogRowProps {
   isFavorite?: boolean;
   onToggleFavorite?: () => void;
   isHighlighted?: boolean;
+  isAiHighlighted?: boolean;
   collapseCount?: number;
 }
 
@@ -68,6 +69,7 @@ const LogRow: React.FC<LogRowProps> = ({
   isFavorite = false,
   onToggleFavorite,
   isHighlighted = false,
+  isAiHighlighted = false,
   collapseCount,
 }) => {
   const [expanded, setExpanded] = useState(false);
@@ -84,7 +86,8 @@ const LogRow: React.FC<LogRowProps> = ({
       className={clsx(
         'flex flex-col border-b border-[var(--border)] cursor-pointer font-mono transition-colors duration-[var(--duration-fast)]',
         active ? 'bg-[var(--muted)]' : 'hover:bg-[var(--muted)]/70',
-        isHighlighted && 'bg-[var(--warning)]/8 ring-1 ring-inset ring-[var(--warning)]/25'
+        isHighlighted && 'bg-[var(--warning)]/8 ring-1 ring-inset ring-[var(--warning)]/25',
+        isAiHighlighted && 'bg-violet-500/10 ring-1 ring-inset ring-violet-500/30'
       )}
       onClick={() => onClick(log)}
     >
@@ -98,7 +101,7 @@ const LogRow: React.FC<LogRowProps> = ({
         </div>
 
         <div className="text-[var(--muted-foreground)] text-[11px] truncate tabular-nums">
-          {format(new Date(log.timestamp), 'MM/dd HH:mm:ss.SSS')}
+          {getLogDisplayTimestamp(log)}
         </div>
 
         <div className={clsx('min-w-0 flex items-center gap-1.5', isTextWrap ? 'flex-wrap' : 'overflow-hidden')}>
@@ -111,9 +114,10 @@ const LogRow: React.FC<LogRowProps> = ({
             {log.displayComponent}
           </span>
           <span className={clsx('w-1.5 h-1.5 rounded-full shrink-0', LEVEL_DOT[log.level] ?? LEVEL_DOT.INFO)} title={log.level} />
-          <span className={clsx('min-w-0 text-[var(--foreground)] text-[11px]', isTextWrap ? 'break-all' : 'truncate')}>
+          <span className={clsx('min-w-0 text-[11px]', isTextWrap ? 'break-all' : 'truncate', !(log.summaryMessage ?? log.displayMessage) ? 'text-[var(--muted-foreground)] italic' : 'text-[var(--foreground)]')}>
             {(() => {
               const fullMessage = log.summaryMessage ?? log.displayMessage;
+              if (!fullMessage) return `[Empty entry — ${log.sourceLabel ?? log.component ?? 'unknown source'}]`;
               const maxLength = 180;
               const truncatedMessage = fullMessage.length > maxLength ? `${fullMessage.slice(0, maxLength)}...` : fullMessage;
               return highlightText(truncatedMessage, filterText || '');

@@ -265,14 +265,29 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
   const [provider, setProviderState] = useState<AIProviderId>(() => loadProvider());
   const [apiKeys, setApiKeysState] = useState<Partial<Record<AIProviderId, string>>>({});
   const [model, setModelState] = useState<AIConfig['model']>(() => loadModel(loadProvider()));
-  const [isEnabled, setIsEnabledState] = useState<boolean>(() => loadEnabled());
+  const [isEnabled, setIsEnabledState] = useState<boolean>(() => {
+    // Auto-enable when Unleash env token is present so no manual setup is needed
+    const envToken = import.meta.env.VITE_UNLEASH_TOKEN as string | undefined;
+    if (envToken && envToken !== 'paste_your_token_here') {
+      saveEnabled(true);
+      return true;
+    }
+    return loadEnabled();
+  });
   const [dailyRequestLimit, setDailyRequestLimitState] = useState<number>(() => loadDailyLimit());
   const [usageStats, setUsageStatsState] = useState<AIUsageStats>(() => loadUsageStats());
   const [hasConsentedToAI, setHasConsentedToAI] = useState<boolean>(() => loadConsent());
   const [showConsentModal, setShowConsentModal] = useState<boolean>(false);
   const [pendingAIRequest, setPendingAIRequest] = useState<PendingAIRequest | null>(null);
   const [showQuotaExceededModal, setShowQuotaExceededModal] = useState<boolean>(false);
-  const [onboardingCompleted, setOnboardingCompletedState] = useState<boolean>(() => loadOnboardingCompleted());
+  const [onboardingCompleted, setOnboardingCompletedState] = useState<boolean>(() => {
+    // Unleash is a pre-configured company provider — no onboarding wizard needed
+    if (provider === 'unleash') {
+      saveOnboardingCompleted(true);
+      return true;
+    }
+    return loadOnboardingCompleted();
+  });
   const [conversationHistory, setConversationHistory] = useState<AIMessage[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -288,15 +303,21 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
     const loadPersistedApiKeys = async () => {
       try {
         await migrateApiKeysFromLocalStorage();
-        const [geminiKey, claudeKey, codexKey] = await Promise.all([
+        const [geminiKey, claudeKey, codexKey, storedUnleashKey] = await Promise.all([
           loadStoredApiKey('gemini'),
           loadStoredApiKey('claude'),
           loadStoredApiKey('codex'),
+          loadStoredApiKey('unleash'),
         ]);
+
+        // Use env var as the default Unleash token; stored key overrides it if set
+        const envUnleashToken = import.meta.env.VITE_UNLEASH_TOKEN as string | undefined;
+        const unleashKey = storedUnleashKey ?? (envUnleashToken && envUnleashToken !== 'paste_your_token_here' ? envUnleashToken : undefined);
 
         if (!cancelled) {
           setApiKeysState((prev) => ({
             ...prev,
+            unleash: unleashKey ?? prev.unleash ?? undefined,
             gemini: geminiKey ?? prev.gemini ?? undefined,
             claude: claudeKey ?? prev.claude ?? undefined,
             codex: codexKey ?? prev.codex ?? undefined,

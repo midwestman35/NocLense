@@ -1,6 +1,7 @@
 import type { LogEntry, LogLevel } from '../types';
 import { cleanupLogEntry } from './messageCleanup';
 import { dbManager } from './indexedDB';
+import { formatLogTimestamp } from './logTimestamp';
 
 /**
  * Log Parser for LogScrub
@@ -78,6 +79,134 @@ function getSipResponseLevel(sipMethod: string | null | undefined): LogLevel | n
 }
 
 /**
+ * Detect whether a CSV is a Carbyne Call Log (vs Datadog extract).
+ * Call logs start with: ID,Created,Phone,Last Estimated Address,...
+ */
+function isCallLogCSV(firstLine: string): boolean {
+    const lower = firstLine.toLowerCase();
+    return lower.includes('id,created,phone') || (lower.includes('termination reason') && lower.includes('station'));
+}
+
+/**
+ * Parse Carbyne APEX Call Log CSV format.
+ * Columns: ID, Created, Phone, Last Estimated Address, Last Estimated Coordinates,
+ *   Duration, Termination Reason, Station, Location, Audio, Video, Chat,
+ *   Questionnaire, Images, Intelligence, Transcript, Type, Queue Name,
+ *   Agent Name, Agent ID, Waiting Time, Triaged, Triaged Voluntary,
+ *   Misrouted, Discrepancy Report, Translated
+ *
+ * Each row becomes a LogEntry so it can be correlated with other log sources.
+ */
+const parseCallLogCSV = (text: string, fileColor: string, startId: number): LogEntry[] => {
+    const lines = text.split(/\r?\n/);
+    if (lines.length < 2) return [];
+
+    const parsedLogs: LogEntry[] = [];
+    let idCounter = startId;
+
+    // Parse header to find column indices
+    const headers = lines[0].split(',').map(h => h.trim());
+    const col = (name: string): number => headers.findIndex(h => h.toLowerCase() === name.toLowerCase());
+
+    const iId = col('ID');
+    const iCreated = col('Created');
+    const iPhone = col('Phone');
+    const iDuration = col('Duration');
+    const iTermReason = col('Termination Reason');
+    const iStation = col('Station');
+    const iType = col('Type');
+    const iQueue = col('Queue Name');
+    const iAgent = col('Agent Name');
+    const iAgentId = col('Agent ID');
+    const iWaiting = col('Waiting Time');
+    const iAddress = col('Last Estimated Address');
+
+    for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+
+        // Simple CSV split (call log CSVs don't have quoted fields with commas)
+        const cols = line.split(',');
+        const get = (idx: number): string => (idx >= 0 && idx < cols.length) ? cols[idx].trim() : '';
+
+        const callId = get(iId);
+        const created = get(iCreated);
+        const phone = get(iPhone);
+        const duration = get(iDuration);
+        const termReason = get(iTermReason);
+        const station = get(iStation);
+        const callType = get(iType);
+        const queue = get(iQueue);
+        const agent = get(iAgent);
+        const agentId = get(iAgentId);
+        const waiting = get(iWaiting);
+        const address = get(iAddress);
+
+        if (!callId || !created) continue;
+
+        // Parse timestamp: "Mar-28-2026 19:01:04"
+        const timestamp = new Date(created.replace(/-/g, ' ')).getTime();
+        if (isNaN(timestamp)) continue;
+
+        // Determine level based on termination reason
+        let level: LogLevel = 'INFO';
+        const termLower = termReason.toLowerCase();
+        if (termLower.includes('abandon') || termLower.includes('missed') || termLower.includes('fail')) {
+            level = 'WARN';
+        }
+        if (duration === '0:00:00' && termLower !== 'agent ended call') {
+            level = 'WARN'; // Zero-duration calls are suspicious
+        }
+
+        // Build readable message
+        const message = `Call #${callId} | ${callType} | ${phone} → ${queue} | Agent: ${agent || 'N/A'} | Station: ${station} | Duration: ${duration} | ${termReason}`;
+
+        // Build payload with all fields for deep inspection
+        const payloadParts: string[] = [
+            `Call ID: ${callId}`,
+            `Created: ${created}`,
+            `Phone: ${phone}`,
+            `Type: ${callType}`,
+            `Queue: ${queue}`,
+            `Agent: ${agent} (ID: ${agentId})`,
+            `Station: ${station}`,
+            `Duration: ${duration}`,
+            `Waiting Time: ${waiting}`,
+            `Termination: ${termReason}`,
+        ];
+        if (address) payloadParts.push(`Address: ${address}`);
+
+        const entry: LogEntry = {
+            id: idCounter++,
+            timestamp,
+            rawTimestamp: created,
+            displayTimestamp: formatLogTimestamp(timestamp),
+            level,
+            component: 'Call Log',
+            displayComponent: 'Call Log',
+            message,
+            displayMessage: message,
+            payload: payloadParts.join('\n'),
+            type: 'LOG',
+            isSip: false,
+            stationId: station || undefined,
+            fileName: 'call-log.csv',
+            fileColor,
+            sourceType: 'apex',
+            _messageLower: message.toLowerCase(),
+            _componentLower: 'call log',
+        };
+
+        // Pre-compute lowercase payload
+        entry._payloadLower = entry.payload.toLowerCase();
+
+        parsedLogs.push(entry);
+    }
+
+    return parsedLogs;
+};
+
+/**
  * Parse Datadog CSV export format
  * CSV Format: Date,Host,Service,Content
  * Content field contains JSON with nested log data
@@ -88,13 +217,38 @@ const parseDatadogCSV = (text: string, fileColor: string, startId: number): LogE
     let idCounter = startId;
 
     // Skip header row (Date,Host,Service,Content)
+    // Handle multiline CSV: content JSON may span lines if it contains newlines
+    // Reassemble lines that are part of the same CSV row (detect by opening/closing quotes)
+    const csvRows: string[] = [];
+    let accumulator = '';
     for (let i = 1; i < lines.length; i++) {
-        const line = lines[i].trim();
+        const line = lines[i];
+        if (!line.trim()) continue;
+
+        if (accumulator) {
+            // We're in the middle of a multiline row
+            accumulator += '\n' + line;
+            // Check if this line completes the row (ends with closing quote)
+            if (line.trimEnd().endsWith('"')) {
+                csvRows.push(accumulator);
+                accumulator = '';
+            }
+        } else if (line.startsWith('"') && !line.trimEnd().endsWith('"')) {
+            // Start of a multiline row
+            accumulator = line;
+        } else {
+            csvRows.push(line);
+        }
+    }
+    if (accumulator) csvRows.push(accumulator); // flush any remaining
+
+    for (let i = 0; i < csvRows.length; i++) {
+        const line = csvRows[i].trim();
         if (!line) continue;
 
         try {
-            // Parse CSV line - handle quoted fields
-            const csvMatch = line.match(/^"([^"]+)","([^"]+)","([^"]+)","(.+)"$/);
+            // Parse CSV line - handle quoted fields (may contain newlines now)
+            const csvMatch = line.match(/^"([^"]+)","([^"]+)","([^"]+)","([\s\S]+)"$/);
             if (!csvMatch) continue;
 
             const [_, isoDate, host, service, contentJson] = csvMatch;
@@ -139,6 +293,7 @@ const parseDatadogCSV = (text: string, fileColor: string, startId: number): LogE
                 id: idCounter++,
                 timestamp,
                 rawTimestamp,
+                displayTimestamp: formatLogTimestamp(timestamp),
                 level,
                 component,
                 displayComponent: cleanupResult.displayComponent,
@@ -148,8 +303,20 @@ const parseDatadogCSV = (text: string, fileColor: string, startId: number): LogE
                 type: 'LOG',
                 isSip: false,
                 fileName: `${host}-${service}`,
-                fileColor
+                fileColor,
+                sourceType: 'datadog',
+                sourceLabel: `DD:${component}`,
             };
+
+            // Extract CNC and station/operator info from machineData
+            if (log.machineData) {
+                if (log.machineData.callCenterName) {
+                    entry.cncID = String(log.machineData.callCenterName);
+                }
+                if (log.machineData.name) {
+                    entry.stationId = String(log.machineData.name);
+                }
+            }
 
             // Extract correlation IDs from message
             // Fix: Use more permissive regex to match various Call-ID formats and trim whitespace
@@ -225,6 +392,7 @@ const parseHomerText = (text: string, fileColor: string, startId: number, fileNa
                     id: idCounter++,
                     timestamp: currentTimestamp,
                     rawTimestamp: currentTimestampStr,
+                    displayTimestamp: formatLogTimestamp(currentTimestamp),
                     level: 'INFO' as LogLevel, // Will be updated based on SIP response code
                     component: 'Homer SIP',
                     displayComponent: 'Homer SIP',
@@ -236,13 +404,14 @@ const parseHomerText = (text: string, fileColor: string, startId: number, fileNa
                     sipMethod: null,
                     fileName: fileName,
                     fileColor,
+                    sourceLabel: 'Homer SIP',
                     _messageLower: message.toLowerCase(),
                     _componentLower: 'homer sip'
                 };
 
                 // Process SIP payload to extract Call-ID, methods, etc.
                 processLogPayload(entry);
-                
+
                 // Update level based on SIP response code (4xx=WARN, 5xx/6xx=ERROR)
                 const sipLevel = getSipResponseLevel(entry.sipMethod);
                 if (sipLevel) {
@@ -296,6 +465,7 @@ const parseHomerText = (text: string, fileColor: string, startId: number, fileNa
             id: idCounter++,
             timestamp: currentTimestamp,
             rawTimestamp: currentTimestampStr,
+            displayTimestamp: formatLogTimestamp(currentTimestamp),
             level: 'INFO' as LogLevel, // Will be updated based on SIP response code
             component: 'Homer SIP',
             displayComponent: 'Homer SIP',
@@ -307,18 +477,19 @@ const parseHomerText = (text: string, fileColor: string, startId: number, fileNa
             sipMethod: null,
             fileName: fileName,
             fileColor,
+            sourceLabel: 'Homer SIP',
             _messageLower: message.toLowerCase(),
             _componentLower: 'homer sip'
         };
 
         processLogPayload(entry);
-        
+
         // Update level based on SIP response code (4xx=WARN, 5xx/6xx=ERROR)
         const sipLevel = getSipResponseLevel(entry.sipMethod);
         if (sipLevel) {
             entry.level = sipLevel;
         }
-        
+
         parsedLogs.push(entry);
     }
 
@@ -467,10 +638,12 @@ const parseLogFileStreaming = async (
                 }
 
                 const trimmedMessage = message.trim();
+                const resolvedTimestamp = isNaN(timestamp) ? Date.now() : timestamp;
                 currentLog = {
                     id: idCounter++,
-                    timestamp: isNaN(timestamp) ? Date.now() : timestamp,
+                    timestamp: resolvedTimestamp,
                     rawTimestamp: timestampStr,
+                    displayTimestamp: formatLogTimestamp(resolvedTimestamp),
                     level: level,
                     component,
                     displayComponent: cleaned.displayComponent,
@@ -711,10 +884,12 @@ const parseLogFileStreamingToIndexedDB = async (
                 }
 
                 const trimmedMessage = message.trim();
+                const resolvedTimestamp = isNaN(timestamp) ? Date.now() : timestamp;
                 currentLog = {
                     id: idCounter++,
-                    timestamp: isNaN(timestamp) ? Date.now() : timestamp,
+                    timestamp: resolvedTimestamp,
                     rawTimestamp: timestampStr,
+                    displayTimestamp: formatLogTimestamp(resolvedTimestamp),
                     level: level,
                     component,
                     displayComponent: cleaned.displayComponent,
@@ -818,7 +993,11 @@ export const parseLogFile = async (file: File, fileColor: string = '#3b82f6', st
 
     if (isCSV) {
         if (onProgress) onProgress(0.5);
-        const result = parseDatadogCSV(text, fileColor, startId);
+        // Detect CSV sub-type: Call Log vs Datadog extract
+        const firstLine = text.split(/\r?\n/)[0] ?? '';
+        const result = isCallLogCSV(firstLine)
+            ? parseCallLogCSV(text, fileColor, startId)
+            : parseDatadogCSV(text, fileColor, startId);
         if (onProgress) onProgress(1.0);
         return result;
     }
@@ -968,10 +1147,12 @@ export const parseLogFile = async (file: File, fileColor: string = '#3b82f6', st
             }
 
             const trimmedMessage = message.trim();
+            const resolvedTimestamp = isNaN(timestamp) ? Date.now() : timestamp;
             currentLog = {
                 id: idCounter++,
-                timestamp: isNaN(timestamp) ? Date.now() : timestamp,
+                timestamp: resolvedTimestamp,
                 rawTimestamp: timestampStr,
+                displayTimestamp: formatLogTimestamp(resolvedTimestamp),
                 level: level, // Already normalized via normalizeLogLevel()
                 component,
                 displayComponent: cleaned.displayComponent,
@@ -1215,5 +1396,19 @@ function processLogPayload(log: LogEntry) {
     // Phase 2 Optimization: Pre-compute lowercase for callId if not already set (from message extraction)
     if (log.callId && !log._callIdLower) {
         log._callIdLower = log.callId.toLowerCase();
+    }
+
+    // Auto-derive sourceLabel if not already set by a specialized parser (Datadog, Call Log, Homer)
+    if (!log.sourceLabel) {
+        const comp = (log.displayComponent || log.component || '').toLowerCase();
+        if (log.isSip || comp === 'homer sip') {
+            log.sourceLabel = 'Homer SIP';
+        } else if (comp.includes('fdx') || comp.includes('fdxmessage')) {
+            log.sourceLabel = 'FDX';
+        } else if (comp.includes('ccs') || comp.includes('pbx')) {
+            log.sourceLabel = 'CCS/PBX';
+        } else {
+            log.sourceLabel = 'APEX Local';
+        }
     }
 }

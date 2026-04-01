@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**NocLense** (internal codename: LogScrub) is an Electron desktop application for analyzing SIP/VoIP and telecommunications logs. It supports 100,000+ log entries with virtualized rendering, large-file streaming via IndexedDB, correlation-based filtering, call flow visualization, and AI-powered log analysis via Google Gemini and Claude.
+**NocLense** (internal codename: LogScrub) is an Electron desktop application for analyzing SIP/VoIP and telecommunications logs. It supports 100,000+ log entries with virtualized rendering, large-file streaming via IndexedDB, correlation-based filtering, call flow visualization, and AI-powered log analysis via **Unleashed AI** (pre-configured with the organization's Confluence, Zendesk, and Slack knowledge base).
 
 ## Commands
 
@@ -55,8 +55,8 @@ Files above 50 MB trigger streaming mode in `src/utils/parser.ts`:
 
 ### AI Integration
 
-- **Never call AI APIs from components.** All API calls go through `llmService.ts` → surfaced to components via `AIContext`.
-- **Multi-provider**: `src/services/providers/` contains a `ProviderRegistry` factory; `GeminiService` (singleton) and `ClaudeProvider` are current implementations.
+- **Never call AI APIs from components.** All Unleashed AI calls go through `src/services/unleashService.ts`; all AI panel state lives in `src/components/ai/`.
+- **Unleash-only**: The app uses Unleashed AI exclusively. `src/services/providers/` contains legacy provider stubs — do not route new features through them. Use `unleashService.ts` directly.
 - **Context building** (`src/services/logContextBuilder.ts`): prioritizes ERROR > WARN > INFO > DEBUG, includes 5 surrounding logs per error, truncates payloads to 200 chars, targets 10k tokens (max 100k).
 - **Prompt templates** (`src/services/promptTemplates.ts`): all prompts live here — never hardcode prompts in components.
 - **Rate limiting**: 15 RPM / 1,500 RPD tracked in `AIContext` for the free Gemini tier.
@@ -79,7 +79,7 @@ Users filter logs by faceted correlations (Call-ID, Report-ID, Operator-ID, Exte
 | `src/types.ts` | Canonical `LogEntry` interface (40+ fields) — the data contract for the whole app |
 | `src/utils/parser.ts` | Multi-format log parser (Datadog CSV, Homer SIP, JSON); streaming chunked read |
 | `src/utils/indexedDB.ts` | IndexedDB manager for large-file lazy-loading |
-| `src/services/llmService.ts` | GeminiService singleton + provider abstraction |
+| `src/services/unleashService.ts` | All Unleashed AI calls (summarize, anomalies, chat, diagnose) |
 | `src/services/logContextBuilder.ts` | Builds tokenized LLM context from filtered logs |
 | `src/services/promptTemplates.ts` | All pre-built AI prompts |
 | `src/styles/theme.css` | Theme color variables (light / dark / red themes) |

@@ -2,15 +2,12 @@ import { useMemo, useState } from 'react';
 import { useLogContext } from '../../contexts/LogContext';
 import { getStructuredFields, type FieldEntry } from '../../utils/structuredFields';
 import { format } from 'date-fns';
-import { Filter, X, LocateFixed, ChevronDown, ChevronRight, Copy, BookmarkPlus, PencilLine } from 'lucide-react';
+import { Filter, X, LocateFixed, ChevronDown, ChevronRight, Copy, Sparkles } from 'lucide-react';
 import type { LogEntry } from '../../types';
 import AIButton from '../AIButton';
-import { useCase } from '../../store/caseContext';
-import type { BookmarkTag } from '../../types/case';
 
 const LARGE_JSON_BYTES = 50 * 1024;
 const PAYLOAD_PREVIEW_LINES = 80;
-const BOOKMARK_TAGS: BookmarkTag[] = ['evidence', 'symptom', 'milestone', 'red-herring', 'action'];
 
 function copyToClipboard(text: string) {
   navigator.clipboard.writeText(text).catch(() => {});
@@ -82,11 +79,7 @@ function RawPayloadSection({ log }: { log: LogEntry }) {
 }
 
 export default function LogDetailsPanel({ log, onClose, onJumpToLog }: { log: LogEntry; onClose: () => void; onJumpToLog: () => void }) {
-  const { logs, toggleCorrelation, setActiveCorrelations, activeCorrelations } = useLogContext();
-  const { activeCase, addBookmark, addNote } = useCase();
-  const [bookmarkTag, setBookmarkTag] = useState<BookmarkTag>('evidence');
-  const [noteText, setNoteText] = useState('');
-  const [notice, setNotice] = useState<string | null>(null);
+  const { logs, toggleCorrelation, setActiveCorrelations, activeCorrelations, aiHighlightedLogIds, aiHighlightReasons } = useLogContext();
 
   const fields = useMemo(() => getStructuredFields(log), [log]);
   const aiContextLogs = useMemo(() => {
@@ -104,77 +97,8 @@ export default function LogDetailsPanel({ log, onClose, onJumpToLog }: { log: Lo
     return items;
   }, [log.cncID, log.messageID]);
 
-  const existingBookmark = activeCase?.bookmarks.find((bookmark) => bookmark.logId === log.id) ?? null;
-
   const handleSessionOnly = () => {
     setActiveCorrelations(sessionItems.map(({ type, value }) => ({ type, value })));
-  };
-
-  const handleAddEvidence = () => {
-    if (!activeCase) {
-      setNotice('Select a case before adding evidence.');
-      return;
-    }
-    if (existingBookmark) {
-      setNotice('This log is already captured as evidence in the active case.');
-      return;
-    }
-
-    addBookmark(activeCase.id, {
-      id: `bookmark_${Date.now()}`,
-      logId: log.id,
-      tag: bookmarkTag,
-      note: noteText.trim() || undefined,
-      timestamp: log.timestamp,
-    });
-    if (noteText.trim()) {
-      addNote(activeCase.id, {
-        id: `note_${Date.now()}`,
-        caseId: activeCase.id,
-        logId: log.id,
-        content: noteText.trim(),
-        timestamp: Date.now(),
-      });
-    }
-    setNotice('Evidence saved to the active case.');
-    setNoteText('');
-  };
-
-  const handleAddNote = () => {
-    if (!activeCase) {
-      setNotice('Select a case before adding notes.');
-      return;
-    }
-    if (!noteText.trim()) {
-      setNotice('Write a note before saving it to the case.');
-      return;
-    }
-
-    addNote(activeCase.id, {
-      id: `note_${Date.now()}`,
-      caseId: activeCase.id,
-      logId: log.id,
-      content: noteText.trim(),
-      timestamp: Date.now(),
-    });
-    setNotice('Note added to the active case.');
-    setNoteText('');
-  };
-
-  const handleCopyCitation = () => {
-    const citation = [
-      `Time: ${format(new Date(log.timestamp), 'MM/dd/yyyy HH:mm:ss.SSS')}`,
-      `Source: ${log.sourceLabel ?? 'Workspace'} / ${log.fileName ?? 'in-memory import'}`,
-      `Component: ${log.component}`,
-      `Message: ${log.summaryMessage ?? log.message}`,
-      log.callId ? `Call-ID: ${log.callId}` : null,
-      log.reportId ? `Report ID: ${log.reportId}` : null,
-      `Log ID: ${log.id}`,
-    ]
-      .filter(Boolean)
-      .join('\n');
-    copyToClipboard(citation);
-    setNotice('Evidence citation copied to the clipboard.');
   };
 
   return (
@@ -210,50 +134,18 @@ export default function LogDetailsPanel({ log, onClose, onJumpToLog }: { log: Lo
       </div>
 
       <div className="p-4 overflow-auto font-mono text-xs text-[var(--foreground)] h-full bg-[var(--card)]">
-        <div className="mb-4 rounded border border-[var(--border)] bg-[var(--workspace)] px-3 py-3">
-          <div className="flex flex-wrap items-center gap-2 mb-3">
-            <div className="text-[10px] uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
-              {activeCase ? `Active case: ${activeCase.title}` : 'No active case'}
+        {/* AI Diagnosis Reason */}
+        {aiHighlightedLogIds.has(log.id) && (
+          <div className="mb-4 rounded border border-violet-500/30 bg-violet-500/8 px-3 py-2.5">
+            <div className="flex items-center gap-1.5 mb-1">
+              <Sparkles size={11} className="text-violet-400 shrink-0" />
+              <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-violet-400">AI Diagnosis</span>
             </div>
-            {existingBookmark ? (
-              <span className="rounded border border-[var(--border)] px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-[var(--foreground)]">
-                Already saved as {existingBookmark.tag}
-              </span>
-            ) : null}
+            <p className="text-[11px] leading-relaxed text-[var(--foreground)]">
+              {aiHighlightReasons.get(log.id) ?? 'This log was correlated with the active Zendesk ticket.'}
+            </p>
           </div>
-          <div className="grid grid-cols-[minmax(0,120px)_1fr_auto_auto] gap-2 items-start">
-            <select
-              value={bookmarkTag}
-              onChange={(event) => setBookmarkTag(event.target.value as BookmarkTag)}
-              className="h-8 rounded border border-[var(--input)] bg-transparent px-2 text-[11px] text-[var(--foreground)]"
-              disabled={!activeCase}
-            >
-              {BOOKMARK_TAGS.map((tag) => (
-                <option key={tag} value={tag}>{tag}</option>
-              ))}
-            </select>
-            <textarea
-              value={noteText}
-              onChange={(event) => setNoteText(event.target.value)}
-              className="min-h-[64px] rounded border border-[var(--input)] bg-transparent px-2 py-2 text-[11px] text-[var(--foreground)] focus:outline-none focus:ring-[var(--ring-width)] focus:ring-[var(--ring)]"
-              placeholder={activeCase ? 'Why does this event matter for the case?' : 'Select a case to capture notes and evidence.'}
-            />
-            <button onClick={handleAddEvidence} className="flex h-8 items-center gap-1 rounded border border-[var(--border)] px-2 text-[var(--muted-foreground)] hover:text-[var(--foreground)] disabled:opacity-50" disabled={!activeCase}>
-              <BookmarkPlus size={12} />
-              Add evidence
-            </button>
-            <button onClick={handleAddNote} className="flex h-8 items-center gap-1 rounded border border-[var(--border)] px-2 text-[var(--muted-foreground)] hover:text-[var(--foreground)] disabled:opacity-50" disabled={!activeCase}>
-              <PencilLine size={12} />
-              Add note
-            </button>
-          </div>
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-[var(--muted-foreground)]">
-            <button onClick={handleCopyCitation} className="rounded border border-[var(--border)] px-2 py-1 hover:text-[var(--foreground)]">
-              Copy citation
-            </button>
-            {notice ? <span>{notice}</span> : null}
-          </div>
-        </div>
+        )}
 
         <div className="grid grid-cols-2 gap-x-8 gap-y-2 mb-4">
           <div><span className="text-[var(--muted-foreground)]">Time:</span> {format(new Date(log.timestamp), 'MM/dd HH:mm:ss.SSS')}</div>
