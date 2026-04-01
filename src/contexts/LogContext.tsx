@@ -3,6 +3,7 @@ import type { ImportedDataset, LogEntry, LogLevel, LogState } from '../types';
 import { loadSearchHistory, addToSearchHistory as saveToHistory, clearSearchHistory as clearHistoryStorage } from '../store/searchHistory';
 import { dbManager } from '../utils/indexedDB';
 import { loadServerConfig, saveServerConfig, queryLogs as serverQueryLogs, createSession, uploadAndParse } from '../services/serverService';
+import { getJobLogs, getJobStats, checkHealth, type LogsQueryParams } from '../api/client';
 
 /** Derive a human-readable source label for a log entry (used by filter + dropdown). */
 function deriveSourceLabel(log: LogEntry): string {
