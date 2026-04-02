@@ -61,6 +61,8 @@ export default function DiagnosePhase3({
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState<{ ticketId: number | string } | null>(null);
+  const [attachmentFailed, setAttachmentFailed] = useState(false);
+  const [retryingAttachment, setRetryingAttachment] = useState(false);
   const [confluenceResult, setConfluenceResult] = useState<SavedInvestigation | null>(null);
 
   // Copy state
@@ -76,6 +78,7 @@ export default function DiagnosePhase3({
   async function handleSubmit(targetTicket: ZendeskTicket) {
     setSubmitting(true);
     setSubmitError(null);
+    setAttachmentFailed(false);
     try {
       let uploadToken: string | undefined;
 
@@ -91,7 +94,7 @@ export default function DiagnosePhase3({
           try {
             uploadToken = await uploadZendeskAttachment(settings, blob, `${archiveFilename}.zip`);
           } catch {
-            // Non-fatal: continue without attachment
+            setAttachmentFailed(true);
           }
         }
       }
@@ -109,6 +112,23 @@ export default function DiagnosePhase3({
       setSubmitError(e instanceof Error ? e.message : String(e));
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleRetryAttachment(ticketId: number | string) {
+    if (!includeArchive || !settings.zendeskToken) return;
+    setRetryingAttachment(true);
+    try {
+      const blob = await generateLogArchive(logs, archiveFilename);
+      const token = await uploadZendeskAttachment(settings, blob, `${archiveFilename}.zip`);
+      // Post a follow-up comment with just the attachment
+      await postZendeskComment(settings, ticketId, '(Log archive attached)', token);
+      setAttachmentFailed(false);
+    } catch (e: unknown) {
+      // Still failed — keep the warning visible
+      setSubmitError(`Attachment retry failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setRetryingAttachment(false);
     }
   }
 
@@ -142,10 +162,10 @@ export default function DiagnosePhase3({
   if (submitSuccess) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
-        <CheckCircle size={40} className="text-[var(--success)]" />
+        <CheckCircle size={40} className={attachmentFailed ? 'text-amber-400' : 'text-[var(--success)]'} />
         <div>
           <p className="text-[14px] font-semibold" style={{ color: 'var(--foreground)' }}>
-            Internal note posted!
+            {attachmentFailed ? 'Note posted — attachment failed' : 'Internal note posted!'}
           </p>
           <p className="mt-1 text-[12px]" style={{ color: 'var(--muted-foreground)' }}>
             Ticket #{submitSuccess.ticketId} has been updated with your diagnosis note.
@@ -156,6 +176,26 @@ export default function DiagnosePhase3({
             </p>
           )}
         </div>
+        {attachmentFailed && (
+          <div className="rounded border border-amber-500/30 bg-amber-500/10 px-4 py-2.5">
+            <p className="text-[11px] text-amber-400 font-medium">
+              The log archive could not be uploaded to Zendesk. The internal note was posted without the attachment.
+            </p>
+            {submitError && (
+              <p className="mt-1 text-[10px] text-red-400">{submitError}</p>
+            )}
+            <button
+              type="button"
+              onClick={() => handleRetryAttachment(submitSuccess.ticketId)}
+              disabled={retryingAttachment}
+              className="mt-2 flex items-center gap-1.5 rounded border px-3 py-1 text-[11px] font-medium transition-colors hover:bg-amber-500/10 disabled:opacity-50"
+              style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}
+            >
+              {retryingAttachment ? <Loader2 size={11} className="animate-spin" /> : <Paperclip size={11} />}
+              {retryingAttachment ? 'Retrying…' : 'Retry Attachment Upload'}
+            </button>
+          </div>
+        )}
         {confluenceResult && (
           <p className="text-[11px]" style={{ color: 'var(--muted-foreground)' }}>
             Investigation saved to{' '}

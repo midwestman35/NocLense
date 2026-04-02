@@ -6,7 +6,9 @@
 import type { LogEntry } from '../types';
 
 const DB_NAME = 'NocLenseDB';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
+const SEARCH_INDEX_STORE = 'search_index';
+const MAX_TRIGRAM_IDS = 25000;
 const STORE_NAME = 'logs';
 const METADATA_STORE = 'metadata';
 
@@ -77,6 +79,13 @@ class IndexedDBManager {
                     }
                 }
 
+                // V4: add search_index store for trigram text search
+                if (oldVersion < 4) {
+                    if (!db.objectStoreNames.contains(SEARCH_INDEX_STORE)) {
+                        db.createObjectStore(SEARCH_INDEX_STORE, { keyPath: 'trigram' });
+                    }
+                }
+
                 // Create metadata store
                 if (!db.objectStoreNames.contains(METADATA_STORE)) {
                     db.createObjectStore(METADATA_STORE, { keyPath: 'key' });
@@ -114,33 +123,62 @@ class IndexedDBManager {
     }
 
     /**
-     * Add multiple log entries in batch (more efficient)
+     * Add multiple log entries in batch (more efficient).
+     * Splits into sub-batches of 500, retries once on failure per sub-batch.
+     * @returns The number of logs successfully written.
      */
-    async addLogsBatch(logs: LogEntry[]): Promise<void> {
+    async addLogsBatch(logs: LogEntry[]): Promise<number> {
         const db = await this.getDB();
-        return new Promise((resolve, reject) => {
-            const transaction = db.transaction([STORE_NAME], 'readwrite');
-            const store = transaction.objectStore(STORE_NAME);
-            
-            let completed = 0;
-            let hasError = false;
+        const SUB_BATCH_SIZE = 500;
+        let totalWritten = 0;
 
-            logs.forEach((log) => {
-                const request = store.put(log);
-                request.onsuccess = () => {
-                    completed++;
-                    if (completed === logs.length && !hasError) {
-                        resolve();
+        for (let i = 0; i < logs.length; i += SUB_BATCH_SIZE) {
+            const subBatch = logs.slice(i, i + SUB_BATCH_SIZE);
+            let written = false;
+
+            for (let attempt = 0; attempt < 2; attempt++) {
+                try {
+                    await new Promise<void>((resolve, reject) => {
+                        const transaction = db.transaction([STORE_NAME], 'readwrite');
+                        const store = transaction.objectStore(STORE_NAME);
+
+                        let completed = 0;
+                        let hasError = false;
+
+                        subBatch.forEach((log) => {
+                            const request = store.put(log);
+                            request.onsuccess = () => {
+                                completed++;
+                                if (completed === subBatch.length && !hasError) {
+                                    resolve();
+                                }
+                            };
+                            request.onerror = () => {
+                                if (!hasError) {
+                                    hasError = true;
+                                    reject(request.error);
+                                }
+                            };
+                        });
+                    });
+                    totalWritten += subBatch.length;
+                    written = true;
+                    break;
+                } catch (error) {
+                    if (attempt === 0) {
+                        // Wait 100ms then retry once
+                        await new Promise(r => setTimeout(r, 100));
+                    } else {
+                        console.error(
+                            `IndexedDB: sub-batch ${Math.floor(i / SUB_BATCH_SIZE) + 1} failed after retry (${subBatch.length} logs lost):`,
+                            error
+                        );
                     }
-                };
-                request.onerror = () => {
-                    if (!hasError) {
-                        hasError = true;
-                        reject(request.error);
-                    }
-                };
-            });
-        });
+                }
+            }
+        }
+
+        return totalWritten;
     }
 
     /**
@@ -448,18 +486,52 @@ class IndexedDBManager {
     }
 
     /**
+     * Iterate all logs with a cursor, calling `visitor` on each record.
+     * Memory-efficient: only one record is held at a time.
+     */
+    async forEachLog(visitor: (log: LogEntry) => void): Promise<void> {
+        const db = await this.getDB();
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction([STORE_NAME], 'readonly');
+            const store = transaction.objectStore(STORE_NAME);
+            const request = store.openCursor();
+
+            request.onsuccess = (event) => {
+                const cursor = (event.target as IDBRequest<IDBCursorWithValue>).result;
+                if (cursor) {
+                    visitor(cursor.value as LogEntry);
+                    cursor.continue();
+                } else {
+                    resolve();
+                }
+            };
+            request.onerror = () => reject(request.error);
+        });
+    }
+
+    /**
      * Clear all logs
      */
     async clearAll(): Promise<void> {
         const db = await this.getDB();
-        return new Promise((resolve, reject) => {
+        // Clear logs store
+        await new Promise<void>((resolve, reject) => {
             const transaction = db.transaction([STORE_NAME], 'readwrite');
             const store = transaction.objectStore(STORE_NAME);
             const request = store.clear();
-            
             request.onsuccess = () => resolve();
             request.onerror = () => reject(request.error);
         });
+        // Clear search index store (guard: may not exist on older DB versions)
+        if (db.objectStoreNames.contains(SEARCH_INDEX_STORE)) {
+            await new Promise<void>((resolve, reject) => {
+                const transaction = db.transaction([SEARCH_INDEX_STORE], 'readwrite');
+                const store = transaction.objectStore(SEARCH_INDEX_STORE);
+                const request = store.clear();
+                request.onsuccess = () => resolve();
+                request.onerror = () => reject(request.error);
+            });
+        }
     }
 
     /**
@@ -524,14 +596,14 @@ class IndexedDBManager {
      */
     async deleteLogsByFileName(fileName: string): Promise<void> {
         const db = await this.getDB();
-        return new Promise((resolve, reject) => {
+        await new Promise<void>((resolve, reject) => {
             const transaction = db.transaction([STORE_NAME], 'readwrite');
             const store = transaction.objectStore(STORE_NAME);
             const index = store.index('fileName');
             const request = index.openKeyCursor(IDBKeyRange.only(fileName));
-            
+
             const idsToDelete: number[] = [];
-            
+
             request.onsuccess = (event) => {
                 const cursor = (event.target as IDBRequest<IDBCursorWithValue>).result;
                 if (cursor) {
@@ -546,15 +618,26 @@ class IndexedDBManager {
                             deleteRequest.onerror = () => rejectDelete(deleteRequest.error);
                         });
                     });
-                    
+
                     Promise.all(deletePromises)
                         .then(() => resolve())
                         .catch(reject);
                 }
             };
-            
+
             request.onerror = () => reject(request.error);
         });
+
+        // Invalidate the trigram search index (partial rebuild not practical)
+        if (db.objectStoreNames.contains(SEARCH_INDEX_STORE)) {
+            await new Promise<void>((resolve, reject) => {
+                const tx = db.transaction([SEARCH_INDEX_STORE], 'readwrite');
+                const store = tx.objectStore(SEARCH_INDEX_STORE);
+                const req = store.clear();
+                req.onsuccess = () => resolve();
+                req.onerror = () => reject(req.error);
+            });
+        }
     }
 
     /**
@@ -625,6 +708,189 @@ class IndexedDBManager {
             };
             
             request.onerror = () => reject(request.error);
+        });
+    }
+    /**
+     * Build a trigram search index over all logs in IndexedDB.
+     * Indexes _messageLower, _componentLower, and _callIdLower fields.
+     * Clears and fully rebuilds the search_index store each time.
+     */
+    async buildTrigramIndex(): Promise<void> {
+        const db = await this.getDB();
+        if (!db.objectStoreNames.contains(SEARCH_INDEX_STORE)) return;
+
+        // Clear existing index
+        await new Promise<void>((resolve, reject) => {
+            const tx = db.transaction([SEARCH_INDEX_STORE], 'readwrite');
+            const store = tx.objectStore(SEARCH_INDEX_STORE);
+            const req = store.clear();
+            req.onsuccess = () => resolve();
+            req.onerror = () => reject(req.error);
+        });
+
+        // Build trigram map in memory
+        const trigramMap = new Map<string, Set<number>>();
+        let processed = 0;
+
+        const addTrigrams = (text: string, logId: number) => {
+            if (!text || text.length < 3) return;
+            for (let i = 0; i <= text.length - 3; i++) {
+                const tri = text.substring(i, i + 3);
+                let ids = trigramMap.get(tri);
+                if (!ids) {
+                    ids = new Set<number>();
+                    trigramMap.set(tri, ids);
+                }
+                if (ids.size < MAX_TRIGRAM_IDS) {
+                    ids.add(logId);
+                }
+            }
+        };
+
+        await new Promise<void>((resolve, reject) => {
+            const tx = db.transaction([STORE_NAME], 'readonly');
+            const store = tx.objectStore(STORE_NAME);
+            const request = store.openCursor();
+
+            request.onsuccess = (event) => {
+                const cursor = (event.target as IDBRequest<IDBCursorWithValue>).result;
+                if (cursor) {
+                    const log = cursor.value as LogEntry;
+                    const logId = log.id;
+                    addTrigrams(log._messageLower || '', logId);
+                    addTrigrams(log._componentLower || '', logId);
+                    addTrigrams(log._callIdLower || '', logId);
+                    processed++;
+                    cursor.continue();
+                } else {
+                    resolve();
+                }
+            };
+            request.onerror = () => reject(request.error);
+        });
+
+        if (processed === 0) return;
+
+        // Write trigram map to IDB in batches
+        const WRITE_BATCH = 500;
+        const entries = Array.from(trigramMap.entries());
+        for (let i = 0; i < entries.length; i += WRITE_BATCH) {
+            const batch = entries.slice(i, i + WRITE_BATCH);
+            await new Promise<void>((resolve, reject) => {
+                const tx = db.transaction([SEARCH_INDEX_STORE], 'readwrite');
+                const store = tx.objectStore(SEARCH_INDEX_STORE);
+                let completed = 0;
+                let hasError = false;
+
+                batch.forEach(([trigram, ids]) => {
+                    const req = store.put({ trigram, logIds: Array.from(ids) });
+                    req.onsuccess = () => {
+                        completed++;
+                        if (completed === batch.length && !hasError) resolve();
+                    };
+                    req.onerror = () => {
+                        if (!hasError) { hasError = true; reject(req.error); }
+                    };
+                });
+            });
+
+            // Yield to event loop every batch to stay non-blocking
+            if (i + WRITE_BATCH < entries.length) {
+                await new Promise<void>(r => setTimeout(r, 0));
+            }
+        }
+
+        console.log(`Trigram index built: ${trigramMap.size} trigrams from ${processed} logs`);
+    }
+
+    /**
+     * Search the trigram index for candidate log IDs matching a query.
+     * @returns Array of candidate log IDs, null if index is empty/not built or query < 3 chars.
+     */
+    async searchByTrigram(query: string): Promise<number[] | null> {
+        if (query.length < 3) return null;
+
+        const db = await this.getDB();
+        if (!db.objectStoreNames.contains(SEARCH_INDEX_STORE)) return null;
+        const lowerQuery = query.toLowerCase();
+
+        // Extract trigrams from query
+        const queryTrigrams: string[] = [];
+        for (let i = 0; i <= lowerQuery.length - 3; i++) {
+            queryTrigrams.push(lowerQuery.substring(i, i + 3));
+        }
+        if (queryTrigrams.length === 0) return null;
+
+        // Look up each trigram
+        const trigramResults: Array<{ trigram: string; logIds: number[] }> = [];
+        for (const tri of queryTrigrams) {
+            const result = await new Promise<{ trigram: string; logIds: number[] } | undefined>((resolve, reject) => {
+                const tx = db.transaction([SEARCH_INDEX_STORE], 'readonly');
+                const store = tx.objectStore(SEARCH_INDEX_STORE);
+                const req = store.get(tri);
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+
+            if (!result) {
+                // Trigram not in index — index may be incomplete or query has no matches
+                return [];
+            }
+            trigramResults.push(result);
+        }
+
+        if (trigramResults.length === 0) return null;
+
+        // Intersect: start with smallest set for efficiency
+        trigramResults.sort((a, b) => a.logIds.length - b.logIds.length);
+
+        let candidateSet = new Set<number>(trigramResults[0].logIds);
+        for (let i = 1; i < trigramResults.length; i++) {
+            // Skip saturated trigrams (they aren't selective)
+            if (trigramResults[i].logIds.length >= MAX_TRIGRAM_IDS) continue;
+            const nextSet = new Set<number>(trigramResults[i].logIds);
+            candidateSet = new Set([...candidateSet].filter(id => nextSet.has(id)));
+            if (candidateSet.size === 0) return [];
+        }
+
+        return Array.from(candidateSet);
+    }
+
+    /**
+     * Fetch logs by their primary keys in a single transaction.
+     * @param ids - Array of log IDs to fetch
+     * @returns LogEntry array in the order of the input IDs
+     */
+    async getLogsByIds(ids: number[]): Promise<LogEntry[]> {
+        if (ids.length === 0) return [];
+        const db = await this.getDB();
+
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction([STORE_NAME], 'readonly');
+            const store = tx.objectStore(STORE_NAME);
+            const results = new Map<number, LogEntry>();
+            let completed = 0;
+            let hasError = false;
+
+            ids.forEach(id => {
+                const req = store.get(id);
+                req.onsuccess = () => {
+                    if (req.result) results.set(id, req.result);
+                    completed++;
+                    if (completed === ids.length && !hasError) {
+                        // Preserve input order
+                        const ordered: LogEntry[] = [];
+                        for (const id of ids) {
+                            const log = results.get(id);
+                            if (log) ordered.push(log);
+                        }
+                        resolve(ordered);
+                    }
+                };
+                req.onerror = () => {
+                    if (!hasError) { hasError = true; reject(req.error); }
+                };
+            });
         });
     }
 }

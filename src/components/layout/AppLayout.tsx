@@ -35,6 +35,7 @@ const PANEL_TITLES: Record<PanelId, string> = {
   stations: 'Stations',
   ai: 'AI Analysis',
   filters: 'Filters',
+  // REMOVED-FOR-DEPLOY: server mode UI hidden — re-add when noclense-server is approved
   server: 'Server Mode',
 };
 

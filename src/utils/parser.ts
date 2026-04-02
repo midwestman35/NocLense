@@ -2,6 +2,7 @@ import type { LogEntry, LogLevel } from '../types';
 import { cleanupLogEntry } from './messageCleanup';
 import { dbManager } from './indexedDB';
 import { formatLogTimestamp } from './logTimestamp';
+import Papa from 'papaparse';
 
 /**
  * Log Parser for LogScrub
@@ -500,7 +501,7 @@ const parseHomerText = (text: string, fileColor: string, startId: number, fileNa
  * Streaming parser that processes file chunks line-by-line without accumulating full text
  * This prevents memory exhaustion on large files (e.g., 740MB+)
  */
-const parseLogFileStreaming = async (
+export const parseLogFileStreaming = async (
     file: File,
     fileColor: string,
     startId: number,
@@ -521,6 +522,7 @@ const parseLogFileStreaming = async (
     const logRegex2 = /^\[(INFO|DEBUG|ERROR|WARN|CRITICAL|FATAL|SEVERE|ERR|WARNING|TRACE|VERBOSE|NOTICE|FAILURE|FAIL)\]\s\[(\d{4}-\d{2}-\d{2})\s(\d{2}:\d{2}:\d{2},\d+)\]\s\[(.*?)\]\s(.*)/i;
     
     let currentLog: LogEntry | null = null;
+    let payloadLines: string[] = [];
     let lineCount = 0;
     const YIELD_EVERY_N_LINES = 5000; // Yield every 5000 lines
 
@@ -532,7 +534,7 @@ const parseLogFileStreaming = async (
 
         // Combine buffer with new chunk
         const textToProcess = buffer + chunkText;
-        
+
         // Split into lines, keeping last incomplete line in buffer
         const lines = textToProcess.split(/\r?\n/);
         buffer = lines.pop() || ''; // Last line might be incomplete
@@ -564,6 +566,10 @@ const parseLogFileStreaming = async (
             if (match) {
                 // Push previous log if exists
                 if (currentLog) {
+                    if (payloadLines.length > 0) {
+                        currentLog.payload = payloadLines.join("\n");
+                        payloadLines = [];
+                    }
                     processLogPayload(currentLog);
                     parsedLogs.push(currentLog);
                 }
@@ -661,7 +667,7 @@ const parseLogFileStreaming = async (
             } else {
                 // Continuation line
                 if (currentLog) {
-                    currentLog.payload += (currentLog.payload ? "\n" : "") + line;
+                    payloadLines.push(line);
                     currentLog._payloadLower = undefined;
                 }
             }
@@ -675,11 +681,15 @@ const parseLogFileStreaming = async (
 
     // Process remaining buffer as final line
     if (buffer.trim() && currentLog) {
-        currentLog.payload += (currentLog.payload ? "\n" : "") + buffer;
+        payloadLines.push(buffer);
     }
 
     // Push last log
     if (currentLog) {
+        if (payloadLines.length > 0) {
+            currentLog.payload = payloadLines.join("\n");
+            payloadLines = [];
+        }
         processLogPayload(currentLog);
         parsedLogs.push(currentLog);
     }
@@ -737,7 +747,7 @@ const parseLogFileStreamingToIndexedDB = async (
     await dbManager.init();
     
     const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB chunks
-    const BATCH_SIZE = 1000; // Write to IndexedDB in batches of 1000
+    const BATCH_SIZE = 500; // Write to IndexedDB in batches of 500
     const fileSize = file.size;
     let idCounter = startId;
     let offset = 0;
@@ -750,6 +760,7 @@ const parseLogFileStreamingToIndexedDB = async (
     const logRegex2 = /^\[(INFO|DEBUG|ERROR|WARN|CRITICAL|FATAL|SEVERE|ERR|WARNING|TRACE|VERBOSE|NOTICE|FAILURE|FAIL)\]\s\[(\d{4}-\d{2}-\d{2})\s(\d{2}:\d{2}:\d{2},\d+)\]\s\[(.*?)\]\s(.*)/i;
     
     let currentLog: LogEntry | null = null;
+    let payloadLines: string[] = [];
     let batch: LogEntry[] = [];
     let totalParsed = 0;
     let minTimestamp = Infinity;
@@ -801,9 +812,13 @@ const parseLogFileStreamingToIndexedDB = async (
             if (match) {
                 // Write previous log if exists
                 if (currentLog) {
+                    if (payloadLines.length > 0) {
+                        currentLog.payload = payloadLines.join("\n");
+                        payloadLines = [];
+                    }
                     processLogPayload(currentLog);
                     batch.push(currentLog);
-                    
+
                     // Update timestamp range
                     if (currentLog.timestamp < minTimestamp) minTimestamp = currentLog.timestamp;
                     if (currentLog.timestamp > maxTimestamp) maxTimestamp = currentLog.timestamp;
@@ -907,7 +922,7 @@ const parseLogFileStreamingToIndexedDB = async (
             } else {
                 // Continuation line
                 if (currentLog) {
-                    currentLog.payload += (currentLog.payload ? "\n" : "") + line;
+                    payloadLines.push(line);
                     currentLog._payloadLower = undefined;
                 }
             }
@@ -920,11 +935,15 @@ const parseLogFileStreamingToIndexedDB = async (
 
     // Process remaining buffer
     if (buffer.trim() && currentLog) {
-        currentLog.payload += (currentLog.payload ? "\n" : "") + buffer;
+        payloadLines.push(buffer);
     }
 
     // Write last log
     if (currentLog) {
+        if (payloadLines.length > 0) {
+            currentLog.payload = payloadLines.join("\n");
+            payloadLines = [];
+        }
         processLogPayload(currentLog);
         batch.push(currentLog);
         if (currentLog.timestamp < minTimestamp) minTimestamp = currentLog.timestamp;
@@ -957,17 +976,356 @@ const parseLogFileStreamingToIndexedDB = async (
     return { totalParsed, minTimestamp, maxTimestamp };
 };
 
+/**
+ * Streaming CSV parser that writes directly to IndexedDB via Papa Parse.
+ * Handles both Datadog CSV exports and Carbyne Call Log CSVs without loading
+ * the entire file into memory, preventing OOM on large (100MB+) CSV files.
+ */
+const parseCSVStreamingToIndexedDB = async (
+    file: File,
+    fileColor: string,
+    startId: number,
+    onProgress?: (progress: number) => void
+): Promise<{ totalParsed: number; minTimestamp: number; maxTimestamp: number }> => {
+    await dbManager.init();
+
+    const BATCH_SIZE = 500;
+    let idCounter = startId;
+    let batch: LogEntry[] = [];
+    let totalParsed = 0;
+    let minTimestamp = Infinity;
+    let maxTimestamp = -Infinity;
+    let csvType: 'calllog' | 'datadog' | null = null;
+    let rowCount = 0;
+
+    const writeBatch = async (): Promise<void> => {
+        if (batch.length > 0) {
+            await dbManager.addLogsBatch(batch);
+            totalParsed += batch.length;
+            batch = [];
+        }
+    };
+
+    if (onProgress) onProgress(0.05);
+
+    return new Promise<{ totalParsed: number; minTimestamp: number; maxTimestamp: number }>((resolve, reject) => {
+        Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            step: (results: Papa.ParseStepResult<Record<string, string>>) => {
+                const row = results.data;
+                rowCount++;
+
+                // Detect CSV type from the first row's column names
+                if (csvType === null) {
+                    const columns = Object.keys(row).map(k => k.toLowerCase());
+                    if (columns.some(c => c === 'id') && columns.some(c => c === 'created') && (columns.some(c => c === 'phone') || columns.some(c => c === 'termination reason'))) {
+                        csvType = 'calllog';
+                    } else {
+                        csvType = 'datadog';
+                    }
+                }
+
+                let entry: LogEntry | null = null;
+
+                if (csvType === 'calllog') {
+                    entry = parseCallLogRow(row, fileColor, idCounter);
+                } else {
+                    entry = parseDatadogRow(row, fileColor, idCounter);
+                }
+
+                if (entry) {
+                    idCounter++;
+                    batch.push(entry);
+                    if (entry.timestamp < minTimestamp) minTimestamp = entry.timestamp;
+                    if (entry.timestamp > maxTimestamp) maxTimestamp = entry.timestamp;
+
+                    if (batch.length >= BATCH_SIZE) {
+                        // Papa Parse step callback is synchronous; fire-and-forget the IDB write.
+                        // writeBatch() resets the batch array so rows won't pile up in memory.
+                        void writeBatch().then(() => {
+                            if (onProgress) {
+                                const progress = 0.1 + (results.meta.cursor / file.size) * 0.8;
+                                onProgress(Math.min(progress, 0.95));
+                            }
+                        });
+                    }
+                }
+            },
+            complete: async () => {
+                try {
+                    // Flush remaining batch
+                    await writeBatch();
+
+                    if (onProgress) onProgress(0.95);
+
+                    // Update metadata
+                    const existingMetadata = await dbManager.getMetadata();
+                    const existingFileNames = existingMetadata?.fileNames || [];
+                    if (!existingFileNames.includes(file.name)) {
+                        existingFileNames.push(file.name);
+                    }
+
+                    await dbManager.updateMetadata({
+                        totalLogs: (existingMetadata?.totalLogs || 0) + totalParsed,
+                        fileNames: existingFileNames,
+                        dateRange: {
+                            min: Math.min(existingMetadata?.dateRange.min || Infinity, minTimestamp === Infinity ? 0 : minTimestamp),
+                            max: Math.max(existingMetadata?.dateRange.max || -Infinity, maxTimestamp === -Infinity ? 0 : maxTimestamp)
+                        }
+                    });
+
+                    if (onProgress) onProgress(1.0);
+                    resolve({ totalParsed, minTimestamp, maxTimestamp });
+                } catch (err) {
+                    reject(err);
+                }
+            },
+            error: (err: Error) => {
+                reject(err);
+            }
+        });
+    });
+};
+
+/**
+ * Map a single call log CSV row (Papa Parse object) to a LogEntry.
+ * Returns null if the row is missing required fields.
+ */
+function parseCallLogRow(row: Record<string, string>, fileColor: string, id: number): LogEntry | null {
+    const callId = (row['ID'] || '').trim();
+    const created = (row['Created'] || '').trim();
+    if (!callId || !created) return null;
+
+    const timestamp = new Date(created.replace(/-/g, ' ')).getTime();
+    if (isNaN(timestamp)) return null;
+
+    const phone = (row['Phone'] || '').trim();
+    const duration = (row['Duration'] || '').trim();
+    const termReason = (row['Termination Reason'] || '').trim();
+    const station = (row['Station'] || '').trim();
+    const callType = (row['Type'] || '').trim();
+    const queue = (row['Queue Name'] || '').trim();
+    const agent = (row['Agent Name'] || '').trim();
+    const agentId = (row['Agent ID'] || '').trim();
+    const waiting = (row['Waiting Time'] || '').trim();
+    const address = (row['Last Estimated Address'] || '').trim();
+
+    let level: LogLevel = 'INFO';
+    const termLower = termReason.toLowerCase();
+    if (termLower.includes('abandon') || termLower.includes('missed') || termLower.includes('fail')) {
+        level = 'WARN';
+    }
+    if (duration === '0:00:00' && termLower !== 'agent ended call') {
+        level = 'WARN';
+    }
+
+    const message = `Call #${callId} | ${callType} | ${phone} → ${queue} | Agent: ${agent || 'N/A'} | Station: ${station} | Duration: ${duration} | ${termReason}`;
+
+    const payloadParts: string[] = [
+        `Call ID: ${callId}`,
+        `Created: ${created}`,
+        `Phone: ${phone}`,
+        `Type: ${callType}`,
+        `Queue: ${queue}`,
+        `Agent: ${agent} (ID: ${agentId})`,
+        `Station: ${station}`,
+        `Duration: ${duration}`,
+        `Waiting Time: ${waiting}`,
+        `Termination: ${termReason}`,
+    ];
+    if (address) payloadParts.push(`Address: ${address}`);
+
+    const payload = payloadParts.join('\n');
+    const entry: LogEntry = {
+        id,
+        timestamp,
+        rawTimestamp: created,
+        displayTimestamp: formatLogTimestamp(timestamp),
+        level,
+        component: 'Call Log',
+        displayComponent: 'Call Log',
+        message,
+        displayMessage: message,
+        payload,
+        type: 'LOG',
+        isSip: false,
+        stationId: station || undefined,
+        fileName: 'call-log.csv',
+        fileColor,
+        sourceType: 'apex',
+        _messageLower: message.toLowerCase(),
+        _componentLower: 'call log',
+        _payloadLower: payload.toLowerCase(),
+    };
+
+    return entry;
+}
+
+/**
+ * Map a single Datadog CSV row (Papa Parse object) to a LogEntry.
+ * Papa Parse with header:true gives us named fields: Date, Host, Service, Content.
+ * Returns null if the row cannot be parsed.
+ */
+function parseDatadogRow(row: Record<string, string>, fileColor: string, id: number): LogEntry | null {
+    try {
+        const isoDate = (row['Date'] || '').trim();
+        const host = (row['Host'] || '').trim();
+        const service = (row['Service'] || '').trim();
+        const contentJson = (row['Content'] || '').trim();
+
+        if (!isoDate || !contentJson) return null;
+
+        // Papa Parse already handles CSV quoting/unescaping, but Datadog exports
+        // use double-double-quote escaping inside the Content field's JSON.
+        const unescapedJson = contentJson.replace(/""/g, '"');
+        const content = JSON.parse(unescapedJson);
+
+        if (!content.log) return null;
+
+        const log = content.log;
+
+        const timestamp = new Date(isoDate).getTime();
+        const level: LogLevel = normalizeLogLevel(log.logLevel || 'INFO');
+        const component = log.logSource || service || 'Unknown';
+        const message = log.message || '';
+        const rawTimestamp = log.timestamp || isoDate;
+
+        let payload = '';
+        if (log.machineData) {
+            payload += `Machine: ${log.machineData.name || ''}\n`;
+            payload += `Stack: ${log.machineData.stack || ''}\n`;
+            payload += `Call Center: ${log.machineData.callCenterName || ''}\n`;
+        }
+        if (log.threadName) {
+            payload += `Thread: ${log.threadName}\n`;
+        }
+        if (log.optionCause) {
+            payload += `\nException:\n${log.optionCause}`;
+        }
+
+        const cleanupResult = cleanupLogEntry(component, message);
+
+        const entry: LogEntry = {
+            id,
+            timestamp,
+            rawTimestamp,
+            displayTimestamp: formatLogTimestamp(timestamp),
+            level,
+            component,
+            displayComponent: cleanupResult.displayComponent,
+            message,
+            displayMessage: cleanupResult.displayMessage,
+            payload: payload.trim(),
+            type: 'LOG',
+            isSip: false,
+            fileName: `${host}-${service}`,
+            fileColor,
+            sourceType: 'datadog',
+            sourceLabel: `DD:${component}`,
+        };
+
+        if (log.machineData) {
+            if (log.machineData.callCenterName) {
+                entry.cncID = String(log.machineData.callCenterName);
+            }
+            if (log.machineData.name) {
+                entry.stationId = String(log.machineData.name);
+            }
+        }
+
+        const callIdMatch = message.match(/callId[=:]\s*([^\s;,\[\]\(\)]+)/i) || message.match(/Call-ID:\s*([^\s]+)/i);
+        if (callIdMatch) {
+            const extractedCallId = callIdMatch[1].trim();
+            entry.callId = extractedCallId;
+            entry._callIdLower = extractedCallId.toLowerCase();
+        }
+
+        const extensionMatch = message.match(/extensionID:\s*Optional\[(\d+)\]/);
+        if (extensionMatch) {
+            entry.extensionId = extensionMatch[1];
+        }
+
+        entry._messageLower = message.toLowerCase();
+        entry._componentLower = component.toLowerCase();
+        if (payload) {
+            entry._payloadLower = payload.toLowerCase();
+        }
+
+        return entry;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Parse a log file in a Web Worker to avoid blocking the main thread.
+ * Used for non-CSV, non-Homer files in the 10-50 MB range in the browser (non-Electron) path.
+ * Falls back to main-thread streaming if Worker is unavailable.
+ *
+ * @param file - The File object to parse
+ * @param fileColor - Hex color for file identification in the UI
+ * @param startId - Starting ID for parsed LogEntry objects
+ * @param onProgress - Optional progress callback (0-1)
+ * @returns Parsed LogEntry array
+ */
+function parseLogFileViaWorker(
+    file: File,
+    fileColor: string,
+    startId: number,
+    onProgress?: (progress: number) => void
+): Promise<LogEntry[]> {
+    return new Promise((resolve, reject) => {
+        const worker = new Worker(
+            new URL('../workers/parseWorker.ts', import.meta.url),
+            { type: 'module' }
+        );
+
+        worker.onmessage = (e: MessageEvent) => {
+            const { type } = e.data;
+            if (type === 'progress' && onProgress) {
+                onProgress(e.data.progress);
+            } else if (type === 'done') {
+                resolve(e.data.logs);
+                worker.terminate();
+            } else if (type === 'error') {
+                reject(new Error(e.data.error));
+                worker.terminate();
+            }
+        };
+
+        worker.onerror = (err) => {
+            reject(new Error(`Parse worker error: ${err.message}`));
+            worker.terminate();
+        };
+
+        worker.postMessage({ file, fileColor, startId });
+    });
+}
+
+/** Returns true when running in a browser tab (not Electron, not already inside a worker). */
+function canUseWebWorker(): boolean {
+    return (
+        typeof window !== 'undefined' &&
+        typeof Worker !== 'undefined' &&
+        !(window as Record<string, unknown>).electronAPI
+    );
+}
+
 export const parseLogFile = async (file: File, fileColor: string = '#3b82f6', startId: number = 1, onProgress?: (progress: number) => void, useIndexedDB: boolean = true): Promise<LogEntry[] | { totalParsed: number; minTimestamp: number; maxTimestamp: number }> => {
     // Check if this is a CSV file (CSV files use different parser, typically smaller)
     const isCSV = file.name.toLowerCase().endsWith('.csv');
-    
+
     // For files larger than 50MB, use IndexedDB streaming parser to prevent OOM
     // This writes directly to IndexedDB instead of accumulating in memory
     const INDEXEDDB_THRESHOLD = 50 * 1024 * 1024; // 50MB
-    const shouldUseIndexedDB = useIndexedDB && !isCSV && file.size > INDEXEDDB_THRESHOLD;
-    
+    const shouldUseIndexedDB = useIndexedDB && file.size > INDEXEDDB_THRESHOLD;
+
     if (shouldUseIndexedDB) {
-        // Use IndexedDB streaming parser for large files
+        // Route CSV files to the Papa Parse streaming parser, others to the line-based one
+        if (isCSV) {
+            return parseCSVStreamingToIndexedDB(file, fileColor, startId, onProgress);
+        }
         return parseLogFileStreamingToIndexedDB(file, fileColor, startId, onProgress);
     }
     
@@ -980,9 +1338,16 @@ export const parseLogFile = async (file: File, fileColor: string = '#3b82f6', st
         return parseLogFileStreaming(file, fileColor, startId, onProgress);
     }
     
+    // For non-CSV files > 10 MB in the browser, offload parsing to a Web Worker
+    // so the main thread stays responsive. Electron uses its own IPC worker path.
+    const WORKER_THRESHOLD = 10 * 1024 * 1024; // 10MB
+    if (!isCSV && file.size > WORKER_THRESHOLD && canUseWebWorker()) {
+        return parseLogFileViaWorker(file, fileColor, startId, onProgress);
+    }
+
     // For smaller files or CSV files, use traditional parsing (faster for small files)
     const useChunkedReading = file.size > 10 * 1024 * 1024;
-    
+
     let text: string;
     if (useChunkedReading) {
         if (onProgress) onProgress(0.1);
@@ -1027,6 +1392,7 @@ export const parseLogFile = async (file: File, fileColor: string = '#3b82f6', st
     const logRegex2 = /^\[(INFO|DEBUG|ERROR|WARN|CRITICAL|FATAL|SEVERE|ERR|WARNING|TRACE|VERBOSE|NOTICE|FAILURE|FAIL)\]\s\[(\d{4}-\d{2}-\d{2})\s(\d{2}:\d{2}:\d{2},\d+)\]\s\[(.*?)\]\s(.*)/i;
 
     let currentLog: LogEntry | null = null;
+    let payloadLines: string[] = [];
     let idCounter = startId;
     const YIELD_EVERY_N_LINES = 1000; // Yield control every 1000 lines to prevent tab freezing
 
@@ -1057,6 +1423,10 @@ export const parseLogFile = async (file: File, fileColor: string = '#3b82f6', st
         if (match) {
             // If we have a current log being built, push it before starting new one
             if (currentLog) {
+                if (payloadLines.length > 0) {
+                    currentLog.payload = payloadLines.join("\n");
+                    payloadLines = [];
+                }
                 processLogPayload(currentLog);
                 parsedLogs.push(currentLog);
             }
@@ -1169,21 +1539,21 @@ export const parseLogFile = async (file: File, fileColor: string = '#3b82f6', st
                 _componentLower: component.toLowerCase()
             };
         } else {
-            // Line does not match start of log. 
+            // Line does not match start of log.
             // check if it's a continuation or a SIP block
             if (currentLog) {
-                // Append to payload
-                currentLog.payload += (currentLog.payload ? "\n" : "") + line;
-                // Phase 2 Optimization: Defer lowercase computation for payload until processLogPayload
-                // This avoids accumulating lowercase strings for very large payloads
-                // The lowercase will be computed once in processLogPayload when the log is complete
-                currentLog._payloadLower = undefined; // Will be recomputed in processLogPayload
+                payloadLines.push(line);
+                currentLog._payloadLower = undefined;
             }
         }
     }
 
     // Push last log
     if (currentLog) {
+        if (payloadLines.length > 0) {
+            currentLog.payload = payloadLines.join("\n");
+            payloadLines = [];
+        }
         processLogPayload(currentLog);
         parsedLogs.push(currentLog);
     }

@@ -9,7 +9,8 @@ import type { PanelId } from './IconRail';
 import { ZendeskPanel } from '../zendesk/ZendeskPanel';
 import AiSettingsModal from '../ai/AiSettingsModal';
 import { loadAiSettings } from '../../store/aiSettings';
-import ServerSettingsPanel from '../ServerSettingsPanel';
+// REMOVED-FOR-DEPLOY: server mode UI hidden — re-add when noclense-server is approved
+// import ServerSettingsPanel from '../ServerSettingsPanel';
 
 function PanelSection({ title, meta, children }: { title: string; meta?: string; children: ReactNode }) {
   return (
@@ -246,9 +247,10 @@ export function useInvestigationPanels({ onSetupAI: _onSetupAI }: { onSetupAI: (
           </PanelSection>
         </div>
       ),
+      // REMOVED-FOR-DEPLOY: server mode UI hidden — re-add when noclense-server is approved
       server: (
-        <div className="h-full overflow-y-auto">
-          <ServerSettingsPanel />
+        <div className="h-full overflow-y-auto p-3 text-xs text-[var(--muted-foreground)]">
+          Server mode is not available in this build.
         </div>
       ),
       filters: (

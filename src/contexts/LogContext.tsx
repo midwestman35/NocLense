@@ -528,20 +528,44 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
                 const MAX_INITIAL_LOGS = 5000;
                 
                 // If no specific filters, limit the load
-                const hasSpecificFilters = selectedComponentFilter || selectedLevels.size > 0 || isSipFilterEnabled || 
-                    activeFileFilters.length > 0 || callIdFilters.length > 0 || filterText;
+                const hasSpecificFilters = selectedComponentFilter || selectedLevels.size > 0 || isSipFilterEnabled ||
+                    activeFileFilters.length > 0 || callIdFilters.length > 0 || filterText || selectedSourceFilter;
                 
                 if (!hasSpecificFilters) {
                     // No filters - load limited sample for initial display
                     filters.limit = MAX_INITIAL_LOGS;
                 }
                 
-                // Text search - for now, load all and filter in memory (IndexedDB doesn't support full-text search easily)
-                // In the future, we could add a full-text search index
-                let loadedLogs = await loadLogsFromIndexedDB(filters);
-                
-                // Apply text filter in memory if present
-                if (filterText) {
+                // Text search: try trigram fast-path first, fall back to full scan
+                let loadedLogs: LogEntry[];
+                let textFilterApplied = false;
+
+                if (filterText && filterText.length >= 3) {
+                    const trigramIds = await dbManager.searchByTrigram(filterText.toLowerCase());
+                    if (trigramIds !== null) {
+                        // Fast path: fetch only candidate logs by ID
+                        loadedLogs = await dbManager.getLogsByIds(trigramIds);
+                        // Trigrams are a superset — verify actual match
+                        const lowerFilterText = filterText.toLowerCase();
+                        loadedLogs = loadedLogs.filter(log => {
+                            return (
+                                (log._messageLower && log._messageLower.includes(lowerFilterText)) ||
+                                (log._payloadLower && log._payloadLower.includes(lowerFilterText)) ||
+                                (log._componentLower && log._componentLower.includes(lowerFilterText)) ||
+                                (log._callIdLower && log._callIdLower.includes(lowerFilterText))
+                            );
+                        });
+                        textFilterApplied = true;
+                    } else {
+                        // Trigram index not available — fall back to full scan
+                        loadedLogs = await loadLogsFromIndexedDB(filters);
+                    }
+                } else {
+                    loadedLogs = await loadLogsFromIndexedDB(filters);
+                }
+
+                // Apply text filter in memory if not already handled by trigram path
+                if (filterText && !textFilterApplied) {
                     const lowerFilterText = filterText.toLowerCase();
                     loadedLogs = loadedLogs.filter(log => {
                         return (
@@ -565,6 +589,11 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
                     });
                 }
                 
+                // Source filter
+                if (selectedSourceFilter) {
+                    loadedLogs = loadedLogs.filter(log => deriveSourceLabel(log) === selectedSourceFilter);
+                }
+
                 // Apply favorites filter
                 if (isShowFavoritesOnly) {
                     loadedLogs = loadedLogs.filter(log => favoriteLogIds.has(log.id));
@@ -636,7 +665,8 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         sortConfig,
         loadLogsFromIndexedDB,
         excludedMessageTypes,
-        selectedMessageTypeFilter
+        selectedMessageTypeFilter,
+        selectedSourceFilter
     ]);
     
     // Update totalLogCount when logs are cleared
@@ -701,6 +731,9 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         }
     }, [logs.length]);
 
+
+    // Source labels computed from ALL IDB logs (not just the loaded sample)
+    const [idbSourceLabels, setIdbSourceLabels] = useState<string[]>([]);
 
     // State for correlation data (loaded asynchronously for IndexedDB mode)
     const [correlationDataState, setCorrelationDataState] = useState<{
@@ -790,6 +823,14 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
                 }
                 
                 setCorrelationCountsState(counts);
+
+                // Compute available source labels from ALL IDB logs (not just the loaded sample)
+                // This ensures the source filter dropdown is complete for multi-source datasets
+                const sourceSet = new Set<string>();
+                await dbManager.forEachLog(log => {
+                    sourceSet.add(deriveSourceLabel(log as LogEntry));
+                });
+                setIdbSourceLabels(Array.from(sourceSet).sort());
             } catch (error) {
                 console.error('Failed to load correlation data from IndexedDB:', error);
             }
@@ -891,13 +932,14 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
 
     // Compute available log sources from loaded logs
     const availableSources = useMemo(() => {
-        const source = useIndexedDBMode ? indexedDBLogs : logs;
+        // In IndexedDB mode, use pre-computed labels from full dataset scan
+        if (useIndexedDBMode) return idbSourceLabels;
         const set = new Set<string>();
-        source.forEach(log => {
+        logs.forEach(log => {
             set.add(deriveSourceLabel(log));
         });
         return Array.from(set).sort();
-    }, [useIndexedDBMode, logs, indexedDBLogs]);
+    }, [useIndexedDBMode, logs, idbSourceLabels]);
 
     const toggleExcludedMessageType = useCallback((type: string) => {
         setExcludedMessageTypes(prev => {
@@ -1186,6 +1228,11 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
                 );
                 setIndexedDBLogs(initialLogs.sort((a, b) => a.timestamp - b.timestamp));
             }
+
+            // Build trigram search index in background (non-blocking)
+            dbManager.buildTrigramIndex().catch(err =>
+                console.warn('Trigram index build failed:', err)
+            );
         }
     }, []);
     

@@ -27,7 +27,8 @@ const PANEL_ITEMS: { id: PanelId; icon: React.ElementType; label: string }[] = [
   { id: 'stations', icon: Radio, label: 'Stations' },
   { id: 'ai', icon: Sparkles, label: 'AI Analysis' },
   { id: 'filters', icon: Filter, label: 'Filters' },
-  { id: 'server', icon: Server, label: 'Server Mode' },
+  // REMOVED-FOR-DEPLOY: server mode UI hidden — re-add when noclense-server is approved
+  // { id: 'server', icon: Server, label: 'Server Mode' },
 ];
 
 const RailButton = memo(function RailButton({

@@ -121,7 +121,8 @@ export function WorkspaceImportPanel({ onComplete, onInvestigationReady }: Works
       const files = Array.from(fileList);
 
       // --- Server mode: upload to backend for parsing ---
-      if (serverMode) {
+      // REMOVED-FOR-DEPLOY: server mode UI hidden — re-add when noclense-server is approved
+      if (false && serverMode) {
         try {
           const result = await serverUploadAndParse(files, setParsingProgress);
           setSelectedLogId(null);
