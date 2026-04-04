@@ -76,14 +76,15 @@ function bucketizeLogs(
 }
 
 export default function LogTimeline({ height = 80, className = '' }: LogTimelineProps) {
-  const { logs, timelineZoomRange, setTimelineZoomRange } = useLogContext();
+  const { logs, filteredLogs, hasActiveFilters, timelineZoomRange, setTimelineZoomRange } = useLogContext();
   const containerRef = useRef<HTMLDivElement>(null);
   const [tooltip, setTooltip] = useState<{ bucket: TimelineBucket; x: number; y: number } | null>(null);
+  const scopedLogs = hasActiveFilters || timelineZoomRange ? filteredLogs : logs;
 
   // Sorted logs for bucketing
   const sortedLogs = useMemo(() => {
-    return [...logs].sort((a, b) => a.timestamp - b.timestamp);
-  }, [logs]);
+    return [...scopedLogs].sort((a, b) => a.timestamp - b.timestamp);
+  }, [scopedLogs]);
 
   const buckets = useMemo(() => bucketizeLogs(sortedLogs, BUCKET_SIZE_MS), [sortedLogs]);
   const maxCount = useMemo(() => Math.max(1, ...buckets.map(b => b.total)), [buckets]);

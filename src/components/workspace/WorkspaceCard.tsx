@@ -30,14 +30,19 @@ export function WorkspaceCard({
   const [expanded, setExpanded] = useState(defaultExpanded);
   const bodyRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const hasMounted = useRef(false);
 
-  // Animate height on expand/collapse
+  // Only animate height on user-initiated expand/collapse, NOT on mount
   useEffect(() => {
+    if (!hasMounted.current) {
+      hasMounted.current = true;
+      return; // Skip mount animation — use CSS initial state instead
+    }
+
     const body = bodyRef.current;
     if (!body) return;
 
     if (expanded) {
-      // Expand: measure content height, animate from 0 to auto
       const contentHeight = contentRef.current?.scrollHeight ?? 0;
       body.style.height = '0px';
       body.style.opacity = '0';
@@ -45,7 +50,6 @@ export function WorkspaceCard({
         body.style.transition = 'height var(--card-expand-duration) var(--room-transition-ease), opacity var(--card-expand-duration) var(--room-transition-ease)';
         body.style.height = `${contentHeight}px`;
         body.style.opacity = '1';
-        // After transition, set to auto for dynamic content
         const onEnd = () => {
           body.style.height = 'auto';
           body.removeEventListener('transitionend', onEnd);
@@ -53,7 +57,6 @@ export function WorkspaceCard({
         body.addEventListener('transitionend', onEnd, { once: true });
       });
     } else {
-      // Collapse: animate from current height to 0
       const currentHeight = body.scrollHeight;
       body.style.height = `${currentHeight}px`;
       body.style.transition = 'none';
@@ -66,7 +69,6 @@ export function WorkspaceCard({
   }, [expanded]);
 
   const handleClick = useCallback(() => {
-    // Single click: expand if collapsed
     if (!expanded) {
       setExpanded(true);
       onExpandChange?.(true);
@@ -74,7 +76,6 @@ export function WorkspaceCard({
   }, [expanded, onExpandChange]);
 
   const handleDoubleClick = useCallback(() => {
-    // Double click: toggle (primarily used to collapse)
     const next = !expanded;
     setExpanded(next);
     onExpandChange?.(next);
@@ -87,8 +88,7 @@ export function WorkspaceCard({
         'flex flex-col overflow-hidden',
         'rounded-[var(--card-radius)] border bg-[var(--card)]',
         'border-[var(--card-border)]',
-        expanded && 'border-[var(--card-border)]',
-        !expanded && 'border-[var(--card-border)] hover:border-[var(--card-border-hover)]',
+        !expanded && 'hover:border-[var(--card-border-hover)]',
         className,
       )}
     >
@@ -105,7 +105,6 @@ export function WorkspaceCard({
         )}
         style={{ height: expanded ? 'var(--card-header-height)' : 'var(--card-collapsed-height)' }}
       >
-        {/* Expand/collapse chevron */}
         <span className="text-[var(--muted-foreground)] shrink-0 transition-transform duration-150">
           {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
         </span>
@@ -121,7 +120,7 @@ export function WorkspaceCard({
         {meta && <span className="ml-auto text-[10px] font-mono text-[var(--muted-foreground)]">{meta}</span>}
       </div>
 
-      {/* Body — animated height */}
+      {/* Body — CSS handles initial state, JS handles subsequent expand/collapse */}
       <div
         ref={bodyRef}
         data-card-body
@@ -131,7 +130,7 @@ export function WorkspaceCard({
           opacity: defaultExpanded ? 1 : 0,
         }}
       >
-        <div ref={contentRef}>
+        <div ref={contentRef} className="h-full">
           {children}
         </div>
       </div>

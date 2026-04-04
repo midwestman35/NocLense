@@ -34,9 +34,12 @@ export function useRoomTransition({
   const transitionTo = useCallback(
     async (from: Phase, to: Phase, swapPhase: () => void) => {
       const container = containerRef.current;
-      if (!container || animatingRef.current) {
-        // No container or already animating — just swap immediately
+      if (!container) {
         swapPhase();
+        return;
+      }
+
+      if (animatingRef.current) {
         return;
       }
 

@@ -4,8 +4,18 @@ import { X } from 'lucide-react';
 import { useAnimeStagger } from '../../utils/anime';
 
 export default function FilterChips() {
-  const { hasActiveFilters, activeCorrelations, toggleCorrelation, clearAllFilters } = useLogContext();
+  const {
+    hasActiveFilters,
+    activeCorrelations,
+    toggleCorrelation,
+    clearAllFilters,
+    jumpState,
+    setJumpState,
+    setActiveCorrelations,
+    setFilterText,
+  } = useLogContext();
   const containerRef = useRef<HTMLDivElement>(null);
+  const hasJumpRestore = jumpState.active && jumpState.previousFilters != null;
 
   useAnimeStagger(containerRef, '.filter-chip', [activeCorrelations.length], {
     translateY: [6, 0],
@@ -14,11 +24,30 @@ export default function FilterChips() {
     duration: 200,
   });
 
-  if (!hasActiveFilters) return null;
+  if (!hasActiveFilters && !hasJumpRestore) return null;
+
+  const handleRestoreFilters = () => {
+    const previousFilters = jumpState.previousFilters;
+    if (!previousFilters) return;
+
+    setActiveCorrelations(previousFilters.activeCorrelations ?? []);
+    setFilterText(previousFilters.filterText ?? '');
+    setJumpState({ active: false, previousFilters: null });
+  };
 
   return (
     <div className="flex items-center gap-2 flex-1 min-w-0">
       <div ref={containerRef} className="flex items-center gap-2 overflow-x-auto no-scrollbar mask-gradient min-w-0 flex-1">
+        {hasJumpRestore && (
+          <button
+            type="button"
+            onClick={handleRestoreFilters}
+            className="filter-chip flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-medium whitespace-nowrap text-amber-300 shadow-sm shrink-0 hover:bg-amber-500/15"
+            title="Restore the filters cleared by Jump To"
+          >
+            Restore jump filters
+          </button>
+        )}
         {activeCorrelations.map((filter) => (
           <div
             key={`${filter.type}-${filter.value}`}

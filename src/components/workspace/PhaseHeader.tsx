@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, type ReactNode } from 'react';
 import { Sun, Moon, Settings } from 'lucide-react';
 import { getTheme, toggleTheme } from '../../utils/theme';
 import { Button } from '../ui/Button';
@@ -14,6 +14,8 @@ interface PhaseHeaderProps {
   priorityLabel?: string;
   statusLabel?: string;
   onSettingsClick?: () => void;
+  /** Action buttons rendered between ticket context and phase dots */
+  actions?: ReactNode;
 }
 
 export function PhaseHeader({
@@ -23,6 +25,7 @@ export function PhaseHeader({
   priorityLabel,
   statusLabel,
   onSettingsClick,
+  actions,
 }: PhaseHeaderProps) {
   const [theme, setThemeState] = useState(getTheme);
 
@@ -53,7 +56,7 @@ export function PhaseHeader({
           <span className="leading-none">NocLense</span>
         </div>
 
-        {/* Center: Ticket context (investigate + submit only) */}
+        {/* Center-left: Ticket context (investigate + submit only) */}
         {ticketId && phase !== 'import' && (
           <div className="ml-6 flex items-center gap-2">
             <span className="text-xs font-mono text-[var(--muted-foreground)]">#{ticketId}</span>
@@ -68,8 +71,15 @@ export function PhaseHeader({
           </div>
         )}
 
+        {/* Center: Action buttons (optional) */}
+        {actions && (
+          <div className="ml-auto flex items-center gap-1 shrink-0">
+            {actions}
+          </div>
+        )}
+
         {/* Right: Phase dots + controls */}
-        <div className="ml-auto flex items-center gap-3">
+        <div className={`${actions ? 'ml-4' : 'ml-auto'} flex items-center gap-3`}>
           <PhaseDots current={phase} onNavigate={onPhaseChange} />
 
           <div className="w-px h-5 bg-[var(--border)]" />

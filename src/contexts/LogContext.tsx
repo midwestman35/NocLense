@@ -1003,6 +1003,7 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         setIsShowFavoritesOnly(false);
         setIsShowAiHighlightOnly(false);
         setSelectedSourceFilter(null);
+        setJumpState({ active: false, previousFilters: null });
     }, []);
 
     const clearFilterSelections = useCallback(() => {

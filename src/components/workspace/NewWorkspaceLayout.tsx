@@ -22,14 +22,26 @@ import { WorkspaceImportPanel } from '../import/WorkspaceImportPanel';
 import LogDetailsPanel from '../log/LogDetailsPanel';
 import { CaseHeader } from '../case/CaseHeader';
 import { Dialog } from '../ui/Dialog';
+import { Button } from '../ui/Button';
 import ServerSettingsPanel from '../ServerSettingsPanel';
 import InvestigationSetupModal from '../InvestigationSetupModal';
 import { AIOnboardingWizard } from '../onboarding/AIOnboardingWizard';
 import ExportModal from '../export/ExportModal';
 
 import { CaseStateBridge } from '../case/CaseStateBridge';
-import { Sparkles, FileText, Bookmark, Clock, Search, Database, AlertTriangle } from 'lucide-react';
+import { Sparkles, FileText, Bookmark, Clock, Search, Database, AlertTriangle, FolderPlus, Download, Trash2 } from 'lucide-react';
 import type { InvestigationSetup } from '../../types/investigation';
+import type { ZendeskTicket } from '../../services/zendeskService';
+
+function formatTicketLabel(value: string | null | undefined): string | undefined {
+  if (!value) return undefined;
+
+  return value
+    .split(/[_\s-]+/)
+    .filter(Boolean)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1).toLowerCase())
+    .join(' ');
+}
 
 export function NewWorkspaceLayout() {
   const {
@@ -43,20 +55,21 @@ export function NewWorkspaceLayout() {
     setJumpState,
     setScrollTargetTimestamp,
     filterText,
+    clearAllData,
   } = useLogContext();
   useAI(); // Ensure AI context is available for child components
 
-  // Phase state — derived from app state
   const [explicitPhase, setExplicitPhase] = useState<Phase | null>(null);
-  const derivedPhase: Phase = explicitPhase ?? (logs.length === 0 ? 'import' : 'investigate');
-
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
   const [showOnboardingWizard, setShowOnboardingWizard] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [investigationModalTicketId, setInvestigationModalTicketId] = useState<string | null>(null);
   const [pendingSetup, setPendingSetup] = useState<InvestigationSetup | null>(null);
-  const [pendingZdTicketId, setPendingZdTicketId] = useState<string>('');
+  const [activeTicket, setActiveTicket] = useState<ZendeskTicket | null>(null);
+  const [showImportDialog, setShowImportDialog] = useState(false);
   const [fileError] = useState<string | null>(null);
+  const holdImportPhase = investigationModalTicketId !== null;
+  const derivedPhase: Phase = explicitPhase ?? (holdImportPhase ? 'import' : logs.length === 0 ? 'import' : 'investigate');
 
   const selectedLog = selectedLogId
     ? filteredLogs.find((e) => e.id === selectedLogId) || logs.find((e) => e.id === selectedLogId)
@@ -67,9 +80,23 @@ export function NewWorkspaceLayout() {
     setExplicitPhase(next);
   }, []);
 
+  const handleClearLogs = useCallback(async () => {
+    await clearAllData();
+    setSelectedLogId(null);
+    setFilterText('');
+    setActiveTicket(null);
+    setExplicitPhase(null); // Reset to derived (will go to 'import' since logs are cleared)
+  }, [clearAllData, setSelectedLogId, setFilterText]);
+
   // When logs are loaded, auto-advance to investigate
   const handleImportComplete = useCallback(() => {
+    setActiveTicket(null);
     setExplicitPhase('investigate');
+  }, []);
+
+  const handleInvestigationReady = useCallback((ticketId: string) => {
+    setActiveTicket(null);
+    setInvestigationModalTicketId(ticketId);
   }, []);
 
   // ── Import Room ────────────────────────────────────────────────
@@ -88,12 +115,12 @@ export function NewWorkspaceLayout() {
           </p>
           <WorkspaceImportPanel
             onComplete={handleImportComplete}
-            onInvestigationReady={(id) => setInvestigationModalTicketId(id)}
+            onInvestigationReady={handleInvestigationReady}
           />
         </div>
       </WorkspaceCard>
     </div>
-  ), [handleImportComplete]);
+  ), [handleImportComplete, handleInvestigationReady]);
 
   // ── Investigate Room ───────────────────────────────────────────
   const investigateContent = useMemo(() => (
@@ -107,7 +134,7 @@ export function NewWorkspaceLayout() {
         meta={<span>{filteredLogs.length.toLocaleString()} events</span>}
         className={CARD_GRID_CLASSES['log-stream']}
       >
-        <div className="flex flex-col h-full min-h-0">
+        <div className="flex flex-col h-full min-h-0 overflow-hidden">
           {fileError && (
             <div className="flex items-center gap-2 px-3 py-2 text-xs border-b border-[var(--destructive)]/20 text-[var(--destructive)] shrink-0">
               <AlertTriangle size={14} />
@@ -156,8 +183,6 @@ export function NewWorkspaceLayout() {
         <div className="h-full min-h-0 overflow-hidden">
           <AISidebar
             onSetupAI={() => setShowOnboardingWizard(true)}
-            pendingTicketId={pendingZdTicketId}
-            onTicketHandled={() => setPendingZdTicketId('')}
             pendingSetup={pendingSetup}
             onSetupConsumed={() => setPendingSetup(null)}
           />
@@ -175,11 +200,14 @@ export function NewWorkspaceLayout() {
         <div className="p-3 flex flex-col gap-3">
           <p className="text-xs text-[var(--muted-foreground)]">Evidence bookmarks and internal notes will appear here during investigation.</p>
           <button
-            onClick={() => setExplicitPhase('submit')}
+            onClick={() => setIsExportModalOpen(true)}
             className="w-full h-8 rounded-[var(--radius-md)] bg-[var(--success)] text-white text-xs font-semibold hover:bg-[var(--success)]/90 transition-colors"
           >
-            Next: Submit →
+            Export Evidence Pack
           </button>
+          <p className="text-[10px] text-[var(--muted-foreground)]">
+            Zendesk and Confluence submission stays in the AI Diagnose flow until the room-level submit handoff is wired.
+          </p>
         </div>
       </WorkspaceCard>
 
@@ -224,7 +252,7 @@ export function NewWorkspaceLayout() {
       </WorkspaceCard>
     </>
   ), [filteredLogs.length, selectedLog, selectedLogId, fileError, activeCorrelations, filterText,
-      pendingZdTicketId, pendingSetup, setSelectedLogId, setJumpState, setActiveCorrelations,
+      pendingSetup, setSelectedLogId, setJumpState, setActiveCorrelations,
       setFilterText, setScrollTargetTimestamp]);
 
   // ── Submit Room ────────────────────────────────────────────────
@@ -296,8 +324,31 @@ export function NewWorkspaceLayout() {
       <RoomRouter
         phase={derivedPhase}
         onPhaseChange={handlePhaseChange}
-        ticketId={pendingZdTicketId || undefined}
+        ticketId={activeTicket ? String(activeTicket.id) : undefined}
+        priorityLabel={formatTicketLabel(activeTicket?.priority)}
+        statusLabel={formatTicketLabel(activeTicket?.status)}
         onSettingsClick={() => setShowSettingsDialog(true)}
+        headerActions={logs.length > 0 ? (
+          <>
+            <Button variant="ghost" size="sm" onClick={() => setShowImportDialog(true)} className="text-xs h-7 px-2">
+              <FolderPlus size={14} className="mr-1" />
+              Import
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setIsExportModalOpen(true)} className="text-xs h-7 px-2">
+              <Download size={14} className="mr-1" />
+              Export
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => void handleClearLogs()}
+              className="text-xs h-7 px-2 text-[var(--destructive)] hover:text-[var(--destructive)]"
+            >
+              <Trash2 size={14} className="mr-1" />
+              Clear
+            </Button>
+          </>
+        ) : undefined}
         importContent={importContent}
         investigateContent={investigateContent}
         submitContent={submitContent}
@@ -313,12 +364,20 @@ export function NewWorkspaceLayout() {
           ticketId={investigationModalTicketId}
           onConfirm={(setup) => {
             setInvestigationModalTicketId(null);
+            setActiveTicket(setup.ticket);
             setPendingSetup(setup);
             setExplicitPhase('investigate');
           }}
           onCancel={() => setInvestigationModalTicketId(null)}
         />
       )}
+
+      <Dialog open={showImportDialog} onClose={() => setShowImportDialog(false)} title="Import Incident Data">
+        <WorkspaceImportPanel
+          onComplete={() => { setShowImportDialog(false); handleImportComplete(); }}
+          onInvestigationReady={(id) => { setShowImportDialog(false); handleInvestigationReady(id); }}
+        />
+      </Dialog>
 
       <AIOnboardingWizard
         open={showOnboardingWizard}

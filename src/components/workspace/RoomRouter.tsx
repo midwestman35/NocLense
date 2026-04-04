@@ -1,4 +1,4 @@
-import { useCallback, useRef, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { PhaseHeader } from './PhaseHeader';
 import { WorkspaceGrid } from './WorkspaceGrid';
 import { useRoomTransition } from './useRoomTransition';
@@ -13,6 +13,8 @@ interface RoomRouterProps {
   priorityLabel?: string;
   statusLabel?: string;
   onSettingsClick?: () => void;
+  /** Action buttons for the header (Import, Export, Clear, etc.) */
+  headerActions?: ReactNode;
   importContent: ReactNode;
   investigateContent: ReactNode;
   submitContent: ReactNode;
@@ -25,26 +27,32 @@ export function RoomRouter({
   priorityLabel,
   statusLabel,
   onSettingsClick,
+  headerActions,
   importContent,
   investigateContent,
   submitContent,
 }: RoomRouterProps) {
   const gridRef = useRef<HTMLDivElement>(null);
-  const currentPhaseRef = useRef<Phase>(phase);
-  currentPhaseRef.current = phase;
+  const [displayPhase, setDisplayPhase] = useState<Phase>(phase);
+  const displayPhaseRef = useRef<Phase>(phase);
+  displayPhaseRef.current = displayPhase;
 
   const { transitionTo } = useRoomTransition({
     containerRef: gridRef,
   });
 
   const handlePhaseChange = useCallback((nextPhase: Phase) => {
-    if (nextPhase === currentPhaseRef.current) return;
-    const from = currentPhaseRef.current;
+    if (nextPhase === phase) return;
+    onPhaseChange(nextPhase);
+  }, [onPhaseChange, phase]);
 
-    transitionTo(from, nextPhase, () => {
-      onPhaseChange(nextPhase);
+  useEffect(() => {
+    if (phase === displayPhaseRef.current) return;
+
+    void transitionTo(displayPhaseRef.current, phase, () => {
+      setDisplayPhase(phase);
     });
-  }, [onPhaseChange, transitionTo]);
+  }, [displayPhase, phase, transitionTo]);
 
   const roomContent: Record<Phase, ReactNode> = {
     import: importContent,
@@ -55,16 +63,17 @@ export function RoomRouter({
   return (
     <div className="flex h-screen flex-col bg-[var(--background)] text-[var(--foreground)]">
       <PhaseHeader
-        phase={phase}
+        phase={displayPhase}
         onPhaseChange={handlePhaseChange}
         ticketId={ticketId}
         priorityLabel={priorityLabel}
         statusLabel={statusLabel}
         onSettingsClick={onSettingsClick}
+        actions={headerActions}
       />
       <div ref={gridRef} className="flex-1 min-h-0">
-        <WorkspaceGrid layout={phase}>
-          {roomContent[phase]}
+        <WorkspaceGrid layout={displayPhase}>
+          {roomContent[displayPhase]}
         </WorkspaceGrid>
       </div>
     </div>
