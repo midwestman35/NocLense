@@ -2,6 +2,7 @@ import { cleanupLogEntry } from '../utils/messageCleanup';
 import { dbManager } from '../utils/indexedDB';
 import { validateFile } from '../utils/fileUtils';
 import { parseLogFile } from '../utils/parser';
+import { uploadFile, getJobStatus } from '../api/client';
 import type { ImportedDataset, LogEntry, LogLevel, LogSourceType } from '../types';
 
 const FILE_COLORS = ['#3b82f6', '#eab308', '#06b6d4', '#22c55e', '#f97316', '#a855f7', '#ec4899', '#64748b'];
@@ -389,4 +390,48 @@ export async function importPastedLogs(
     warnings,
     nextLogId: startId + logs.length,
   };
+}
+
+// ─── Server Upload ───────────────────────────────────────────────────────────
+
+export interface ServerImportResult {
+  jobId: string;
+  fileName: string;
+}
+
+/**
+ * Upload files to the NocLense server for server-side parsing.
+ * Returns job IDs. The caller should poll getJobStatus() for progress.
+ */
+export async function importFilesViaServer(
+  files: File[],
+  options: {
+    onProgress?: (fileIndex: number, progress: number) => void;
+  } = {}
+): Promise<ServerImportResult[]> {
+  const results: ServerImportResult[] = [];
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    options.onProgress?.(i, 0);
+
+    const jobId = await uploadFile(file);
+    results.push({ jobId, fileName: file.name });
+
+    // Poll until parsing completes (or errors)
+    let status = await getJobStatus(jobId);
+    while (status.status === 'pending' || status.status === 'parsing') {
+      options.onProgress?.(i, status.progress);
+      await new Promise((r) => setTimeout(r, 2000));
+      status = await getJobStatus(jobId);
+    }
+
+    if (status.status === 'error') {
+      throw new Error(`Server parsing failed for ${file.name}: ${status.error}`);
+    }
+
+    options.onProgress?.(i, 1);
+  }
+
+  return results;
 }

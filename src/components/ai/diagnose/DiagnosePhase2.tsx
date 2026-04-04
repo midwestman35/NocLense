@@ -111,6 +111,8 @@ export default function DiagnosePhase2({
 
   function addLogToCase(logId: number) {
     if (!activeCase) return;
+    // Skip if already bookmarked in this session
+    if (bookmarkedIds.has(logId)) return;
     addBookmark(activeCase.id, {
       id: `bm_${Date.now()}_${logId}`,
       logId,
@@ -190,16 +192,23 @@ export default function DiagnosePhase2({
           >
             <Plus size={10} /> Add logs
           </button>
-          {allCorrelatedLogs.length > 0 && activeCase && (
-            <button
-              type="button"
-              onClick={() => allCorrelatedLogs.forEach(l => addLogToCase(l.logId))}
-              className="text-[10px] transition-colors hover:text-[var(--success)]"
-              style={{ color: 'var(--muted-foreground)' }}
-            >
-              Bookmark all
-            </button>
-          )}
+          {allCorrelatedLogs.length > 0 && activeCase && (() => {
+            const unbookmarked = allCorrelatedLogs.filter(l => !bookmarkedIds.has(l.logId));
+            return unbookmarked.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => unbookmarked.forEach(l => addLogToCase(l.logId))}
+                className="text-[10px] transition-colors hover:text-[var(--success)]"
+                style={{ color: 'var(--muted-foreground)' }}
+              >
+                Bookmark all ({unbookmarked.length})
+              </button>
+            ) : (
+              <span className="text-[10px]" style={{ color: 'var(--success)' }}>
+                All bookmarked
+              </span>
+            );
+          })()}
         </div>
       </div>
 

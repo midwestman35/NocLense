@@ -42,11 +42,12 @@ export function caseReducer(state: CaseStoreState, action: CaseAction): CaseStor
     case 'ADD_BOOKMARK':
       return {
         ...state,
-        cases: state.cases.map((caseItem) =>
-          caseItem.id === action.payload.caseId
-            ? { ...caseItem, bookmarks: [...caseItem.bookmarks, action.payload.bookmark], updatedAt: Date.now() }
-            : caseItem
-        ),
+        cases: state.cases.map((caseItem) => {
+          if (caseItem.id !== action.payload.caseId) return caseItem;
+          // Deduplicate: skip if a bookmark for this logId already exists
+          if (caseItem.bookmarks.some((b) => b.logId === action.payload.bookmark.logId)) return caseItem;
+          return { ...caseItem, bookmarks: [...caseItem.bookmarks, action.payload.bookmark], updatedAt: Date.now() };
+        }),
       };
     case 'REMOVE_BOOKMARK':
       return {

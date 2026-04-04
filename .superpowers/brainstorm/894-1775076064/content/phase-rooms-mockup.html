@@ -1,0 +1,463 @@
+<style>
+  .room-container {
+    font-family: 'DM Sans', -apple-system, sans-serif;
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+  }
+  .room-mock {
+    background: #0d110f;
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid #263025;
+  }
+  .room-header {
+    height: 44px;
+    background: linear-gradient(180deg, rgba(19,24,20,0.98) 0%, rgba(14,18,15,0.98) 100%);
+    border-bottom: 1px solid #263025;
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 12px;
+  }
+  .room-logo { font-size: 13px; font-weight: 700; color: #e5eadf; display: flex; align-items: center; gap: 8px; }
+  .room-logo-icon { width: 20px; height: 20px; border-radius: 6px; background: linear-gradient(135deg, #51912b, #76ce40); display: flex; align-items: center; justify-content: center; font-size: 10px; color: #fff; font-weight: 700; }
+  .room-phase { margin-left: auto; display: flex; align-items: center; gap: 16px; }
+  .room-phase-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .room-phase-label { font-size: 10px; display: flex; align-items: center; gap: 6px; }
+  .room-phase-label.active { color: #76ce40; font-weight: 600; }
+  .room-phase-label.inactive { color: #5a6355; }
+  .room-phase-line { width: 24px; height: 1px; background: #263025; }
+
+  .room-tag {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  /* Import Room */
+  .import-body {
+    min-height: 400px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    background: radial-gradient(ellipse at center, rgba(118,206,64,0.03) 0%, transparent 70%);
+  }
+  .import-card {
+    width: 480px;
+    background: #151a16;
+    border: 1px solid #263025;
+    border-radius: 16px;
+    padding: 32px;
+    text-align: center;
+  }
+  .import-icon {
+    width: 56px; height: 56px; border-radius: 14px;
+    background: linear-gradient(135deg, rgba(118,206,64,0.12), rgba(81,145,43,0.06));
+    border: 1px solid rgba(118,206,64,0.2);
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 16px;
+    font-size: 24px;
+  }
+  .import-title { font-size: 18px; font-weight: 700; color: #e5eadf; margin-bottom: 8px; }
+  .import-sub { font-size: 12px; color: #8e9789; line-height: 1.6; margin-bottom: 24px; }
+  .import-dropzone {
+    border: 2px dashed #263025;
+    border-radius: 12px;
+    padding: 28px;
+    margin-bottom: 16px;
+    transition: all 0.2s;
+  }
+  .import-dropzone:hover { border-color: #51912b; background: rgba(118,206,64,0.03); }
+  .import-drop-text { font-size: 13px; color: #8e9789; margin-bottom: 4px; }
+  .import-drop-hint { font-size: 10px; color: #5a6355; }
+  .import-divider { display: flex; align-items: center; gap: 12px; margin: 16px 0; }
+  .import-divider-line { flex: 1; height: 1px; background: #263025; }
+  .import-divider-text { font-size: 10px; color: #5a6355; text-transform: uppercase; letter-spacing: 1px; }
+  .import-ticket-row { display: flex; gap: 8px; }
+  .import-ticket-input {
+    flex: 1; height: 40px; border: 1px solid #263025; border-radius: 10px;
+    background: #101411; padding: 0 14px; font-size: 12px; color: #e5eadf;
+    outline: none;
+  }
+  .import-ticket-btn {
+    height: 40px; padding: 0 20px; border-radius: 10px; border: none;
+    background: #51912b; color: #fff; font-size: 12px; font-weight: 600;
+    cursor: pointer;
+  }
+
+  /* Investigate Room */
+  .investigate-body {
+    min-height: 420px;
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    grid-template-rows: auto 1fr;
+  }
+  .inv-filter {
+    grid-column: 1 / -1;
+    height: 40px;
+    background: #101411;
+    border-bottom: 1px solid #263025;
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+    gap: 8px;
+  }
+  .inv-filter-search {
+    flex: 1; max-width: 320px; height: 28px;
+    border: 1px solid #263025; border-radius: 8px;
+    background: #151a16; padding: 0 10px;
+    font-size: 11px; color: #8e9789;
+    display: flex; align-items: center;
+  }
+  .inv-filter-chip {
+    padding: 3px 10px; border-radius: 16px;
+    font-size: 9px; font-weight: 600;
+    border: 1px solid;
+  }
+  .inv-main { display: flex; flex-direction: column; overflow: hidden; }
+  .inv-timeline {
+    height: 56px;
+    background: #101411;
+    border-bottom: 1px solid #1d251b;
+    padding: 8px 14px;
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+  }
+  .inv-t-bar { width: 5px; border-radius: 2px 2px 0 0; }
+  .inv-logs { flex: 1; overflow: hidden; }
+  .inv-log-row {
+    display: flex; gap: 8px; padding: 4px 14px;
+    font-size: 10px; font-family: 'JetBrains Mono', monospace;
+    border-bottom: 1px solid #1d251b;
+  }
+  .inv-log-ts { color: #8e9789; width: 72px; flex-shrink: 0; }
+  .inv-log-lvl { width: 28px; flex-shrink: 0; font-weight: 700; font-size: 9px; text-align: center; padding: 1px 0; border-radius: 3px; }
+  .inv-log-svc { color: #76ce40; width: 100px; flex-shrink: 0; font-size: 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .inv-log-msg { color: #e5eadf; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .inv-highlighted { background: rgba(139,92,246,0.08); border-left: 2px solid rgba(139,92,246,0.4); padding-left: 12px; }
+  .lvl-i { background: rgba(142,151,137,0.1); color: #8e9789; }
+  .lvl-e { background: rgba(239,68,68,0.15); color: #ef4444; }
+  .lvl-w { background: rgba(245,158,11,0.15); color: #f59e0b; }
+  .lvl-d { background: rgba(142,151,137,0.06); color: #5a6355; }
+
+  .inv-sidebar {
+    border-left: 1px solid #263025;
+    display: flex;
+    flex-direction: column;
+    background: #151a16;
+  }
+  .inv-sidebar-tabs {
+    display: flex;
+    border-bottom: 1px solid #263025;
+    padding: 0 8px;
+  }
+  .inv-tab {
+    padding: 8px 12px;
+    font-size: 10px;
+    color: #5a6355;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+  }
+  .inv-tab.active { color: #76ce40; border-bottom-color: #76ce40; font-weight: 600; }
+  .inv-sidebar-body { flex: 1; padding: 14px; overflow: hidden; }
+  .inv-ai-msg {
+    padding: 10px 14px; border-radius: 10px;
+    font-size: 11px; line-height: 1.6; margin-bottom: 8px;
+    background: #1b370b; color: #e5eadf; border: 1px solid #263025;
+  }
+
+  /* Submit Room */
+  .submit-body {
+    min-height: 400px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 40px;
+    gap: 24px;
+    background: radial-gradient(ellipse at center, rgba(118,206,64,0.02) 0%, transparent 70%);
+  }
+  .submit-card {
+    background: #151a16;
+    border: 1px solid #263025;
+    border-radius: 16px;
+    padding: 24px;
+    width: 400px;
+  }
+  .submit-card-title { font-size: 14px; font-weight: 700; color: #e5eadf; margin-bottom: 12px; }
+  .submit-textarea {
+    width: 100%; min-height: 120px;
+    background: #101411; border: 1px solid #263025; border-radius: 10px;
+    padding: 12px; font-size: 11px; color: #e5eadf; line-height: 1.6;
+    resize: none;
+  }
+  .submit-btn {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 20px; border-radius: 10px; border: none;
+    font-size: 12px; font-weight: 600; cursor: pointer;
+    width: 100%; justify-content: center; margin-top: 12px;
+  }
+  .submit-btn-primary { background: #51912b; color: #fff; }
+  .submit-btn-outline { background: transparent; color: #8e9789; border: 1px solid #263025; }
+  .submit-evidence-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 0; border-bottom: 1px solid #1d251b;
+    font-size: 10px; color: #e5eadf;
+  }
+  .submit-evidence-icon {
+    width: 20px; height: 20px; border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px; flex-shrink: 0;
+  }
+</style>
+
+<h2>Direction A: Phase Rooms</h2>
+<p class="subtitle">Each phase is a completely different "room" with its own layout. The room IS the phase — no stepper needed. Scroll down to see all three rooms.</p>
+
+<!-- ROOM 1: IMPORT -->
+<div style="position:relative;margin-top:20px;">
+  <div class="room-tag" style="background:rgba(96,165,250,0.12);color:#60a5fa;">Room 1</div>
+  <div class="room-mock">
+    <div class="room-header">
+      <div class="room-logo">
+        <div class="room-logo-icon">N</div>
+        NocLense
+      </div>
+      <div class="room-phase">
+        <div class="room-phase-label active">
+          <div class="room-phase-dot" style="background:#76ce40;"></div>
+          Import
+        </div>
+        <div class="room-phase-line"></div>
+        <div class="room-phase-label inactive">
+          <div class="room-phase-dot" style="background:#263025;"></div>
+          Investigate
+        </div>
+        <div class="room-phase-line"></div>
+        <div class="room-phase-label inactive">
+          <div class="room-phase-dot" style="background:#263025;"></div>
+          Submit
+        </div>
+      </div>
+    </div>
+    <div class="import-body">
+      <div class="import-card">
+        <div class="import-icon">&#128269;</div>
+        <div class="import-title">Start an Investigation</div>
+        <div class="import-sub">Drop log files or enter a Zendesk ticket to begin. NocLense will parse, correlate, and prepare your workspace.</div>
+        <div class="import-dropzone">
+          <div class="import-drop-text">Drop .log, .txt, or .csv files here</div>
+          <div class="import-drop-hint">or click to browse &mdash; multiple files merged by timestamp</div>
+        </div>
+        <div class="import-divider">
+          <div class="import-divider-line"></div>
+          <div class="import-divider-text">or start from a ticket</div>
+          <div class="import-divider-line"></div>
+        </div>
+        <div class="import-ticket-row">
+          <input class="import-ticket-input" placeholder="Zendesk ticket # or URL" />
+          <button class="import-ticket-btn">Investigate</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ROOM 2: INVESTIGATE -->
+<div style="position:relative;margin-top:32px;">
+  <div class="room-tag" style="background:rgba(118,206,64,0.12);color:#76ce40;">Room 2</div>
+  <div class="room-mock">
+    <div class="room-header">
+      <div class="room-logo">
+        <div class="room-logo-icon">N</div>
+        NocLense
+      </div>
+      <div style="margin-left:12px;font-size:11px;color:#8e9789;font-family:'JetBrains Mono',monospace;">#45892</div>
+      <div style="margin-left:4px;padding:2px 8px;border-radius:12px;font-size:9px;background:rgba(239,68,68,0.12);color:#ef4444;font-weight:600;">P1</div>
+      <div class="room-phase">
+        <div class="room-phase-label inactive">
+          <div class="room-phase-dot" style="background:#51912b;"></div>
+          Import
+        </div>
+        <div class="room-phase-line" style="background:#51912b;"></div>
+        <div class="room-phase-label active">
+          <div class="room-phase-dot" style="background:#76ce40;box-shadow:0 0 8px rgba(118,206,64,0.4);"></div>
+          Investigate
+        </div>
+        <div class="room-phase-line"></div>
+        <div class="room-phase-label inactive">
+          <div class="room-phase-dot" style="background:#263025;"></div>
+          Submit
+        </div>
+      </div>
+    </div>
+
+    <div class="investigate-body">
+      <!-- Filter bar -->
+      <div class="inv-filter">
+        <div class="inv-filter-search">&#128269; Search logs...</div>
+        <div class="inv-filter-chip" style="border-color:rgba(239,68,68,0.3);color:#ef4444;background:rgba(239,68,68,0.06);">ERROR</div>
+        <div class="inv-filter-chip" style="border-color:rgba(245,158,11,0.3);color:#f59e0b;background:rgba(245,158,11,0.06);">WARN</div>
+        <div class="inv-filter-chip" style="border-color:rgba(139,92,246,0.3);color:#a78bfa;background:rgba(139,92,246,0.06);">callId: abc-123</div>
+        <div style="margin-left:auto;font-size:10px;color:#8e9789;font-family:'JetBrains Mono',monospace;">342 / 5,000</div>
+      </div>
+
+      <!-- Main content: timeline + logs -->
+      <div class="inv-main">
+        <div class="inv-timeline">
+          <div class="inv-t-bar" style="height:10px;background:#263025;"></div>
+          <div class="inv-t-bar" style="height:18px;background:#263025;"></div>
+          <div class="inv-t-bar" style="height:30px;background:#263025;"></div>
+          <div class="inv-t-bar" style="height:44px;background:rgba(239,68,68,0.4);"></div>
+          <div class="inv-t-bar" style="height:24px;background:#263025;"></div>
+          <div class="inv-t-bar" style="height:12px;background:#263025;"></div>
+          <div class="inv-t-bar" style="height:20px;background:#263025;"></div>
+          <div class="inv-t-bar" style="height:8px;background:#263025;"></div>
+          <div class="inv-t-bar" style="height:16px;background:#263025;"></div>
+          <div class="inv-t-bar" style="height:36px;background:rgba(239,68,68,0.3);"></div>
+          <div class="inv-t-bar" style="height:14px;background:#263025;"></div>
+          <div class="inv-t-bar" style="height:6px;background:#263025;"></div>
+          <div class="inv-t-bar" style="height:22px;background:#263025;"></div>
+          <div class="inv-t-bar" style="height:10px;background:#263025;"></div>
+          <div class="inv-t-bar" style="height:18px;background:#263025;"></div>
+          <div class="inv-t-bar" style="height:28px;background:#263025;"></div>
+          <div class="inv-t-bar" style="height:14px;background:#263025;"></div>
+        </div>
+        <div class="inv-logs">
+          <div class="inv-log-row"><span class="inv-log-ts">06:11:16.023</span><span class="inv-log-lvl lvl-i">INF</span><span class="inv-log-svc">FDXHandler</span><span class="inv-log-msg">reportNLPConversation received for operator ext-4401</span></div>
+          <div class="inv-log-row"><span class="inv-log-ts">06:11:16.045</span><span class="inv-log-lvl lvl-i">INF</span><span class="inv-log-svc">PBXMonitor</span><span class="inv-log-msg">extension registered: 4401 on station WKS-12</span></div>
+          <div class="inv-log-row inv-highlighted"><span class="inv-log-ts">06:11:16.112</span><span class="inv-log-lvl lvl-e">ERR</span><span class="inv-log-svc">CCS-SDK</span><span class="inv-log-msg">Failed to send initial outgoing request: Not connected</span></div>
+          <div class="inv-log-row inv-highlighted"><span class="inv-log-ts">06:11:16.115</span><span class="inv-log-lvl lvl-e">ERR</span><span class="inv-log-svc">CCS-SDK</span><span class="inv-log-msg">WebSocket connection lost to PBX cluster pbx-east-2.carbyne.io</span></div>
+          <div class="inv-log-row"><span class="inv-log-ts">06:11:16.234</span><span class="inv-log-lvl lvl-w">WRN</span><span class="inv-log-svc">SIP</span><span class="inv-log-msg">INVITE 503 Service Unavailable &mdash; pbx-east-2:5060 &rarr; WKS-12</span></div>
+          <div class="inv-log-row"><span class="inv-log-ts">06:11:16.301</span><span class="inv-log-lvl lvl-i">INF</span><span class="inv-log-svc">FDXHandler</span><span class="inv-log-msg">fdxReportUpdateMessageData: callQueue position changed</span></div>
+          <div class="inv-log-row"><span class="inv-log-ts">06:11:16.445</span><span class="inv-log-lvl lvl-d">DBG</span><span class="inv-log-svc">RTPMedia</span><span class="inv-log-msg">keepalive timeout for stream rtp://10.0.2.41:18200</span></div>
+          <div class="inv-log-row"><span class="inv-log-ts">06:11:16.502</span><span class="inv-log-lvl lvl-i">INF</span><span class="inv-log-svc">PBXMonitor</span><span class="inv-log-msg">re-register attempt 1/3 for ext-4401</span></div>
+          <div class="inv-log-row"><span class="inv-log-ts">06:11:16.610</span><span class="inv-log-lvl lvl-i">INF</span><span class="inv-log-svc">FDXHandler</span><span class="inv-log-msg">operator status update: ext-4401 UNAVAILABLE</span></div>
+        </div>
+      </div>
+
+      <!-- AI Sidebar -->
+      <div class="inv-sidebar">
+        <div class="inv-sidebar-tabs">
+          <div class="inv-tab active">Diagnose</div>
+          <div class="inv-tab">Chat</div>
+          <div class="inv-tab">Evidence</div>
+          <div class="inv-tab">Similar</div>
+        </div>
+        <div class="inv-sidebar-body">
+          <div style="font-size:10px;color:#76ce40;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Root Cause</div>
+          <div class="inv-ai-msg">
+            PBX cluster <span style="color:#76ce40;font-family:monospace;">pbx-east-2</span> lost WebSocket connectivity at 06:11:16. CCS-SDK failed to route outgoing SIP INVITE, causing 503 responses.
+            <div style="margin-top:8px;font-size:10px;color:#8e9789;">2 correlated logs highlighted in viewer.</div>
+          </div>
+          <div style="font-size:10px;color:#8e9789;margin-top:12px;margin-bottom:6px;">Internal Note</div>
+          <div style="background:#101411;border:1px solid #263025;border-radius:8px;padding:10px;font-size:10px;color:#e5eadf;line-height:1.5;min-height:60px;">
+            PBX-east-2 unreachable since 06:10. Network team notified. Monitoring for recovery.
+          </div>
+          <div style="margin-top:12px;display:flex;gap:8px;">
+            <button style="flex:1;padding:8px;border-radius:8px;border:none;background:#51912b;color:#fff;font-size:11px;font-weight:600;cursor:pointer;">Next: Submit &rarr;</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ROOM 3: SUBMIT -->
+<div style="position:relative;margin-top:32px;">
+  <div class="room-tag" style="background:rgba(245,158,11,0.12);color:#f59e0b;">Room 3</div>
+  <div class="room-mock">
+    <div class="room-header">
+      <div class="room-logo">
+        <div class="room-logo-icon">N</div>
+        NocLense
+      </div>
+      <div style="margin-left:12px;font-size:11px;color:#8e9789;font-family:'JetBrains Mono',monospace;">#45892</div>
+      <div class="room-phase">
+        <div class="room-phase-label inactive">
+          <div class="room-phase-dot" style="background:#51912b;"></div>
+          Import
+        </div>
+        <div class="room-phase-line" style="background:#51912b;"></div>
+        <div class="room-phase-label inactive">
+          <div class="room-phase-dot" style="background:#51912b;"></div>
+          Investigate
+        </div>
+        <div class="room-phase-line" style="background:#51912b;"></div>
+        <div class="room-phase-label active">
+          <div class="room-phase-dot" style="background:#76ce40;box-shadow:0 0 8px rgba(118,206,64,0.4);"></div>
+          Submit
+        </div>
+      </div>
+    </div>
+    <div class="submit-body">
+      <!-- Closure Note Card -->
+      <div class="submit-card">
+        <div class="submit-card-title">Closure Note</div>
+        <textarea class="submit-textarea" readonly>Issue Summary: PBX cluster pbx-east-2 lost WebSocket connectivity at 06:11:16 UTC, causing SIP 503 responses and call delivery failure to station WKS-12 (ext-4401).
+
+Troubleshooting Steps Taken:
+- Correlated CCS-SDK errors with SIP 503 responses (06:11:16)
+- Confirmed PBX heartbeat timeout via Datadog (06:10:00)
+- Verified extension re-registration attempts (3/3 failed)
+- Notified network team for PBX cluster recovery
+
+Root Cause: Network path failure to pbx-east-2.carbyne.io:5060
+
+We have addressed your ticket and are closing the case. Contact support to reopen or create a new ticket.</textarea>
+        <button class="submit-btn submit-btn-primary">Post to Zendesk &amp; Save to Confluence</button>
+        <button class="submit-btn submit-btn-outline" style="margin-top:8px;">Download Evidence Pack</button>
+      </div>
+
+      <!-- Evidence Summary Card -->
+      <div class="submit-card" style="width:320px;">
+        <div class="submit-card-title">Evidence Summary</div>
+        <div class="submit-evidence-row">
+          <div class="submit-evidence-icon" style="background:rgba(239,68,68,0.12);color:#ef4444;">!</div>
+          <div>
+            <div style="font-size:10px;color:#e5eadf;">CCS-SDK connection failure</div>
+            <div style="font-size:9px;color:#8e9789;">Log #3 &mdash; 06:11:16.112</div>
+          </div>
+        </div>
+        <div class="submit-evidence-row">
+          <div class="submit-evidence-icon" style="background:rgba(245,158,11,0.12);color:#f59e0b;">&#9733;</div>
+          <div>
+            <div style="font-size:10px;color:#e5eadf;">SIP 503 from pbx-east-2</div>
+            <div style="font-size:9px;color:#8e9789;">Log #5 &mdash; 06:11:16.234</div>
+          </div>
+        </div>
+        <div class="submit-evidence-row">
+          <div class="submit-evidence-icon" style="background:rgba(96,165,250,0.12);color:#60a5fa;">&#128206;</div>
+          <div>
+            <div style="font-size:10px;color:#e5eadf;">Similar: #43201 PBX disconnect Memphis</div>
+            <div style="font-size:9px;color:#8e9789;">Resolved 3/15 &mdash; same root cause</div>
+          </div>
+        </div>
+        <div style="margin-top:16px;padding:10px;background:rgba(118,206,64,0.04);border:1px solid rgba(118,206,64,0.12);border-radius:8px;">
+          <div style="font-size:9px;color:#76ce40;font-weight:600;margin-bottom:4px;">Learning Loop</div>
+          <div style="font-size:10px;color:#8e9789;line-height:1.5;">This investigation will be saved to Confluence and indexed for future ticket matching.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="margin-top:32px;padding:16px;background:rgba(96,165,250,0.04);border:1px solid rgba(96,165,250,0.12);border-radius:12px;">
+  <div style="font-size:12px;font-weight:600;color:#60a5fa;margin-bottom:8px;">How Phase Rooms work</div>
+  <ul style="font-size:12px;color:#aaa;line-height:1.8;margin:0;padding-left:20px;">
+    <li><strong>Import Room</strong> &mdash; centered card, minimal chrome. Focused on getting data in. No log grid, no sidebar.</li>
+    <li><strong>Investigate Room</strong> &mdash; full workspace: log grid + timeline + filter bar + AI sidebar with tabs. Maximum density for analysis.</li>
+    <li><strong>Submit Room</strong> &mdash; focused two-card layout: closure note + evidence summary. No log grid. Clean handoff.</li>
+    <li><strong>Transitions</strong> &mdash; anime.js morphs the entire layout between rooms. Import card expands into the log grid. Sidebar slides in. Submit cards emerge from the AI panel.</li>
+    <li><strong>Back-navigation</strong> &mdash; click any phase dot in the header to go back. Layout morphs in reverse.</li>
+    <li><strong>The header evolves</strong> &mdash; Import shows just the logo + phase dots. Investigate adds ticket ID + priority. Submit shows completion state.</li>
+  </ul>
+</div>

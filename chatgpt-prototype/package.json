@@ -1,0 +1,11 @@
+{
+  "name": "noclense-chatgpt-prototype",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Temporary GPT Actions backend prototype for NocLense log analysis",
+  "type": "module",
+  "scripts": {
+    "dev": "node server.mjs",
+    "start": "node server.mjs"
+  }
+}

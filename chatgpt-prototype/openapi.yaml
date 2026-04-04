@@ -1,0 +1,123 @@
+openapi: 3.1.0
+info:
+  title: NocLense ChatGPT Prototype API
+  version: 0.1.0
+  description: |
+    GPT Actions prototype for log-analysis data tooling.
+    This API does not run OpenAI inference; it prepares structured log context
+    for ChatGPT to analyze in-chat.
+servers:
+  - url: http://localhost:8788
+security:
+  - OAuth2: []
+paths:
+  /health:
+    get:
+      operationId: health
+      security: []
+      summary: Health check
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  service:
+                    type: string
+                  mode:
+                    type: string
+                  timestamp:
+                    type: string
+  /v1/logs/submit:
+    post:
+      operationId: submitLogs
+      summary: Submit raw log text for analysis preparation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - log_text
+              properties:
+                source_name:
+                  type: string
+                log_text:
+                  type: string
+      responses:
+        '200':
+          description: Log accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  log_id:
+                    type: string
+                  source_name:
+                    type: string
+                  line_count:
+                    type: integer
+                  error_count:
+                    type: integer
+                  warn_count:
+                    type: integer
+                  guidance:
+                    type: string
+  /v1/logs/{log_id}/context:
+    get:
+      operationId: getLogContext
+      summary: Get structured context and prompt guidance for one log artifact
+      parameters:
+        - name: log_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Structured context payload
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  log_id:
+                    type: string
+                  source_name:
+                    type: string
+                  created_at:
+                    type: string
+                  summary:
+                    type: object
+                    properties:
+                      line_count:
+                        type: integer
+                      error_count:
+                        type: integer
+                      warn_count:
+                        type: integer
+                  top_error_lines:
+                    type: array
+                    items:
+                      type: string
+                  top_warning_lines:
+                    type: array
+                    items:
+                      type: string
+                  analysis_prompt:
+                    type: string
+components:
+  securitySchemes:
+    OAuth2:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: http://localhost:8788/oauth/authorize
+          tokenUrl: http://localhost:8788/oauth/token
+          scopes: {}
