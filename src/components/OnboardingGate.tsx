@@ -9,7 +9,7 @@
 
 import { useState, useCallback } from 'react';
 import OnboardingPage, { setOnboardingCompleted } from './OnboardingPage';
-import AISettingsPanel from './AISettingsPanel';
+import AiSettingsModal from './ai/AiSettingsModal';
 
 interface OnboardingGateProps {
   /** Called when user completes setup or skips; App uses this to re-render and show main app */
@@ -36,13 +36,11 @@ export default function OnboardingGate({ onDone }: OnboardingGateProps) {
         onComplete={handleComplete}
         onSkip={handleSkip}
       />
-      {showSettings && (
-        <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4">
-          <div className="w-full max-w-3xl max-h-[85vh] bg-[var(--card-bg)] rounded-lg border border-[var(--border-color)] shadow-[var(--shadow-lg)] overflow-hidden flex flex-col">
-            <AISettingsPanel onClose={() => setShowSettings(false)} />
-          </div>
-        </div>
-      )}
+      <AiSettingsModal
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+        onSave={() => setShowSettings(false)}
+      />
     </>
   );
 }

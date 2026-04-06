@@ -1,0 +1,202 @@
+<h2>NocLense Redesign: Three Design Directions</h2>
+<p class="subtitle">Each solves the same 3 problems differently: rigidity, phase sameness, density. Click the one that resonates most.</p>
+
+<div class="cards" style="display:grid;grid-template-columns:1fr;gap:24px;margin-top:24px;">
+
+  <!-- Direction A -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)" style="display:grid;grid-template-columns:280px 1fr;gap:0;overflow:hidden;">
+    <div class="card-image" style="background:#0d110f;padding:20px;display:flex;flex-direction:column;gap:12px;min-height:320px;">
+      <!-- Mini wireframe: Phase-based rooms -->
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:#76ce40;font-weight:600;">Direction A</div>
+      <div style="font-size:16px;font-weight:700;color:#e5eadf;">Phase Rooms</div>
+
+      <!-- Room 1: Import -->
+      <div style="border:1px solid #263025;border-radius:12px;padding:12px;background:#151a16;">
+        <div style="font-size:9px;color:#8e9789;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Room: Import</div>
+        <div style="display:flex;gap:6px;">
+          <div style="flex:1;height:40px;border:1px dashed #263025;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:9px;color:#8e9789;">Drop files</div>
+          <div style="flex:1;height:40px;border:1px dashed #263025;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:9px;color:#8e9789;">Paste logs</div>
+        </div>
+      </div>
+
+      <!-- Room 2: Investigate -->
+      <div style="border:1px solid #51912b;border-radius:12px;padding:12px;background:#151a16;box-shadow:0 0 12px rgba(118,206,64,0.08);">
+        <div style="font-size:9px;color:#76ce40;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Room: Investigate</div>
+        <div style="display:flex;gap:6px;height:60px;">
+          <div style="flex:2;background:#1b370b;border-radius:6px;padding:6px;font-size:8px;color:#8e9789;">Log grid<br/><span style="color:#76ce40;">5,000 events</span></div>
+          <div style="flex:1;background:#1b370b;border-radius:6px;padding:6px;font-size:8px;color:#8e9789;">AI<br/>chat</div>
+        </div>
+      </div>
+
+      <!-- Room 3: Submit -->
+      <div style="border:1px solid #263025;border-radius:12px;padding:12px;background:#151a16;">
+        <div style="font-size:9px;color:#8e9789;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Room: Submit</div>
+        <div style="height:30px;background:#1b370b;border-radius:6px;padding:6px;font-size:8px;color:#8e9789;">Closure note + Zendesk post</div>
+      </div>
+    </div>
+    <div class="card-body" style="padding:24px;">
+      <h3 style="margin-top:0;">Phase Rooms</h3>
+      <p style="color:#999;font-size:13px;line-height:1.6;margin-bottom:16px;">Each workflow phase is a distinct "room" with its own layout, tools, and density. Transitioning between phases uses full-screen morphing animations. The log grid only appears in Investigate. Import is a centered card. Submit is a focused form.</p>
+      <div style="display:flex;gap:16px;margin-top:auto;">
+        <div>
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#666;margin-bottom:4px;">Inspiration</div>
+          <div style="font-size:12px;color:#ccc;">Linear's project views, Figma's mode switching</div>
+        </div>
+        <div>
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#666;margin-bottom:4px;">Animation</div>
+          <div style="font-size:12px;color:#ccc;">Room-to-room morph transitions via anime.js</div>
+        </div>
+      </div>
+      <div style="margin-top:16px;padding:12px;background:rgba(118,206,64,0.06);border:1px solid rgba(118,206,64,0.15);border-radius:8px;">
+        <div style="font-size:11px;color:#76ce40;font-weight:600;">Key idea</div>
+        <div style="font-size:12px;color:#aaa;margin-top:4px;">The layout itself communicates where you are in the investigation. No phase stepper needed — the room IS the phase.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Direction B -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)" style="display:grid;grid-template-columns:280px 1fr;gap:0;overflow:hidden;">
+    <div class="card-image" style="background:#0d110f;padding:20px;display:flex;flex-direction:column;gap:12px;min-height:320px;">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:#60a5fa;font-weight:600;">Direction B</div>
+      <div style="font-size:16px;font-weight:700;color:#e5eadf;">Card Workspace</div>
+
+      <!-- Notion-style canvas with cards -->
+      <div style="flex:1;background:#101411;border-radius:12px;padding:12px;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:auto auto 1fr;gap:8px;">
+        <!-- Top bar -->
+        <div style="grid-column:1/-1;height:28px;background:#151a16;border-radius:6px;display:flex;align-items:center;padding:0 8px;gap:6px;">
+          <div style="width:6px;height:6px;border-radius:50%;background:#ef4444;"></div>
+          <div style="font-size:8px;color:#8e9789;">Ticket #45892</div>
+          <div style="margin-left:auto;font-size:8px;color:#60a5fa;">Investigating</div>
+        </div>
+
+        <!-- Cards -->
+        <div style="background:#151a16;border-radius:8px;padding:8px;border:1px solid #263025;">
+          <div style="font-size:8px;color:#8e9789;text-transform:uppercase;letter-spacing:0.5px;">Log Stream</div>
+          <div style="margin-top:4px;display:flex;flex-direction:column;gap:2px;">
+            <div style="height:4px;background:#1b370b;border-radius:2px;width:100%;"></div>
+            <div style="height:4px;background:#1b370b;border-radius:2px;width:85%;"></div>
+            <div style="height:4px;background:rgba(239,68,68,0.3);border-radius:2px;width:92%;"></div>
+            <div style="height:4px;background:#1b370b;border-radius:2px;width:78%;"></div>
+          </div>
+        </div>
+        <div style="background:#151a16;border-radius:8px;padding:8px;border:1px solid #263025;">
+          <div style="font-size:8px;color:#8e9789;text-transform:uppercase;letter-spacing:0.5px;">AI Diagnosis</div>
+          <div style="margin-top:6px;font-size:7px;color:#76ce40;">SIP transport failure detected</div>
+        </div>
+        <div style="background:#151a16;border-radius:8px;padding:8px;border:1px solid #263025;">
+          <div style="font-size:8px;color:#8e9789;text-transform:uppercase;letter-spacing:0.5px;">Timeline</div>
+          <div style="margin-top:4px;display:flex;align-items:flex-end;gap:1px;height:20px;">
+            <div style="width:4px;height:6px;background:#263025;border-radius:1px;"></div>
+            <div style="width:4px;height:12px;background:#263025;border-radius:1px;"></div>
+            <div style="width:4px;height:18px;background:rgba(239,68,68,0.4);border-radius:1px;"></div>
+            <div style="width:4px;height:8px;background:#263025;border-radius:1px;"></div>
+            <div style="width:4px;height:4px;background:#263025;border-radius:1px;"></div>
+          </div>
+        </div>
+        <div style="background:#151a16;border-radius:8px;padding:8px;border:1px solid #263025;">
+          <div style="font-size:8px;color:#8e9789;text-transform:uppercase;letter-spacing:0.5px;">Evidence</div>
+          <div style="margin-top:4px;font-size:7px;color:#8e9789;">3 bookmarks, 2 notes</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body" style="padding:24px;">
+      <h3 style="margin-top:0;">Card Workspace</h3>
+      <p style="color:#999;font-size:13px;line-height:1.6;margin-bottom:16px;">Replace the fixed 3-panel layout with a flexible card canvas. Each investigation tool (Log Stream, AI, Timeline, Evidence, Ticket) is a draggable, resizable card. Cards can be expanded to full-width, collapsed to a header, or rearranged. Think Notion databases meet Miro boards.</p>
+      <div style="display:flex;gap:16px;margin-top:auto;">
+        <div>
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#666;margin-bottom:4px;">Inspiration</div>
+          <div style="font-size:12px;color:#ccc;">Notion blocks, Core.so panels, Arc browser spaces</div>
+        </div>
+        <div>
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#666;margin-bottom:4px;">Animation</div>
+          <div style="font-size:12px;color:#ccc;">Card expand/collapse, drag physics, stagger reveals</div>
+        </div>
+      </div>
+      <div style="margin-top:16px;padding:12px;background:rgba(96,165,250,0.06);border:1px solid rgba(96,165,250,0.15);border-radius:8px;">
+        <div style="font-size:11px;color:#60a5fa;font-weight:600;">Key idea</div>
+        <div style="font-size:12px;color:#aaa;margin-top:4px;">Users compose their own workspace per investigation. Power users expand the log grid to 80% of screen. Quick-close analysts might just use AI + Ticket cards.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Direction C -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)" style="display:grid;grid-template-columns:280px 1fr;gap:0;overflow:hidden;">
+    <div class="card-image" style="background:#0d110f;padding:20px;display:flex;flex-direction:column;gap:12px;min-height:320px;">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:#f59e0b;font-weight:600;">Direction C</div>
+      <div style="font-size:16px;font-weight:700;color:#e5eadf;">Refined Current</div>
+
+      <!-- Polished version of current layout -->
+      <div style="flex:1;background:#101411;border-radius:12px;overflow:hidden;display:flex;flex-direction:column;">
+        <!-- Header -->
+        <div style="height:36px;background:#151a16;border-bottom:1px solid #263025;display:flex;align-items:center;padding:0 10px;gap:8px;">
+          <div style="width:16px;height:16px;border-radius:4px;background:#1b370b;"></div>
+          <div style="font-size:9px;color:#e5eadf;font-weight:600;">NocLense</div>
+          <div style="margin-left:auto;display:flex;gap:4px;">
+            <div style="padding:2px 6px;border-radius:4px;font-size:7px;color:#76ce40;background:rgba(118,206,64,0.1);">Investigate</div>
+          </div>
+        </div>
+        <!-- Content -->
+        <div style="flex:1;display:flex;">
+          <!-- Slim nav -->
+          <div style="width:36px;background:#151a16;border-right:1px solid #263025;display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 0;">
+            <div style="width:20px;height:20px;border-radius:4px;background:#1b370b;"></div>
+            <div style="width:20px;height:20px;border-radius:4px;background:rgba(118,206,64,0.15);border:1px solid rgba(118,206,64,0.3);"></div>
+            <div style="width:20px;height:20px;border-radius:4px;background:#1b370b;"></div>
+          </div>
+          <!-- Main -->
+          <div style="flex:1;display:flex;flex-direction:column;">
+            <!-- Phase stepper (refined) -->
+            <div style="height:24px;display:flex;align-items:center;padding:0 8px;gap:12px;border-bottom:1px solid #263025;">
+              <div style="font-size:7px;color:#8e9789;">1 Import</div>
+              <div style="font-size:7px;color:#76ce40;font-weight:600;">2 Investigate</div>
+              <div style="font-size:7px;color:#8e9789;">3 Submit</div>
+            </div>
+            <!-- Filter + Timeline -->
+            <div style="height:16px;background:#171d18;border-bottom:1px solid #263025;"></div>
+            <div style="height:28px;background:#171d18;border-bottom:1px solid #263025;display:flex;align-items:flex-end;padding:0 4px;gap:1px;">
+              <div style="width:3px;height:8px;background:#263025;border-radius:1px;"></div>
+              <div style="width:3px;height:14px;background:#263025;border-radius:1px;"></div>
+              <div style="width:3px;height:20px;background:rgba(239,68,68,0.3);border-radius:1px;"></div>
+              <div style="width:3px;height:10px;background:#263025;border-radius:1px;"></div>
+              <div style="width:3px;height:6px;background:#263025;border-radius:1px;"></div>
+              <div style="width:3px;height:12px;background:#263025;border-radius:1px;"></div>
+            </div>
+            <!-- Log rows -->
+            <div style="flex:1;display:flex;flex-direction:column;gap:1px;padding:2px;">
+              <div style="height:6px;background:#1b370b;border-radius:2px;"></div>
+              <div style="height:6px;background:#1b370b;border-radius:2px;"></div>
+              <div style="height:6px;background:rgba(139,92,246,0.15);border-radius:2px;border:1px solid rgba(139,92,246,0.2);"></div>
+              <div style="height:6px;background:#1b370b;border-radius:2px;"></div>
+            </div>
+          </div>
+          <!-- AI sidebar (refined) -->
+          <div style="width:80px;background:#151a16;border-left:1px solid #263025;padding:6px;">
+            <div style="font-size:7px;color:#76ce40;margin-bottom:4px;">AI</div>
+            <div style="height:4px;background:#1b370b;border-radius:2px;margin-bottom:2px;"></div>
+            <div style="height:4px;background:#1b370b;border-radius:2px;width:80%;margin-bottom:2px;"></div>
+            <div style="height:4px;background:#1b370b;border-radius:2px;width:60%;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body" style="padding:24px;">
+      <h3 style="margin-top:0;">Refined Current</h3>
+      <p style="color:#999;font-size:13px;line-height:1.6;margin-bottom:16px;">Keep the 3-panel structure but dramatically improve the aesthetics, animation, and phase differentiation. Rounded surfaces, glassmorphism headers, the phase stepper becomes a prominent visual ribbon, and anime.js drives every transition. Think "current layout, but if Apple designed it."</p>
+      <div style="display:flex;gap:16px;margin-top:auto;">
+        <div>
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#666;margin-bottom:4px;">Inspiration</div>
+          <div style="font-size:12px;color:#ccc;">Warp terminal, Raycast, Apple Music</div>
+        </div>
+        <div>
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#666;margin-bottom:4px;">Animation</div>
+          <div style="font-size:12px;color:#ccc;">Smooth panel transitions, phase ribbon glow, micro-interactions everywhere</div>
+        </div>
+      </div>
+      <div style="margin-top:16px;padding:12px;background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.15);border-radius:8px;">
+        <div style="font-size:11px;color:#f59e0b;font-weight:600;">Key idea</div>
+        <div style="font-size:12px;color:#aaa;margin-top:4px;">Lowest risk, highest polish. Same mental model for existing users, but everything feels premium. Phase transitions use anime.js timeline to morph the layout subtly between modes.</div>
+      </div>
+    </div>
+  </div>
+
+</div>

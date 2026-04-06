@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { AlertTriangle, FileUp, Files, PencilLine, Stethoscope } from 'lucide-react';
-import { Button } from '../ui';
+import { Button, useToast } from '../ui';
 import { useLogContext } from '../../contexts/LogContext';
 import { useCase } from '../../store/caseContext';
 import { dbManager } from '../../utils/indexedDB';
@@ -46,6 +46,7 @@ interface WorkspaceImportPanelProps {
 }
 
 export function WorkspaceImportPanel({ onComplete, onInvestigationReady }: WorkspaceImportPanelProps) {
+  const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [mode, setMode] = useState<'files' | 'paste'>('files');
   const [sourceType, setSourceType] = useState<LogSourceType>('apex');
@@ -122,9 +123,13 @@ export function WorkspaceImportPanel({ onComplete, onInvestigationReady }: Works
           const result = await serverUploadAndParse(files, setParsingProgress);
           setSelectedLogId(null);
           setNotices([`Server parsed ${result.count.toLocaleString()} log entries from ${files.length} file${files.length === 1 ? '' : 's'}.`]);
+          toast(`Server parsed ${result.count.toLocaleString()} logs`, { variant: 'success' });
           const zdId = zdTicketInput.trim().replace(/\D/g, '');
-          if (zdId) onInvestigationReady?.(zdId);
-          onComplete?.();
+          if (zdId) {
+            onInvestigationReady?.(zdId);
+          } else {
+            onComplete?.();
+          }
           return;
         } catch {
           // Server unreachable — fall through to local parsing so upload isn't blocked.
@@ -156,11 +161,17 @@ export function WorkspaceImportPanel({ onComplete, onInvestigationReady }: Works
       attachToCase(result.datasets);
       setSelectedLogId(null);
       setNotices(result.warnings.length > 0 ? result.warnings : [`Imported ${result.datasets.length} dataset${result.datasets.length === 1 ? '' : 's'}.`]);
+      toast(`Imported ${result.datasets.length} dataset${result.datasets.length === 1 ? '' : 's'}`, { variant: 'success' });
       const zdId = zdTicketInput.trim().replace(/\D/g, '');
-      if (zdId) onInvestigationReady?.(zdId);
-      onComplete?.();
+      if (zdId) {
+        onInvestigationReady?.(zdId);
+      } else {
+        onComplete?.();
+      }
     } catch (importError) {
-      setError(importError instanceof Error ? importError.message : 'Failed to import files.');
+      const msg = importError instanceof Error ? importError.message : 'Failed to import files.';
+      setError(msg);
+      toast(msg, { variant: 'error' });
     } finally {
       setLoading(false);
       setParsingProgress(0);
@@ -194,11 +205,17 @@ export function WorkspaceImportPanel({ onComplete, onInvestigationReady }: Works
       attachToCase([result.dataset]);
       setSelectedLogId(null);
       setNotices(result.warnings.length > 0 ? result.warnings : [`Imported ${result.dataset.logCount.toLocaleString()} pasted events.`]);
+      toast(`Imported ${result.dataset.logCount.toLocaleString()} pasted events`, { variant: 'success' });
       const zdId = zdTicketInput.trim().replace(/\D/g, '');
-      if (zdId) onInvestigationReady?.(zdId);
-      onComplete?.();
+      if (zdId) {
+        onInvestigationReady?.(zdId);
+      } else {
+        onComplete?.();
+      }
     } catch (importError) {
-      setError(importError instanceof Error ? importError.message : 'Failed to import pasted logs.');
+      const msg = importError instanceof Error ? importError.message : 'Failed to import pasted logs.';
+      setError(msg);
+      toast(msg, { variant: 'error' });
     } finally {
       setLoading(false);
       setParsingProgress(0);
@@ -298,7 +315,6 @@ export function WorkspaceImportPanel({ onComplete, onInvestigationReady }: Works
             onKeyDown={e => {
               if (e.key === 'Enter' && zdTicketInput.trim().replace(/\D/g, '') && onInvestigationReady) {
                 onInvestigationReady(zdTicketInput.trim().replace(/\D/g, ''));
-                onComplete?.();
               }
             }}
             placeholder="Ticket # or URL"
@@ -310,7 +326,7 @@ export function WorkspaceImportPanel({ onComplete, onInvestigationReady }: Works
               disabled={!zdTicketInput.trim().replace(/\D/g, '')}
               onClick={() => {
                 const id = zdTicketInput.trim().replace(/\D/g, '');
-                if (id) { onInvestigationReady(id); onComplete?.(); }
+                if (id) onInvestigationReady(id);
               }}
               className="flex shrink-0 items-center gap-1.5 rounded border px-3 py-2 text-[11px] font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               style={{ borderColor: '#7c3aed', backgroundColor: '#7c3aed', color: '#fff' }}

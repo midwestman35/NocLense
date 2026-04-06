@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { ChevronDown, Sparkles, Wrench, RefreshCw, X } from 'lucide-react';
 
 interface ChangelogEntry {
@@ -251,9 +251,20 @@ const ChangelogDropdown = () => {
     };
   }, [isOpen]);
 
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
+
+  useLayoutEffect(() => {
+    if (isOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setMenuPos({ top: rect.bottom + 8, left: rect.left });
+    }
+  }, [isOpen]);
+
   return (
     <div className="relative" ref={dropdownRef}>
       <button
+        ref={buttonRef}
         onClick={() => setIsOpen((open) => !open)}
         className="inline-flex h-8 items-center gap-1.5 rounded-[10px] border border-[var(--button-subtle-border)] bg-[var(--button-subtle-surface)] px-2.5 text-[13px] font-semibold text-[var(--foreground)] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-colors hover:bg-[var(--button-subtle-hover)]"
         title="View changelog"
@@ -267,8 +278,10 @@ const ChangelogDropdown = () => {
           <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
 
           <div
-            className="absolute right-0 top-full z-50 mt-2 flex max-h-[min(42rem,calc(100vh-5rem))] flex-col overflow-hidden rounded-[14px] border border-[var(--button-subtle-border)] shadow-[var(--shadow-md)] backdrop-blur-md"
+            className="fixed z-50 flex max-h-[min(42rem,calc(100vh-5rem))] flex-col overflow-hidden rounded-[14px] border border-[var(--button-subtle-border)] shadow-[var(--shadow-md)] backdrop-blur-md"
             style={{
+              top: menuPos.top,
+              left: menuPos.left,
               backgroundImage: 'var(--menu-surface)',
               width: 'min(38rem, max(24rem, calc(100vw - var(--ai-sidebar-width) - 2.5rem)))',
               maxWidth: 'calc(100vw - var(--ai-sidebar-width) - 2.5rem)',

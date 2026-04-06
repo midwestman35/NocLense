@@ -1056,6 +1056,11 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         });
 
 
+        // Timeline zoom range filter
+        if (timelineZoomRange) {
+            result = result.filter(log => log.timestamp >= timelineZoomRange.start && log.timestamp <= timelineZoomRange.end);
+        }
+
         // Favorites filter
         if (isShowFavoritesOnly) {
             result = result.filter(log => favoriteLogIds.has(log.id));
@@ -1079,7 +1084,7 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         });
 
         return result;
-    }, [logs, selectedLogId, correlationIndexes, selectedComponentFilter, selectedLevels, isSipFilterEnabled, normalizedSelectedSipMethods, lowerFilterText, sortConfig, isShowFavoritesOnly, favoriteLogIds, isShowAiHighlightOnly, aiHighlightedLogIds, useIndexedDBMode, indexedDBLogs, excludedMessageTypes, selectedMessageTypeFilter, selectedSourceFilter]);
+    }, [logs, selectedLogId, correlationIndexes, selectedComponentFilter, selectedLevels, isSipFilterEnabled, normalizedSelectedSipMethods, lowerFilterText, sortConfig, isShowFavoritesOnly, favoriteLogIds, isShowAiHighlightOnly, aiHighlightedLogIds, useIndexedDBMode, indexedDBLogs, excludedMessageTypes, selectedMessageTypeFilter, selectedSourceFilter, timelineZoomRange]);
 
     // Collapse similar: group consecutive rows with same (displayComponent, summaryMessage/displayMessage) (6.3 Option A)
     const collapsedViewList = useMemo((): Array<{ firstLog: LogEntry; count: number }> | null => {
@@ -1137,6 +1142,7 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         setIsShowFavoritesOnly(false);
         setIsShowAiHighlightOnly(false);
         setSelectedSourceFilter(null);
+        setJumpState({ active: false, previousFilters: null });
     }, []);
 
     const clearFilterSelections = useCallback(() => {
@@ -1179,6 +1185,9 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
             console.error('Failed to clear IndexedDB:', error);
         }
         
+        // Clear persisted datasets so rehydration doesn't restore stale state
+        localStorage.removeItem('noclense-imported-datasets');
+
         // Clear all state
         setLogs([]);
         setIndexedDBLogs([]);

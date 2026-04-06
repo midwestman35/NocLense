@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Sparkles, AlertTriangle, MessageSquare, Tag, Settings, X, Send, Loader2, RefreshCw, Stethoscope, Maximize2, Minimize2 } from 'lucide-react';
+import { SkeletonAiPanel } from '../ui/Skeleton';
 import { useLogContext } from '../../contexts/LogContext';
 import { loadAiSettings, type AiSettings } from '../../store/aiSettings';
 import {
@@ -440,6 +441,8 @@ function AnalysisTab({ result, onRun, runLabel, emptyPrompt, icon }: {
       </button>
 
       {result.error && <ErrorBox message={result.error} onDismiss={() => {}} />}
+
+      {result.loading && !result.content && <SkeletonAiPanel />}
 
       {result.content ? (
         <div style={{

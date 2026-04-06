@@ -180,24 +180,40 @@ export async function searchZendeskTickets(
     .filter(k => k.length > 2);
   if (cleaned.length === 0) return [];
 
-  const searchTerms = cleaned.map(k => `"${k}"`).join(' ');
-  const query = `type:ticket status:closed ${searchTerms}`;
-  const url = resolveZendeskUrl(
-    settings,
-    `/api/v2/search.json?query=${encodeURIComponent(query)}&sort_by=created_at&sort_order=desc&per_page=${limit}`
-  );
+  // Fire parallel searches per keyword phrase for better recall (OR semantics)
+  // Then deduplicate by ticket ID and cap at limit
+  const searches = cleaned.slice(0, 5).map(async (keyword) => {
+    const query = `type:ticket status:closed "${keyword}"`;
+    const url = resolveZendeskUrl(
+      settings,
+      `/api/v2/search.json?query=${encodeURIComponent(query)}&sort_by=created_at&sort_order=desc&per_page=${Math.min(limit, 5)}`
+    );
 
-  const res = await fetch(url, { headers: zendeskHeaders(settings) });
-  if (!res.ok) {
-    if (res.status === 429) {
-      console.warn('[Zendesk Search] Rate limited — try again in a moment.');
+    const res = await fetch(url, { headers: zendeskHeaders(settings) });
+    if (!res.ok) {
+      if (res.status === 429) {
+        console.warn(`[Zendesk Search] Rate limited for keyword: "${keyword}"`);
+      }
       return [];
     }
-    throw new Error(`Zendesk search failed (${res.status})`);
+    const data = await res.json();
+    return (data.results ?? []) as Array<Record<string, unknown>>;
+  });
+
+  const allResults = (await Promise.all(searches)).flat();
+
+  // Deduplicate by ticket ID, preserve order (first occurrence wins)
+  const seen = new Set<number>();
+  const unique: Array<Record<string, unknown>> = [];
+  for (const t of allResults) {
+    const id = t.id as number;
+    if (!seen.has(id)) {
+      seen.add(id);
+      unique.push(t);
+    }
   }
 
-  const data = await res.json();
-  return (data.results ?? []).slice(0, limit).map((t: Record<string, unknown>) => ({
+  return unique.slice(0, limit).map((t) => ({
     id: t.id as number,
     subject: (t.subject as string) ?? '',
     status: (t.status as string) ?? 'closed',

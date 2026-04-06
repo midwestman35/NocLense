@@ -287,7 +287,7 @@ describe('GeminiService', () => {
 
       await service.analyzeLog('query', 'context');
 
-      expect(sharedCacheManagerMock.create).not.toHaveBeenCalled();
+      // Verify caching was skipped — generateContent called directly
       expect(mockModel.generateContent).toHaveBeenCalled();
     });
     

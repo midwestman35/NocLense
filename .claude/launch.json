@@ -6,18 +6,6 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 5173
-    },
-    {
-      "name": "electron-dev",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "electron:dev"],
-      "port": 5173
-    },
-    {
-      "name": "vite-preview",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "preview"],
-      "port": 4173
     }
   ]
 }

@@ -38,6 +38,13 @@ const TOTAL_STEPS = 4;
 
 /** Provider-specific how-to instructions */
 const PROVIDER_HOWTOS: Record<AIProviderId, { steps: string[]; linkText: string }> = {
+  unleash: {
+    steps: [
+      'Contact your Carbyne IT admin to obtain your Unleashed AI bearer token',
+      'Copy the token and paste it in AI Settings',
+    ],
+    linkText: 'Open Unleashed AI portal',
+  },
   gemini: {
     steps: [
       'Go to ai.google.dev and sign in with your Google account',
@@ -61,14 +68,6 @@ const PROVIDER_HOWTOS: Record<AIProviderId, { steps: string[]; linkText: string 
       'Copy the key and paste it in AI Settings',
     ],
     linkText: 'Get OpenAI API key',
-  },
-  unleash: {
-    steps: [
-      'Unleash is pre-configured for your organization',
-      'No additional API key is needed',
-      'Contact your admin if you encounter issues',
-    ],
-    linkText: 'Unleash documentation',
   },
 };
 

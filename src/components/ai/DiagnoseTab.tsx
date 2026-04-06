@@ -13,6 +13,7 @@
 import { useState, useEffect } from 'react';
 import { Loader2, Stethoscope } from 'lucide-react';
 import { useLogContext } from '../../contexts/LogContext';
+import { useAI } from '../../contexts/AIContext';
 import { useCase } from '../../store/caseContext';
 import { loadAiSettings } from '../../store/aiSettings';
 import { diagnoseLogs, generateInternalNote, refineInternalNote } from '../../services/unleashService';
@@ -60,6 +61,7 @@ function getNocTimezone(): string {
 export default function DiagnoseTab({ initialTicketId, onTicketConsumed, pendingSetup, onSetupConsumed }: Props) {
   const { filteredLogs, logs, setLogs, setAiHighlightedLogIds, setAiHighlightReasons, clearAiHighlights, addImportedDatasets } = useLogContext();
   const { activeCase, addBookmark } = useCase();
+  const { setSimilarPastTickets } = useAI();
   const activeLogs = filteredLogs.length > 0 ? filteredLogs : logs;
   const settings = loadAiSettings();
 
@@ -191,7 +193,7 @@ export default function DiagnoseTab({ initialTicketId, onTicketConsumed, pending
       setAiHighlightReasons(reasons);
 
       // Search for similar past tickets (non-blocking)
-      searchSimilarTicketsAsync(result);
+      searchSimilarTicketsAsync(result, t);
 
       // 4. Generate internal note draft
       const note = await generateInternalNote(settings, result, ticketText, tz, getNocTimezone());
@@ -248,7 +250,7 @@ export default function DiagnoseTab({ initialTicketId, onTicketConsumed, pending
       setAiHighlightReasons(reasons);
 
       // Search for similar past tickets (non-blocking)
-      searchSimilarTicketsAsync(result);
+      searchSimilarTicketsAsync(result, resolvedTicket);
 
       // Generate internal note draft
       const note = await generateInternalNote(
@@ -269,8 +271,26 @@ export default function DiagnoseTab({ initialTicketId, onTicketConsumed, pending
   }
 
   // ── Similar past tickets + investigations (async, non-blocking) ─────────────
-  function searchSimilarTicketsAsync(result: DiagnosisResult) {
+  function searchSimilarTicketsAsync(result: DiagnosisResult, resolvedTicket?: ZendeskTicket | null) {
+    // Use resolvedTicket param to avoid stale closure over `ticket` state
+    const activeTicket = resolvedTicket ?? ticket;
+
     const keywords: string[] = [];
+
+    // Extract meaningful phrases from ticket subject for direct correlation
+    if (activeTicket?.subject) {
+      const stopWords = new Set(['and', 'the', 'for', 'with', 'from', 'this', 'that', 'are', 'was', 'not']);
+      const subjectWords = activeTicket.subject
+        .replace(/[^\w\s-]/g, '')
+        .split(/\s+/)
+        .filter(w => w.length > 3 && !stopWords.has(w.toLowerCase()));
+      // Build 2-3 word phrase clusters from subject for better search relevance
+      for (let i = 0; i < subjectWords.length; i += 2) {
+        const phrase = subjectWords.slice(i, i + 2).join(' ');
+        if (phrase.length > 4) keywords.push(phrase);
+      }
+    }
+
     if (result.rootCause && result.rootCause !== 'Insufficient data') {
       const words = result.rootCause.split(/\s+/).filter(w => w.length > 3);
       if (words.length > 0) keywords.push(words.slice(0, 4).join(' '));
@@ -280,12 +300,15 @@ export default function DiagnoseTab({ initialTicketId, onTicketConsumed, pending
     const idMatches = (result.summary ?? '').match(/(?:station|cnc|ccs|pbx|sip)\S*/gi);
     if (idMatches) keywords.push(...idMatches.slice(0, 2));
 
-    if (keywords.length === 0) return;
+    if (keywords.length === 0) {
+      console.warn('[SimilarTickets] No keywords extracted — skipping search');
+      return;
+    }
 
     // Search both Zendesk and Confluence in parallel
     const zdSearch = searchZendeskTickets(settings, keywords, 5)
       .then(results => {
-        const filtered = ticket ? results.filter(r => r.id !== ticket.id) : results;
+        const filtered = activeTicket ? results.filter(r => r.id !== activeTicket.id) : results;
         return filtered.map(r => ({ ...r, closureNote: undefined, source: 'zendesk' as const }));
       })
       .catch(() => [] as Array<{ id: number; subject: string; status: string; createdAt: string; tags: string[]; closureNote: undefined; source: 'zendesk' }>);
@@ -312,6 +335,7 @@ export default function DiagnoseTab({ initialTicketId, onTicketConsumed, pending
           similarPastTickets: combined,
         };
         setDiagnosisResult(updated);
+        setSimilarPastTickets(combined);
       }
     });
   }
@@ -337,6 +361,7 @@ export default function DiagnoseTab({ initialTicketId, onTicketConsumed, pending
     setInternalNote('');
     setScanError(null);
     clearAiHighlights();
+    setSimilarPastTickets([]);
   }
 
   // ── Scanning spinner ────────────────────────────────────────────────────────

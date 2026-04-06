@@ -1,0 +1,309 @@
+<style>
+  .workspace-mock {
+    background: #0d110f;
+    border-radius: 16px;
+    overflow: hidden;
+    font-family: 'DM Sans', -apple-system, sans-serif;
+    border: 1px solid #263025;
+  }
+  .ws-header {
+    height: 44px;
+    background: linear-gradient(180deg, rgba(19,24,20,0.98) 0%, rgba(14,18,15,0.98) 100%);
+    border-bottom: 1px solid #263025;
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 12px;
+  }
+  .ws-logo { font-size: 13px; font-weight: 700; color: #e5eadf; display: flex; align-items: center; gap: 8px; }
+  .ws-logo-icon { width: 20px; height: 20px; border-radius: 6px; background: linear-gradient(135deg, #51912b, #76ce40); display: flex; align-items: center; justify-content: center; font-size: 10px; }
+  .ws-nav { display: flex; gap: 2px; margin-left: 24px; }
+  .ws-nav-item { padding: 4px 12px; border-radius: 6px; font-size: 11px; color: #8e9789; cursor: pointer; transition: all 0.15s; }
+  .ws-nav-item:hover { background: rgba(118,206,64,0.08); color: #e5eadf; }
+  .ws-nav-item.active { background: rgba(118,206,64,0.12); color: #76ce40; font-weight: 600; }
+  .ws-ticket { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .ws-ticket-badge { padding: 3px 10px; border-radius: 20px; font-size: 10px; font-weight: 600; background: rgba(239,68,68,0.12); color: #ef4444; border: 1px solid rgba(239,68,68,0.2); }
+  .ws-ticket-id { font-size: 11px; color: #8e9789; font-family: 'JetBrains Mono', monospace; }
+
+  .ws-grid {
+    display: grid;
+    gap: 8px;
+    padding: 8px;
+    min-height: 520px;
+    transition: all 0.4s cubic-bezier(0.33, 1, 0.68, 1);
+  }
+  .grid-investigate {
+    grid-template-columns: 1fr 1fr 340px;
+    grid-template-rows: auto 1fr auto;
+  }
+
+  .ws-card {
+    background: #151a16;
+    border: 1px solid #263025;
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: all 0.35s cubic-bezier(0.33, 1, 0.68, 1);
+  }
+  .ws-card:hover { border-color: #3a5030; }
+  .ws-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-bottom: 1px solid #1d251b;
+    flex-shrink: 0;
+  }
+  .ws-card-title { font-size: 11px; font-weight: 600; color: #e5eadf; text-transform: uppercase; letter-spacing: 0.5px; }
+  .ws-card-meta { font-size: 10px; color: #8e9789; margin-left: auto; font-family: 'JetBrains Mono', monospace; }
+  .ws-card-dot { width: 6px; height: 6px; border-radius: 50%; }
+  .ws-card-body { flex: 1; padding: 12px 14px; overflow: hidden; }
+
+  .log-row { display: flex; gap: 8px; padding: 3px 0; font-size: 10px; font-family: 'JetBrains Mono', monospace; border-bottom: 1px solid #1d251b; }
+  .log-ts { color: #8e9789; width: 65px; flex-shrink: 0; }
+  .log-lvl { width: 28px; flex-shrink: 0; font-weight: 700; font-size: 9px; text-align: center; padding: 1px 0; border-radius: 3px; }
+  .log-msg { color: #e5eadf; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lvl-inf { background: rgba(142,151,137,0.1); color: #8e9789; }
+  .lvl-err { background: rgba(239,68,68,0.15); color: #ef4444; }
+  .lvl-wrn { background: rgba(245,158,11,0.15); color: #f59e0b; }
+  .lvl-dbg { background: rgba(142,151,137,0.06); color: #5a6355; }
+  .log-highlighted { background: rgba(139,92,246,0.08); border-left: 2px solid rgba(139,92,246,0.4); padding-left: 6px; }
+
+  .timeline-bars { display: flex; align-items: flex-end; gap: 2px; height: 48px; }
+  .t-bar { width: 4px; border-radius: 2px 2px 0 0; transition: height 0.3s; }
+
+  .ai-bubble { padding: 10px 14px; border-radius: 10px; font-size: 11px; line-height: 1.6; margin-bottom: 8px; }
+  .ai-bubble.assistant { background: #1b370b; color: #e5eadf; border: 1px solid #263025; }
+  .ai-bubble.user { background: rgba(118,206,64,0.08); color: #e5eadf; border: 1px solid rgba(118,206,64,0.15); margin-left: 20px; }
+
+  .evidence-item { display: flex; gap: 8px; padding: 8px 10px; border: 1px solid #263025; border-radius: 8px; margin-bottom: 6px; }
+  .evidence-icon { width: 24px; height: 24px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 10px; flex-shrink: 0; }
+
+  .similar-item { padding: 8px 10px; border: 1px solid #263025; border-radius: 8px; margin-bottom: 6px; }
+  .similar-tag { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 9px; font-weight: 600; margin-right: 4px; }
+
+  .correlation-node { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 6px; margin-bottom: 4px; font-size: 10px; }
+</style>
+
+<h2>Card Workspace: Investigation View</h2>
+<p class="subtitle">8 cards in a preset "Investigation" grid. Click any card label to see it expand in-place (concept only).</p>
+
+<div class="workspace-mock">
+  <!-- Header -->
+  <div class="ws-header">
+    <div class="ws-logo">
+      <div class="ws-logo-icon">N</div>
+      NocLense
+    </div>
+    <div class="ws-nav">
+      <div class="ws-nav-item">Import</div>
+      <div class="ws-nav-item active">Investigate</div>
+      <div class="ws-nav-item">Submit</div>
+    </div>
+    <div class="ws-ticket">
+      <span class="ws-ticket-id">#45892</span>
+      <span class="ws-ticket-badge">P1 Critical</span>
+    </div>
+  </div>
+
+  <!-- Card Grid -->
+  <div class="ws-grid grid-investigate">
+
+    <!-- Row 1: Log Stream (spans 2 cols) + AI Assistant -->
+    <!-- Log Stream Card -->
+    <div class="ws-card" style="grid-column: 1 / 3; grid-row: 1 / 3;">
+      <div class="ws-card-header">
+        <div class="ws-card-dot" style="background:#76ce40;"></div>
+        <div class="ws-card-title">Log Stream</div>
+        <div class="ws-card-meta">5,000 events</div>
+      </div>
+      <div class="ws-card-body" style="padding:0;">
+        <!-- Mini filter bar -->
+        <div style="display:flex;align-items:center;gap:6px;padding:6px 14px;border-bottom:1px solid #1d251b;background:#101411;">
+          <div style="flex:1;height:26px;border:1px solid #263025;border-radius:6px;padding:0 8px;display:flex;align-items:center;font-size:10px;color:#8e9789;">Search logs...</div>
+          <div style="padding:3px 8px;border:1px solid #263025;border-radius:6px;font-size:9px;color:#8e9789;">All levels</div>
+          <div style="padding:3px 8px;border:1px solid #263025;border-radius:6px;font-size:9px;color:#8e9789;">All types</div>
+        </div>
+        <!-- Timeline mini -->
+        <div style="padding:6px 14px;border-bottom:1px solid #1d251b;background:#101411;">
+          <div class="timeline-bars">
+            <div class="t-bar" style="height:12px;background:#263025;"></div>
+            <div class="t-bar" style="height:20px;background:#263025;"></div>
+            <div class="t-bar" style="height:35px;background:#263025;"></div>
+            <div class="t-bar" style="height:48px;background:rgba(239,68,68,0.4);"></div>
+            <div class="t-bar" style="height:28px;background:#263025;"></div>
+            <div class="t-bar" style="height:14px;background:#263025;"></div>
+            <div class="t-bar" style="height:22px;background:#263025;"></div>
+            <div class="t-bar" style="height:8px;background:#263025;"></div>
+            <div class="t-bar" style="height:16px;background:#263025;"></div>
+            <div class="t-bar" style="height:30px;background:rgba(239,68,68,0.3);"></div>
+            <div class="t-bar" style="height:18px;background:#263025;"></div>
+            <div class="t-bar" style="height:10px;background:#263025;"></div>
+            <div class="t-bar" style="height:24px;background:#263025;"></div>
+            <div class="t-bar" style="height:6px;background:#263025;"></div>
+            <div class="t-bar" style="height:14px;background:#263025;"></div>
+            <div class="t-bar" style="height:20px;background:#263025;"></div>
+          </div>
+        </div>
+        <!-- Log rows -->
+        <div style="padding:4px 14px;">
+          <div class="log-row"><span class="log-ts">06:11:16.023</span><span class="log-lvl lvl-inf">INF</span><span class="log-msg">FDXMessageHandler — reportNLPConversation received for operator ext-4401</span></div>
+          <div class="log-row"><span class="log-ts">06:11:16.045</span><span class="log-lvl lvl-inf">INF</span><span class="log-msg">PBXCallMonitoringService — extension registered: 4401 on station WKS-12</span></div>
+          <div class="log-row log-highlighted"><span class="log-ts">06:11:16.112</span><span class="log-lvl lvl-err">ERR</span><span class="log-msg">CCS-SDK — Failed to send initial outgoing request: Not connected</span></div>
+          <div class="log-row log-highlighted"><span class="log-ts">06:11:16.115</span><span class="log-lvl lvl-err">ERR</span><span class="log-msg">CCS-SDK — WebSocket connection lost to PBX cluster pbx-east-2.carbyne.io</span></div>
+          <div class="log-row"><span class="log-ts">06:11:16.234</span><span class="log-lvl lvl-wrn">WRN</span><span class="log-msg">SIP INVITE 503 Service Unavailable — pbx-east-2:5060 &rarr; station WKS-12</span></div>
+          <div class="log-row"><span class="log-ts">06:11:16.301</span><span class="log-lvl lvl-inf">INF</span><span class="log-msg">FDXMessageHandler — fdxReportUpdateMessageData: callQueue position changed</span></div>
+          <div class="log-row"><span class="log-ts">06:11:16.445</span><span class="log-lvl lvl-dbg">DBG</span><span class="log-msg">RTPMediaHandler — keepalive timeout for stream rtp://10.0.2.41:18200</span></div>
+          <div class="log-row"><span class="log-ts">06:11:16.502</span><span class="log-lvl lvl-inf">INF</span><span class="log-msg">PBXCallMonitoringService — re-register attempt 1/3 for ext-4401</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI Assistant Card -->
+    <div class="ws-card" style="grid-column: 3; grid-row: 1 / 2;">
+      <div class="ws-card-header">
+        <div class="ws-card-dot" style="background:#76ce40;"></div>
+        <div class="ws-card-title">AI Assistant</div>
+        <div style="margin-left:auto;padding:2px 8px;border-radius:12px;font-size:9px;background:rgba(118,206,64,0.1);color:#76ce40;font-weight:600;">Unleashed</div>
+      </div>
+      <div class="ws-card-body">
+        <div class="ai-bubble assistant">
+          <div style="font-size:10px;color:#76ce40;font-weight:600;margin-bottom:4px;">Root Cause Analysis</div>
+          PBX cluster <span style="color:#76ce40;font-family:monospace;">pbx-east-2</span> lost WebSocket connectivity at 06:11:16. CCS-SDK failed to route outgoing SIP INVITE, causing 503 responses. Extension 4401 on WKS-12 is unable to receive calls.
+          <div style="margin-top:8px;font-size:10px;color:#8e9789;">Recommend: Check PBX cluster health in Datadog. Verify network path to pbx-east-2:5060.</div>
+        </div>
+        <div class="ai-bubble user">Fill out the closing note</div>
+        <div style="display:flex;gap:6px;margin-top:8px;">
+          <div style="flex:1;height:28px;border:1px solid #263025;border-radius:8px;padding:0 10px;display:flex;align-items:center;font-size:10px;color:#8e9789;">Ask a follow-up...</div>
+          <div style="width:28px;height:28px;border-radius:8px;background:#51912b;display:flex;align-items:center;justify-content:center;">
+            <span style="color:#fff;font-size:11px;">&uarr;</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Evidence Card -->
+    <div class="ws-card" style="grid-column: 3; grid-row: 2 / 3;">
+      <div class="ws-card-header">
+        <div class="ws-card-dot" style="background:#f59e0b;"></div>
+        <div class="ws-card-title">Evidence</div>
+        <div class="ws-card-meta">3 items</div>
+      </div>
+      <div class="ws-card-body">
+        <div class="evidence-item">
+          <div class="evidence-icon" style="background:rgba(239,68,68,0.12);color:#ef4444;">!</div>
+          <div>
+            <div style="font-size:10px;color:#e5eadf;font-weight:500;">CCS-SDK connection failure</div>
+            <div style="font-size:9px;color:#8e9789;margin-top:2px;">Log #3 — 06:11:16.112</div>
+          </div>
+        </div>
+        <div class="evidence-item">
+          <div class="evidence-icon" style="background:rgba(245,158,11,0.12);color:#f59e0b;">&#9733;</div>
+          <div>
+            <div style="font-size:10px;color:#e5eadf;font-weight:500;">SIP 503 from pbx-east-2</div>
+            <div style="font-size:9px;color:#8e9789;margin-top:2px;">Log #5 — 06:11:16.234</div>
+          </div>
+        </div>
+        <div style="margin-top:8px;padding:8px 10px;background:#1b370b;border-radius:8px;border:1px solid #263025;">
+          <div style="font-size:9px;color:#76ce40;font-weight:600;margin-bottom:4px;">Internal Note</div>
+          <div style="font-size:10px;color:#e5eadf;line-height:1.5;">PBX-east-2 unreachable. Confirmed via Datadog — no heartbeat since 06:10. Network team notified.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom row: 3 smaller cards -->
+    <!-- Similar Tickets -->
+    <div class="ws-card" style="grid-column: 1; grid-row: 3;">
+      <div class="ws-card-header">
+        <div class="ws-card-dot" style="background:#60a5fa;"></div>
+        <div class="ws-card-title">Similar Tickets</div>
+        <div class="ws-card-meta">2 found</div>
+      </div>
+      <div class="ws-card-body">
+        <div class="similar-item">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+            <span class="similar-tag" style="background:rgba(239,68,68,0.12);color:#ef4444;">CCS</span>
+            <span style="font-size:10px;color:#e5eadf;">#43201 — PBX disconnect at PSAP-Memphis</span>
+          </div>
+          <div style="font-size:9px;color:#8e9789;">Resolved 3/15 — same root cause: network path failure to PBX cluster</div>
+        </div>
+        <div class="similar-item">
+          <span class="similar-tag" style="background:rgba(96,165,250,0.12);color:#60a5fa;">SIP</span>
+          <span style="font-size:10px;color:#e5eadf;">#44102 — 503 cascade during maintenance</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Correlation Graph -->
+    <div class="ws-card" style="grid-column: 2; grid-row: 3;">
+      <div class="ws-card-header">
+        <div class="ws-card-dot" style="background:#a78bfa;"></div>
+        <div class="ws-card-title">Correlation Graph</div>
+      </div>
+      <div class="ws-card-body">
+        <div class="correlation-node" style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);">
+          <div style="width:8px;height:8px;border-radius:50%;background:#ef4444;"></div>
+          <span style="color:#e5eadf;font-family:monospace;">callId: abc-123-def</span>
+          <span style="margin-left:auto;font-size:9px;color:#ef4444;">12 events</span>
+        </div>
+        <div style="margin-left:20px;border-left:2px solid #263025;padding-left:12px;">
+          <div class="correlation-node" style="background:rgba(118,206,64,0.06);">
+            <span style="color:#8e9789;">ext-4401</span>
+            <span style="margin-left:auto;font-size:9px;color:#8e9789;">8 events</span>
+          </div>
+          <div class="correlation-node" style="background:rgba(118,206,64,0.06);">
+            <span style="color:#8e9789;">WKS-12</span>
+            <span style="margin-left:auto;font-size:9px;color:#8e9789;">5 events</span>
+          </div>
+          <div class="correlation-node" style="background:rgba(118,206,64,0.06);">
+            <span style="color:#8e9789;">pbx-east-2</span>
+            <span style="margin-left:auto;font-size:9px;color:#8e9789;">3 events</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Datadog Live -->
+    <div class="ws-card" style="grid-column: 3; grid-row: 3;">
+      <div class="ws-card-header">
+        <div class="ws-card-dot" style="background:#a855f7;"></div>
+        <div class="ws-card-title">Datadog Live</div>
+        <div style="margin-left:auto;padding:2px 8px;border-radius:12px;font-size:9px;background:rgba(168,85,247,0.1);color:#a855f7;">Streaming</div>
+      </div>
+      <div class="ws-card-body">
+        <div style="font-size:10px;color:#8e9789;margin-bottom:6px;">service:apex-ng status:error</div>
+        <div style="display:flex;flex-direction:column;gap:3px;">
+          <div style="display:flex;gap:6px;font-size:9px;font-family:monospace;">
+            <span style="color:#8e9789;">06:11</span>
+            <span style="color:#ef4444;">ERR</span>
+            <span style="color:#e5eadf;">pbx-east-2 heartbeat timeout</span>
+          </div>
+          <div style="display:flex;gap:6px;font-size:9px;font-family:monospace;">
+            <span style="color:#8e9789;">06:10</span>
+            <span style="color:#f59e0b;">WRN</span>
+            <span style="color:#e5eadf;">connection pool exhausted</span>
+          </div>
+          <div style="display:flex;gap:6px;font-size:9px;font-family:monospace;">
+            <span style="color:#8e9789;">06:09</span>
+            <span style="color:#8e9789;">INF</span>
+            <span style="color:#e5eadf;">scheduled health check ok</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div style="margin-top:24px;padding:16px;background:rgba(118,206,64,0.04);border:1px solid rgba(118,206,64,0.12);border-radius:12px;">
+  <div style="font-size:12px;font-weight:600;color:#76ce40;margin-bottom:8px;">How the Card Workspace works</div>
+  <ul style="font-size:12px;color:#aaa;line-height:1.8;margin:0;padding-left:20px;">
+    <li><strong>8 cards</strong>: Log Stream, AI Assistant, Evidence, Timeline (embedded in Log Stream), Similar Tickets, Correlation Graph, Datadog Live, Ticket Context (not shown — appears in Import/Submit views)</li>
+    <li><strong>3 preset layouts</strong>: Import (centered card + ticket lookup), Investigate (this grid), Submit (focused closure form + evidence summary)</li>
+    <li><strong>Expand in-place</strong>: Click a card header to expand it — neighbors shrink with anime.js spring physics</li>
+    <li><strong>Collapse to header</strong>: Double-click to collapse any card to just its header bar (one line)</li>
+    <li><strong>Phase navigation</strong>: Top bar switches between Import → Investigate → Submit with layout morph animation</li>
+    <li><strong>Ticket context</strong>: Always visible in header — priority badge, ticket ID, status. Not a separate card in Investigate.</li>
+  </ul>
+</div>
