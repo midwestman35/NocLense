@@ -134,8 +134,6 @@ class IndexedDBManager {
 
         for (let i = 0; i < logs.length; i += SUB_BATCH_SIZE) {
             const subBatch = logs.slice(i, i + SUB_BATCH_SIZE);
-            let written = false;
-
             for (let attempt = 0; attempt < 2; attempt++) {
                 try {
                     await new Promise<void>((resolve, reject) => {
@@ -162,7 +160,6 @@ class IndexedDBManager {
                         });
                     });
                     totalWritten += subBatch.length;
-                    written = true;
                     break;
                 } catch (error) {
                     if (attempt === 0) {

@@ -1308,7 +1308,7 @@ function canUseWebWorker(): boolean {
     return (
         typeof window !== 'undefined' &&
         typeof Worker !== 'undefined' &&
-        !(window as Record<string, unknown>).electronAPI
+        !(window as unknown as Record<string, unknown>).electronAPI
     );
 }
 

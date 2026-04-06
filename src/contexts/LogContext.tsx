@@ -242,7 +242,7 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
     const [activeJobId, setActiveJobId] = useState<string | null>(null);
     const [serverAvailable, setServerAvailable] = useState(false);
     const [serverLogs, setServerLogs] = useState<LogEntry[]>([]);
-    const [serverTotal, setServerTotal] = useState(0);
+    const [_serverTotal, _setServerTotal] = useState(0);
     const serverFilterDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
     
     // Function to load logs from IndexedDB when needed
@@ -423,7 +423,7 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
             const statsData = await getJobStats(jobId);
             // We'll store correlationData by updating the sets in the existing state
             // This is handled via the correlationData state which we update directly
-            setServerTotal(statsData.total);
+            _setServerTotal(statsData.total);
 
             // Fetch initial logs
             const result = await getJobLogs(jobId, { limit: 5000 });
@@ -442,7 +442,7 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         setUseServerMode(false);
         setActiveJobId(null);
         setServerLogs([]);
-        setServerTotal(0);
+        _setServerTotal(0);
     }, []);
 
     // Server-backed filtering: when filters change in server mode, debounce and query
@@ -471,7 +471,7 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
 
                 const result = await getJobLogs(activeJobId, params);
                 setServerLogs(result.logs);
-                setServerTotal(result.total);
+                _setServerTotal(result.total);
             } catch (err) {
                 console.error('Server filter query failed:', err);
             }

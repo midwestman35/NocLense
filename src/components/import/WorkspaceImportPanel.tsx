@@ -4,7 +4,7 @@ import { Button } from '../ui';
 import { useLogContext } from '../../contexts/LogContext';
 import { useCase } from '../../store/caseContext';
 import { dbManager } from '../../utils/indexedDB';
-import { appendLogsToIndexedDB, importFiles, importFilesViaServer, importPastedLogs } from '../../services/importService';
+import { appendLogsToIndexedDB, importFiles, importPastedLogs } from '../../services/importService';
 import type { ImportedDataset, LogSourceType } from '../../types';
 import type { Attachment } from '../../types/case';
 
@@ -72,8 +72,6 @@ export function WorkspaceImportPanel({ onComplete, onInvestigationReady }: Works
 
   const hasWorkspaceLogs = logs.length > 0;
 
-  const FIFTY_MB = 50 * 1024 * 1024;
-
   const helperText = useMemo(() => {
     if (mode === 'paste' && sourceType === 'aws') {
       return 'Paste CloudWatch or AWS console output directly. NocLense will fall back to line-by-line import when needed.';
@@ -113,9 +111,6 @@ export function WorkspaceImportPanel({ onComplete, onInvestigationReady }: Works
     setNotices([]);
     setLoading(true);
     setParsingProgress(0);
-
-    const files = Array.from(fileList);
-    const totalSize = files.reduce((sum, f) => sum + f.size, 0);
 
     try {
       const files = Array.from(fileList);

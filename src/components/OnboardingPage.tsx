@@ -62,6 +62,14 @@ const PROVIDER_HOWTOS: Record<AIProviderId, { steps: string[]; linkText: string 
     ],
     linkText: 'Get OpenAI API key',
   },
+  unleash: {
+    steps: [
+      'Unleash is pre-configured for your organization',
+      'No additional API key is needed',
+      'Contact your admin if you encounter issues',
+    ],
+    linkText: 'Unleash documentation',
+  },
 };
 
 interface OnboardingPageProps {

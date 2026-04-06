@@ -7,7 +7,6 @@ import {
   Sparkles,
   Filter,
   Settings,
-  Server,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { Tooltip } from '../ui';
