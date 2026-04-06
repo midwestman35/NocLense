@@ -1185,6 +1185,9 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
             console.error('Failed to clear IndexedDB:', error);
         }
         
+        // Clear persisted datasets so rehydration doesn't restore stale state
+        localStorage.removeItem('noclense-imported-datasets');
+
         // Clear all state
         setLogs([]);
         setIndexedDBLogs([]);

@@ -10,6 +10,8 @@ interface WorkspaceCardProps {
   meta?: ReactNode;
   badge?: ReactNode;
   defaultExpanded?: boolean;
+  /** When false, hides chevron and disables expand/collapse interaction */
+  collapsible?: boolean;
   onExpandChange?: (expanded: boolean) => void;
   children: ReactNode;
   className?: string;
@@ -23,6 +25,7 @@ export function WorkspaceCard({
   meta,
   badge,
   defaultExpanded = true,
+  collapsible = true,
   onExpandChange,
   children,
   className,
@@ -95,19 +98,22 @@ export function WorkspaceCard({
       {/* Header */}
       <div
         data-card-header
-        onClick={handleClick}
-        onDoubleClick={handleDoubleClick}
+        onClick={collapsible ? handleClick : undefined}
+        onDoubleClick={collapsible ? handleDoubleClick : undefined}
         className={clsx(
-          'flex items-center gap-2 px-3.5 shrink-0 cursor-pointer select-none',
+          'flex items-center gap-2 px-3.5 shrink-0 select-none',
+          collapsible && 'cursor-pointer',
           'border-b transition-colors duration-150',
           expanded ? 'border-[var(--card-border)]' : 'border-transparent',
-          'hover:bg-[var(--muted)]/30',
+          collapsible && 'hover:bg-[var(--muted)]/30',
         )}
         style={{ height: expanded ? 'var(--card-header-height)' : 'var(--card-collapsed-height)' }}
       >
-        <span className="text-[var(--muted-foreground)] shrink-0 transition-transform duration-150">
-          {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-        </span>
+        {collapsible && (
+          <span className="text-[var(--muted-foreground)] shrink-0 transition-transform duration-150">
+            {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+          </span>
+        )}
         <span
           className="block w-1.5 h-1.5 rounded-full shrink-0"
           style={{ backgroundColor: accentColor }}

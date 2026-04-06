@@ -12,7 +12,6 @@ interface RoomRouterProps {
   ticketId?: string;
   priorityLabel?: string;
   statusLabel?: string;
-  onSettingsClick?: () => void;
   /** Action buttons for the header (Import, Export, Clear, etc.) */
   headerActions?: ReactNode;
   importContent: ReactNode;
@@ -26,7 +25,6 @@ export function RoomRouter({
   ticketId,
   priorityLabel,
   statusLabel,
-  onSettingsClick,
   headerActions,
   importContent,
   investigateContent,
@@ -68,7 +66,6 @@ export function RoomRouter({
         ticketId={ticketId}
         priorityLabel={priorityLabel}
         statusLabel={statusLabel}
-        onSettingsClick={onSettingsClick}
         actions={headerActions}
       />
       <div ref={gridRef} className="flex-1 min-h-0">

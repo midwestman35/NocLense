@@ -12,7 +12,7 @@ export function WorkspaceGrid({ layout, children, className }: WorkspaceGridProp
   return (
     <div
       className={clsx(
-        'flex-1 min-h-0 overflow-hidden transition-all',
+        'h-full min-h-0 overflow-hidden transition-all',
         layout === 'import' && 'flex items-center justify-center',
         layout === 'investigate' && 'grid gap-2 p-2',
         layout === 'submit' && 'flex items-start justify-center gap-6 p-10',

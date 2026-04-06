@@ -529,6 +529,16 @@ class IndexedDBManager {
                 request.onerror = () => reject(request.error);
             });
         }
+        // Clear metadata store so rehydration doesn't reload stale data
+        if (db.objectStoreNames.contains(METADATA_STORE)) {
+            await new Promise<void>((resolve, reject) => {
+                const transaction = db.transaction([METADATA_STORE], 'readwrite');
+                const store = transaction.objectStore(METADATA_STORE);
+                const request = store.clear();
+                request.onsuccess = () => resolve();
+                request.onerror = () => reject(request.error);
+            });
+        }
     }
 
     /**

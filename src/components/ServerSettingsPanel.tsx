@@ -1,3 +1,10 @@
+/**
+ * ServerSettingsPanel — UNAVAILABLE
+ *
+ * Server mode foundation is retained in the codebase but removed from the UI
+ * until backend architecture plans are finalized. Do not wire this into any
+ * layout or dialog until a decision is made on the backend approach.
+ */
 import { useState, useEffect, useCallback } from 'react';
 import { Server, CheckCircle2, XCircle, Loader2, Unplug, Plug } from 'lucide-react';
 import { loadServerConfig, saveServerConfig, checkServerHealth, type ServerConfig } from '../services/serverService';

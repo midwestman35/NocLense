@@ -23,15 +23,17 @@ import LogDetailsPanel from '../log/LogDetailsPanel';
 import { CaseHeader } from '../case/CaseHeader';
 import { Dialog } from '../ui/Dialog';
 import { Button } from '../ui/Button';
-import ServerSettingsPanel from '../ServerSettingsPanel';
+// ServerSettingsPanel — kept in codebase but removed from UI until backend plans are decided
+// import ServerSettingsPanel from '../ServerSettingsPanel';
 import InvestigationSetupModal from '../InvestigationSetupModal';
 import { AIOnboardingWizard } from '../onboarding/AIOnboardingWizard';
 import ExportModal from '../export/ExportModal';
 
 import { CaseStateBridge } from '../case/CaseStateBridge';
-import { Sparkles, FileText, Bookmark, Clock, Search, Database, AlertTriangle, FolderPlus, Download, Trash2 } from 'lucide-react';
+import { Sparkles, FileText, Bookmark, Clock, Search, Database, AlertTriangle, FolderPlus, Download, Trash2, ExternalLink } from 'lucide-react';
 import type { InvestigationSetup } from '../../types/investigation';
 import type { ZendeskTicket } from '../../services/zendeskService';
+import { loadAiSettings } from '../../store/aiSettings';
 
 function formatTicketLabel(value: string | null | undefined): string | undefined {
   if (!value) return undefined;
@@ -57,10 +59,9 @@ export function NewWorkspaceLayout() {
     filterText,
     clearAllData,
   } = useLogContext();
-  useAI(); // Ensure AI context is available for child components
+  const { similarPastTickets } = useAI();
 
   const [explicitPhase, setExplicitPhase] = useState<Phase | null>(null);
-  const [showSettingsDialog, setShowSettingsDialog] = useState(false);
   const [showOnboardingWizard, setShowOnboardingWizard] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [investigationModalTicketId, setInvestigationModalTicketId] = useState<string | null>(null);
@@ -107,6 +108,7 @@ export function NewWorkspaceLayout() {
         title="Import"
         icon={<FileText size={14} />}
         accentColor="var(--phase-dot-active)"
+        collapsible={false}
       >
         <div className="p-5">
           <h2 className="text-sm font-semibold text-[var(--foreground)] mb-1">Start an Investigation</h2>
@@ -217,12 +219,52 @@ export function NewWorkspaceLayout() {
         title="Similar Tickets"
         icon={<Search size={14} />}
         accentColor="#60a5fa"
-        defaultExpanded={false}
+        defaultExpanded={similarPastTickets.length > 0}
+        meta={similarPastTickets.length > 0 ? <span>{similarPastTickets.length} found</span> : undefined}
         className={CARD_GRID_CLASSES['similar-tickets']}
       >
-        <div className="p-3 text-xs text-[var(--muted-foreground)]">
-          <p>Past resolved tickets matching this investigation will surface here.</p>
-        </div>
+        {similarPastTickets.length === 0 ? (
+          <div className="p-3 text-xs text-[var(--muted-foreground)]">
+            <p>Past resolved tickets matching this investigation will surface here.</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-[var(--border)] max-h-[200px] overflow-y-auto">
+            {similarPastTickets.map(t => {
+              const subdomain = loadAiSettings().zendeskSubdomain;
+              const zdUrl = subdomain
+                ? `https://${subdomain}.zendesk.com/agent/tickets/${t.id}`
+                : null;
+              return (
+                <div key={t.id} className="px-3 py-2 hover:bg-[var(--muted)]/50 transition-colors">
+                  <p className="text-[11px] font-medium text-[var(--foreground)] truncate">
+                    #{t.id}: {t.subject}
+                  </p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-[9px] text-[var(--muted-foreground)]">
+                      {t.createdAt ? new Date(t.createdAt).toLocaleDateString() : ''}
+                    </span>
+                    {t.tags.length > 0 && (
+                      <span className="text-[9px] text-[var(--muted-foreground)]">
+                        {t.tags.filter(tag => tag.startsWith('noc:')).slice(0, 2).join(', ') || t.tags.slice(0, 2).join(', ')}
+                      </span>
+                    )}
+                    {zdUrl && (
+                      <a
+                        href={zdUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[9px] text-blue-400 hover:text-blue-300 flex items-center gap-0.5 ml-auto"
+                      >
+                        <ExternalLink size={8} />
+                        Open
+                      </a>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </WorkspaceCard>
 
       <WorkspaceCard
@@ -252,7 +294,7 @@ export function NewWorkspaceLayout() {
       </WorkspaceCard>
     </>
   ), [filteredLogs.length, selectedLog, selectedLogId, fileError, activeCorrelations, filterText,
-      pendingSetup, setSelectedLogId, setJumpState, setActiveCorrelations,
+      pendingSetup, similarPastTickets, setSelectedLogId, setJumpState, setActiveCorrelations,
       setFilterText, setScrollTargetTimestamp]);
 
   // ── Submit Room ────────────────────────────────────────────────
@@ -327,7 +369,6 @@ export function NewWorkspaceLayout() {
         ticketId={activeTicket ? String(activeTicket.id) : undefined}
         priorityLabel={formatTicketLabel(activeTicket?.priority)}
         statusLabel={formatTicketLabel(activeTicket?.status)}
-        onSettingsClick={() => setShowSettingsDialog(true)}
         headerActions={logs.length > 0 ? (
           <>
             <Button variant="ghost" size="sm" onClick={() => setShowImportDialog(true)} className="text-xs h-7 px-2">
@@ -354,11 +395,7 @@ export function NewWorkspaceLayout() {
         submitContent={submitContent}
       />
 
-      {/* Modals — same as old layout */}
-      <Dialog open={showSettingsDialog} onClose={() => setShowSettingsDialog(false)} title="Settings">
-        <ServerSettingsPanel />
-      </Dialog>
-
+      {/* Modals */}
       {investigationModalTicketId && (
         <InvestigationSetupModal
           ticketId={investigationModalTicketId}

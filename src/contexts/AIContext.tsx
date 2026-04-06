@@ -19,6 +19,7 @@ import {
   type RateLimitError,
 } from '../types/ai';
 import type { LogEntry } from '../types';
+import type { SimilarPastTicket } from '../types/diagnosis';
 import ConsentModal from '../components/ConsentModal';
 import QuotaExceededModal from '../components/QuotaExceededModal';
 import {
@@ -245,6 +246,9 @@ interface AIContextType {
   declineConsent: () => void;
   dismissQuotaExceeded: () => void;
   setOnboardingCompleted: (completed?: boolean) => void;
+  /** Similar past tickets found during diagnosis — shared so WorkspaceCards can render them */
+  similarPastTickets: SimilarPastTicket[];
+  setSimilarPastTickets: (tickets: SimilarPastTicket[]) => void;
 }
 
 const AIContext = createContext<AIContextType | null>(null);
@@ -287,6 +291,11 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
   const [conversationHistory, setConversationHistory] = useState<AIMessage[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [similarPastTickets, setSimilarPastTicketsState] = useState<SimilarPastTicket[]>([]);
+
+  const setSimilarPastTickets = useCallback((tickets: SimilarPastTicket[]) => {
+    setSimilarPastTicketsState(tickets);
+  }, []);
 
   const activeProviderService = useMemo(() => providerRegistry.getProvider(provider), [provider]);
   const contextBuilder = useMemo(() => new LogContextBuilder(), []);
@@ -645,6 +654,8 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
     declineConsent,
     dismissQuotaExceeded,
     setOnboardingCompleted,
+    similarPastTickets,
+    setSimilarPastTickets,
   }), [
     apiKey,
     askQuestion,
@@ -668,8 +679,10 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
     setModel,
     setOnboardingCompleted,
     setProvider,
+    setSimilarPastTickets,
     showConsentModal,
     showQuotaExceededModal,
+    similarPastTickets,
     conversationHistory,
     usageStats,
   ]);

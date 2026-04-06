@@ -1,5 +1,5 @@
 import { useState, useCallback, type ReactNode } from 'react';
-import { Sun, Moon, Settings } from 'lucide-react';
+import { Sun, Moon } from 'lucide-react';
 import { getTheme, toggleTheme } from '../../utils/theme';
 import { Button } from '../ui/Button';
 import { PhaseDots } from './PhaseDots';
@@ -13,7 +13,6 @@ interface PhaseHeaderProps {
   ticketId?: string;
   priorityLabel?: string;
   statusLabel?: string;
-  onSettingsClick?: () => void;
   /** Action buttons rendered between ticket context and phase dots */
   actions?: ReactNode;
 }
@@ -24,7 +23,6 @@ export function PhaseHeader({
   ticketId,
   priorityLabel,
   statusLabel,
-  onSettingsClick,
   actions,
 }: PhaseHeaderProps) {
   const [theme, setThemeState] = useState(getTheme);
@@ -94,17 +92,6 @@ export function PhaseHeader({
             {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
           </Button>
 
-          {onSettingsClick && (
-            <Button
-              variant="icon"
-              size="sm"
-              onClick={onSettingsClick}
-              aria-label="Settings"
-              className="border border-[var(--button-subtle-border)] bg-[var(--button-subtle-surface)] text-[var(--foreground)] hover:bg-[var(--button-subtle-hover)]"
-            >
-              <Settings size={14} />
-            </Button>
-          )}
         </div>
       </div>
     </header>
