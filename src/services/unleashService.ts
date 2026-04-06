@@ -59,14 +59,20 @@ function resolveUrl(settings: AiSettings): string {
 function extractAnswer(data: any): string {
   // Try message.parts array (official schema)
   const parts = data?.message?.parts;
-  if (Array.isArray(parts) && parts.length > 0) {
-    return parts
-      .filter((p: any) => p.type === 'Text' || p.text)
-      .map((p: any) => p.text ?? p.content ?? '')
-      .join('');
+  if (Array.isArray(parts)) {
+    if (parts.length > 0) {
+      return parts
+        .filter((p: any) => p.type === 'Text' || p.text)
+        .map((p: any) => p.text ?? p.content ?? '')
+        .join('');
+    }
+    // Empty parts array — API returned a valid response with no content
+    throw new Error('Unleash AI returned an empty response. Please try again.');
   }
-  // Fallbacks
-  return data?.message?.text ?? data?.answer ?? data?.text ?? JSON.stringify(data);
+  // Fallbacks for alternative response shapes
+  const text = data?.message?.text ?? data?.answer ?? data?.text;
+  if (typeof text === 'string' && text.length > 0) return text;
+  throw new Error('Unleash AI returned an unrecognized response format.');
 }
 
 async function post(settings: AiSettings, messages: ChatMessage[], opts?: { skipAssistant?: boolean }): Promise<string> {

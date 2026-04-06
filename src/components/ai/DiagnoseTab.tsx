@@ -195,9 +195,13 @@ export default function DiagnoseTab({ initialTicketId, onTicketConsumed, pending
       // Search for similar past tickets (non-blocking)
       searchSimilarTicketsAsync(result, t);
 
-      // 4. Generate internal note draft
-      const note = await generateInternalNote(settings, result, ticketText, tz, getNocTimezone());
-      setInternalNote(note);
+      // 4. Generate internal note draft (non-fatal — diagnosis still usable without it)
+      try {
+        const note = await generateInternalNote(settings, result, ticketText, tz, getNocTimezone());
+        setInternalNote(note);
+      } catch {
+        setInternalNote('');
+      }
 
       setPhase(2);
     } catch (e: unknown) {
@@ -252,15 +256,19 @@ export default function DiagnoseTab({ initialTicketId, onTicketConsumed, pending
       // Search for similar past tickets (non-blocking)
       searchSimilarTicketsAsync(result, resolvedTicket);
 
-      // Generate internal note draft
-      const note = await generateInternalNote(
-        settings,
-        result,
-        ticketText,
-        tz,
-        getNocTimezone()
-      );
-      setInternalNote(note);
+      // Generate internal note draft (non-fatal — diagnosis still usable without it)
+      try {
+        const note = await generateInternalNote(
+          settings,
+          result,
+          ticketText,
+          tz,
+          getNocTimezone()
+        );
+        setInternalNote(note);
+      } catch {
+        setInternalNote('');
+      }
 
       setPhase(2);
     } catch (e: unknown) {
