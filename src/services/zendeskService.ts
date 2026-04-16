@@ -20,9 +20,16 @@ function zendeskHeaders(settings: AiSettings): HeadersInit {
   return jsonHeaders(basicAuthHeaderEmailToken(settings.zendeskEmail, settings.zendeskToken));
 }
 
+export interface ZendeskFetchProgress {
+  step: number;
+  total: number;
+  label: string;
+}
+
 export async function fetchZendeskTicket(
   settings: AiSettings,
-  ticketId: string
+  ticketId: string,
+  onProgress?: (p: ZendeskFetchProgress) => void,
 ): Promise<ZendeskTicket> {
   validateSettingsFields(settings, ['zendeskSubdomain', 'zendeskEmail', 'zendeskToken'], 'Zendesk');
 
@@ -31,10 +38,9 @@ export async function fetchZendeskTicket(
 
   const headers = zendeskHeaders(settings);
 
-  const [ticketRes, commentsRes] = await Promise.all([
-    fetch(resolveZendeskUrl(settings, `/api/v2/tickets/${id}.json`), { headers }),
-    fetch(resolveZendeskUrl(settings, `/api/v2/tickets/${id}/comments.json`), { headers }),
-  ]);
+  // Step 1: Fetch ticket
+  onProgress?.({ step: 1, total: 4, label: 'Fetching ticket…' });
+  const ticketRes = await fetch(resolveZendeskUrl(settings, `/api/v2/tickets/${id}.json`), { headers });
 
   if (!ticketRes.ok) {
     const detail = await extractErrorDetail(ticketRes);
@@ -49,30 +55,40 @@ export async function fetchZendeskTicket(
   let requesterName = 'Unknown';
   let requesterEmail = '';
   let requesterTimezone: string | null = null;
-  let orgId: number | null = ticket.organization_id ?? null;
-
-  try {
-    const userRes = await fetch(
-      resolveZendeskUrl(settings, `/api/v2/users/${ticket.requester_id}.json`),
-      { headers }
-    );
-    if (userRes.ok) {
-      const userData = await parseJson<any>(userRes);
-      requesterName = userData.user?.name ?? 'Unknown';
-      requesterEmail = userData.user?.email ?? '';
-      requesterTimezone = userData.user?.time_zone ?? null;
-      if (!orgId) orgId = userData.user?.organization_id ?? null;
-    }
-  } catch { /* non-fatal */ }
-
   let orgName: string | null = null;
   let orgTimezone: string | null = null;
-  if (orgId) {
+
+  // Step 2: User + org in parallel (org uses ticket.organization_id; fallback handled below)
+  onProgress?.({ step: 2, total: 4, label: 'Fetching user & org…' });
+  await Promise.all([
+    fetch(resolveZendeskUrl(settings, `/api/v2/users/${ticket.requester_id}.json`), { headers })
+      .then(async (r) => {
+        if (r.ok) {
+          const d = await parseJson<any>(r);
+          requesterName = d.user?.name ?? 'Unknown';
+          requesterEmail = d.user?.email ?? '';
+          requesterTimezone = d.user?.time_zone ?? null;
+          if (!orgId) orgId = d.user?.organization_id ?? null;
+        }
+      })
+      .catch(() => {}),
+    orgId
+      ? fetch(resolveZendeskUrl(settings, `/api/v2/organizations/${orgId}.json`), { headers })
+          .then(async (r) => {
+            if (r.ok) {
+              const d = await parseJson<any>(r);
+              orgName = d.organization?.name ?? null;
+              orgTimezone = d.organization?.time_zone ?? null;
+            }
+          })
+          .catch(() => {})
+      : Promise.resolve(),
+  ]);
+
+  // Fallback: user resolved a new orgId that ticket didn't have — fetch org now
+  if (orgId && !orgName) {
     try {
-      const orgRes = await fetch(
-        resolveZendeskUrl(settings, `/api/v2/organizations/${orgId}.json`),
-        { headers }
-      );
+      const orgRes = await fetch(resolveZendeskUrl(settings, `/api/v2/organizations/${orgId}.json`), { headers });
       if (orgRes.ok) {
         const orgData = await parseJson<any>(orgRes);
         orgName = orgData.organization?.name ?? null;
@@ -81,6 +97,12 @@ export async function fetchZendeskTicket(
     } catch { /* non-fatal */ }
   }
 
+  // Step 3: Fetch comments
+  onProgress?.({ step: 3, total: 4, label: 'Fetching comments…' });
+  const commentsRes = await fetch(resolveZendeskUrl(settings, `/api/v2/tickets/${id}/comments.json`), { headers });
+
+  // Step 4: Process attachments from comment payloads
+  onProgress?.({ step: 4, total: 4, label: 'Processing attachments…' });
   const comments: string[] = [];
   const attachments: ZendeskAttachment[] = [];
   if (commentsRes.ok) {

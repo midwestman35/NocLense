@@ -87,6 +87,15 @@ body {
   animation: shimmer 1.5s ease-in-out infinite;
 }
 
+/* ── Progress Bar (indeterminate sliding gradient) ── */
+@keyframes progress-slide {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.animate-progress-slide {
+  animation: progress-slide 1.4s linear infinite;
+}
+
 /* ── Log Grid — 3-column: expand | timestamp | content ── */
 .log-grid {
   display: grid;

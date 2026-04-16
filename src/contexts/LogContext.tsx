@@ -176,6 +176,8 @@ interface LogContextType extends LogState {
 
     // IndexedDB support (for large files)
     useIndexedDBMode: boolean;
+    /** True while a page-in fetch from IndexedDB is in flight (distinct from file-parse loading). */
+    indexedDBLoading: boolean;
     totalLogCount: number;
     loadLogsFromIndexedDB: (filters?: {
         component?: string;
@@ -1417,6 +1419,7 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         refreshServerLogs,
         // IndexedDB support (for large files)
         useIndexedDBMode,
+        indexedDBLoading,
         totalLogCount,
         loadLogsFromIndexedDB,
         clearAllData,

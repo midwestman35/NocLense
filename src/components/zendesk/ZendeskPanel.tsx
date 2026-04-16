@@ -5,9 +5,11 @@ import {
   fetchZendeskTicket,
   formatTicketForAi,
   type ZendeskTicket,
+  type ZendeskFetchProgress,
 } from '../../services/zendeskService';
 import { analyzeTicket } from '../../services/unleashService';
 import { useLogContext } from '../../contexts/LogContext';
+import { ProgressBar } from '../ui/ProgressBar';
 
 const STATUS_COLORS: Record<string, string> = {
   open: 'var(--destructive)',
@@ -23,6 +25,7 @@ export function ZendeskPanel() {
 
   const [query, setQuery] = useState('');
   const [fetching, setFetching] = useState(false);
+  const [fetchProgress, setFetchProgress] = useState<ZendeskFetchProgress | null>(null);
   const [ticket, setTicket] = useState<ZendeskTicket | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
@@ -38,17 +41,19 @@ export function ZendeskPanel() {
     const q = query.trim();
     if (!q) return;
     setFetching(true);
+    setFetchProgress(null);
     setFetchError(null);
     setTicket(null);
     setAnalysis(null);
     setAnalysisError(null);
     try {
-      const result = await fetchZendeskTicket(settings, q);
+      const result = await fetchZendeskTicket(settings, q, setFetchProgress);
       setTicket(result);
     } catch (e: unknown) {
       setFetchError(e instanceof Error ? e.message : String(e));
     } finally {
       setFetching(false);
+      setFetchProgress(null);
     }
   }, [query, settings]);
 
@@ -98,7 +103,7 @@ export function ZendeskPanel() {
               transition: 'all 0.15s',
             }}
           >
-            {fetching ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Search size={14} />}
+            {fetching ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
           </button>
         </div>
 
@@ -114,6 +119,16 @@ export function ZendeskPanel() {
           </div>
         )}
       </div>
+
+      {/* Fetch progress */}
+      {fetching && fetchProgress && (
+        <div style={{ padding: '10px 10px 0' }}>
+          <ProgressBar
+            value={fetchProgress.step / fetchProgress.total}
+            label={fetchProgress.label}
+          />
+        </div>
+      )}
 
       {/* Ticket card */}
       {ticket && (
@@ -197,7 +212,7 @@ export function ZendeskPanel() {
             }}
           >
             {analyzing
-              ? <><Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> Analyzing... (15–30 sec)</>
+              ? <><Loader2 size={13} className="animate-spin" /> Analyzing... (15–30 sec)</>
               : <><Sparkles size={13} /> Analyze Against Loaded Logs</>
             }
           </button>
@@ -234,7 +249,6 @@ export function ZendeskPanel() {
         </div>
       )}
 
-      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
