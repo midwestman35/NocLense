@@ -30,7 +30,7 @@ import { AIOnboardingWizard } from '../onboarding/AIOnboardingWizard';
 import ExportModal from '../export/ExportModal';
 
 import { CaseStateBridge } from '../case/CaseStateBridge';
-import { Sparkles, FileText, Bookmark, Clock, Search, Database, AlertTriangle, FolderPlus, Download, Trash2, ExternalLink } from 'lucide-react';
+import { Sparkles, FileText, Bookmark, Clock, Search, Database, AlertTriangle, FolderPlus, Download, Trash2, ExternalLink, Loader2 } from 'lucide-react';
 import type { InvestigationSetup } from '../../types/investigation';
 import type { ZendeskTicket } from '../../services/zendeskService';
 import { loadAiSettings } from '../../store/aiSettings';
@@ -48,6 +48,9 @@ function formatTicketLabel(value: string | null | undefined): string | undefined
 export function NewWorkspaceLayout() {
   const {
     logs,
+    loading,
+    parsingProgress,
+    indexedDBLoading,
     selectedLogId,
     filteredLogs,
     setSelectedLogId,
@@ -133,7 +136,16 @@ export function NewWorkspaceLayout() {
         title="Log Stream"
         icon={<FileText size={14} />}
         accentColor="#76ce40"
-        meta={<span>{filteredLogs.length.toLocaleString()} events</span>}
+        badge={
+          (loading || indexedDBLoading)
+            ? <Loader2 size={11} className="animate-spin text-[var(--muted-foreground)]" />
+            : undefined
+        }
+        meta={
+          parsingProgress > 0 && parsingProgress < 1
+            ? <span>{Math.round(parsingProgress * 100)}%</span>
+            : <span>{filteredLogs.length.toLocaleString()} events</span>
+        }
         className={CARD_GRID_CLASSES['log-stream']}
       >
         <div className="flex flex-col h-full min-h-0 overflow-hidden">
@@ -293,7 +305,8 @@ export function NewWorkspaceLayout() {
         </div>
       </WorkspaceCard>
     </>
-  ), [filteredLogs.length, selectedLog, selectedLogId, fileError, activeCorrelations, filterText,
+  ), [filteredLogs.length, loading, parsingProgress, indexedDBLoading,
+      selectedLog, selectedLogId, fileError, activeCorrelations, filterText,
       pendingSetup, similarPastTickets, setSelectedLogId, setJumpState, setActiveCorrelations,
       setFilterText, setScrollTargetTimestamp]);
 

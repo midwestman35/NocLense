@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { AlertTriangle, FileUp, Files, PencilLine, Stethoscope } from 'lucide-react';
-import { Button, useToast } from '../ui';
+import { Button, ProgressBar, useToast } from '../ui';
 import { useLogContext } from '../../contexts/LogContext';
 import { useCase } from '../../store/caseContext';
 import { dbManager } from '../../utils/indexedDB';
@@ -286,14 +286,8 @@ export function WorkspaceImportPanel({ onComplete, onInvestigationReady }: Works
       )}
 
       {parsingProgress > 0 && parsingProgress < 1 && (
-        <div className="space-y-2 rounded border border-[var(--border)] bg-[var(--card)] px-3 py-2">
-          <div className="flex items-center justify-between text-xs text-[var(--muted-foreground)]">
-            <span>Importing workspace data...</span>
-            <span>{Math.round(parsingProgress * 100)}%</span>
-          </div>
-          <div className="h-2 overflow-hidden rounded-full bg-[var(--border)]">
-            <div className="h-full bg-[var(--foreground)] transition-all duration-300" style={{ width: `${parsingProgress * 100}%` }} />
-          </div>
+        <div className="rounded border border-[var(--border)] bg-[var(--card)] px-3 py-2">
+          <ProgressBar value={parsingProgress} label="Parsing logs" size="md" />
         </div>
       )}
 
