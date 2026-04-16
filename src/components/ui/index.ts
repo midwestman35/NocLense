@@ -1,5 +1,6 @@
 // Primitives
 export { Button } from './Button';
+export { ProgressBar } from './ProgressBar';
 export type { ButtonVariant, ButtonSize } from './Button';
 export { ToggleChip } from './ToggleChip';
 export { Card, CardHeader, CardContent } from './Card';
