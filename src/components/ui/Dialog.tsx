@@ -32,7 +32,7 @@ export function Dialog({ open, onClose, title, children, footer }: DialogProps) 
             exit={{ opacity: 0, y: 8 }}
             transition={{ duration: 0.15, ease: [0, 0, 0.2, 1] }}
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-[500px] max-h-[80vh] flex flex-col rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--card)] text-[var(--card-foreground)] shadow-[var(--shadow-md)]"
+            className="w-full max-w-[500px] max-h-[80vh] flex flex-col rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--card)] text-[var(--card-foreground)] shadow-[var(--shadow-raised)]"
           >
             <div className="flex items-center justify-between px-[var(--space-5)] py-[var(--space-4)] border-b border-[var(--border)]">
               <h2 className="text-[var(--text-lg)] font-[var(--font-weight-semibold)]">

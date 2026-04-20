@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "./styles/tokens.css";
+@import "./styles/loading.css";
 
 /* ── Base Reset ── */
 *,
@@ -18,6 +19,16 @@ body {
   line-height: 1.5;
   margin: 0;
 }
+
+/* ── Universal text-wrap sweep (Phase 01a) ──────────────────────────────
+   balance: headings wrap symmetrically (no trailing orphan word).
+   pretty: body text avoids orphans on the last line.
+   tabular-nums: monospaced-digit alignment for counters, timestamps,
+   byte counts, durations, percentages, log counts, ETAs.              */
+h1, h2, h3, h4, h5, h6 { text-wrap: balance; }
+p { text-wrap: pretty; }
+code, pre, kbd, samp { font-variant-numeric: tabular-nums; }
+.tabular-nums { font-variant-numeric: tabular-nums; }
 
 /* ── Scrollbar (thin, monochrome) ── */
 ::-webkit-scrollbar {

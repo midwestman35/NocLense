@@ -43,7 +43,7 @@ const LogHeader = () => {
           {isFilterOpen && (
             <>
               <div className="fixed inset-0 z-20" onClick={() => setIsFilterOpen(false)} />
-              <div className="absolute top-full left-0 mt-1 w-48 bg-[var(--card)] border border-[var(--border)] z-30 p-1.5 shadow-[var(--shadow-md)]">
+              <div className="absolute top-full left-0 mt-1 w-48 bg-[var(--card)] border border-[var(--border)] z-30 p-1.5 shadow-[var(--shadow-raised)]">
                 <label className="flex items-center gap-2 text-[11px] text-[var(--foreground)] mb-1.5 pb-1.5 border-b border-[var(--border)] cursor-pointer px-1.5">
                   <input type="checkbox" checked={showAllServices} onChange={() => setShowAllServices(!showAllServices)} />
                   Show All

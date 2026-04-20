@@ -30,7 +30,7 @@ const SearchHistoryDropdown = ({
     };
 
     return (
-        <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-md)] shadow-[var(--shadow-lg)] z-50 max-h-[300px] overflow-y-auto">
+        <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-md)] shadow-[var(--shadow-floating)] z-50 max-h-[300px] overflow-y-auto">
             {history.length === 0 ? (
                 <div className="px-4 py-3 text-sm text-[var(--muted-foreground)] text-center">
                     No search history

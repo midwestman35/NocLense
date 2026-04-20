@@ -49,9 +49,25 @@
   --button-subtle-border: rgba(81, 145, 43, 0.14);
   --button-subtle-hover: rgba(81, 145, 43, 0.12);
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+  /* Shadow scale (Phase 01a): semantic elevation, not t-shirt sizes.
+     flat = no shadow (relies on --card-border for edge)
+     raised = default card/popover/tooltip elevation (layered)
+     floating = modal / hover-lift (deeper, multi-layer)
+     glow-live = green multi-layer, paired with state machine §3.3
+     glow-error = red multi-layer, paired with `alert` tier          */
+  --shadow-flat: none;
+  --shadow-raised:
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 2px 8px rgba(0, 0, 0, 0.04);
+  --shadow-floating:
+    0 4px 12px rgba(0, 0, 0, 0.1),
+    0 12px 24px rgba(0, 0, 0, 0.06);
+  --shadow-glow-live:
+    0 0 10px rgba(81, 145, 43, 0.25),
+    0 0 20px rgba(81, 145, 43, 0.12);
+  --shadow-glow-error:
+    0 0 12px rgba(220, 38, 38, 0.2),
+    0 0 24px rgba(220, 38, 38, 0.1);
 }
 
 /* Dark */
@@ -84,9 +100,20 @@
   --button-subtle-border: rgba(140, 243, 77, 0.12);
   --button-subtle-hover: rgba(81, 145, 43, 0.2);
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.22);
-  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.28);
-  --shadow-lg: none;
+  /* Shadow scale (dark): deeper layering, green glow keyed to palette 200. */
+  --shadow-flat: none;
+  --shadow-raised:
+    0 1px 2px rgba(0, 0, 0, 0.22),
+    0 2px 8px rgba(0, 0, 0, 0.18);
+  --shadow-floating:
+    0 4px 12px rgba(0, 0, 0, 0.32),
+    0 12px 28px rgba(0, 0, 0, 0.24);
+  --shadow-glow-live:
+    0 0 10px rgba(118, 206, 64, 0.35),
+    0 0 20px rgba(118, 206, 64, 0.15);
+  --shadow-glow-error:
+    0 0 12px rgba(239, 68, 68, 0.35),
+    0 0 24px rgba(239, 68, 68, 0.15);
 }
 
 :root {
@@ -126,6 +153,36 @@
   --ease-default: cubic-bezier(0.25, 0.1, 0.25, 1);
   --ease-out: cubic-bezier(0, 0, 0.2, 1);
   --ease-in: cubic-bezier(0.4, 0, 1, 1);
+
+  /* Phase 01a additions — motion tokens for the polish pass (design §3.6).
+     Ownership per §4.1: CSS owns state/spinners/reveals; Motion owns
+     mount/unmount; anime.js owns list stagger + timelines.            */
+  --duration-interrupt: 120ms;
+  --duration-scale-press: 150ms;
+  --duration-stagger-step: 40ms;
+  --duration-exit: 160ms;
+  --duration-spinner-step: 100ms;
+  --ease-tui-step-8: steps(8, end);
+  --ease-tui-step-10: steps(10, end);
+  --ease-enter-out: cubic-bezier(0.2, 0, 0, 1);
+  --ease-exit-in: cubic-bezier(0.4, 0, 1, 1);
+}
+
+/* Phase 01a — Glow tier tokens. Values composed from palette primitives.
+   State-machine arbitration per design spec §3.3 (one live per room).   */
+:root {
+  --glow-idle: transparent;
+  --glow-ready-color: rgba(118, 206, 64, 0.18);
+  --glow-live-color: rgba(118, 206, 64, 0.35);
+  --glow-alert-color: rgba(239, 68, 68, 0.35);
+  --glow-ready: 0 0 4px var(--glow-ready-color);
+  --glow-live: 0 0 10px var(--glow-live-color);
+  --glow-alert: 0 0 12px var(--glow-alert-color);
+}
+[data-theme="light"] {
+  --glow-ready-color: rgba(81, 145, 43, 0.2);
+  --glow-live-color: rgba(81, 145, 43, 0.3);
+  --glow-alert-color: rgba(220, 38, 38, 0.25);
 }
 
 :root {

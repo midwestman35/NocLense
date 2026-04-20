@@ -22,7 +22,7 @@ export function TimelineTooltip({ bucket, x, y }: TimelineTooltipProps) {
 
   return (
     <div
-      className="absolute z-50 pointer-events-none px-3 py-2 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--card)] text-[var(--card-foreground)] shadow-[var(--shadow-md)] text-[10px] leading-relaxed whitespace-nowrap"
+      className="absolute z-50 pointer-events-none px-3 py-2 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--card)] text-[var(--card-foreground)] shadow-[var(--shadow-raised)] text-[10px] leading-relaxed whitespace-nowrap"
       style={{ left: x, top: y - 8, transform: 'translate(-50%, -100%)' }}
     >
       <div className="font-semibold text-[11px] mb-1 font-mono">{time}</div>

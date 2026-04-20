@@ -278,7 +278,7 @@ const ChangelogDropdown = () => {
           <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
 
           <div
-            className="fixed z-50 flex max-h-[min(42rem,calc(100vh-5rem))] flex-col overflow-hidden rounded-[14px] border border-[var(--button-subtle-border)] shadow-[var(--shadow-md)] backdrop-blur-md"
+            className="fixed z-50 flex max-h-[min(42rem,calc(100vh-5rem))] flex-col overflow-hidden rounded-[14px] border border-[var(--button-subtle-border)] shadow-[var(--shadow-raised)] backdrop-blur-md"
             style={{
               top: menuPos.top,
               left: menuPos.left,

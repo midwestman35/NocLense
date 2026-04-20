@@ -58,7 +58,7 @@ export function Tooltip({ content, children, delay = 200, className, side = 'top
               clsx(
                 'pointer-events-none absolute z-[var(--z-toast)] border border-[var(--border)]',
                 'rounded-[var(--radius-sm)] bg-[var(--card)] text-[var(--foreground)]',
-                'px-2.5 py-1 text-[var(--text-xs)] whitespace-nowrap shadow-[var(--shadow-sm)]',
+                'px-2.5 py-1 text-[var(--text-xs)] whitespace-nowrap shadow-[var(--shadow-raised)]',
                 POSITION_CLASSES[side],
                 className
               )

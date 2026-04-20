@@ -1,0 +1,185 @@
+/*
+ * loading.css — Phase 01a loading vocabulary
+ *
+ * CSS-only TUI spinner glyph family (§3.5) + cute-label animation
+ * (§3.7) + glow-live pulse (§3.3). Zero JS per-frame work for glyphs
+ * and pulses — React only drives phrase changes via key-based remount.
+ *
+ * All animations honor prefers-reduced-motion.
+ */
+
+/* ── TUI spinner keyframes ──────────────────────────────────────────────
+   Content strings cycle at each keyframe boundary. Strings can't
+   interpolate in CSS, so linear timing produces a clean step effect
+   without needing explicit steps() easing on the animation itself.   */
+
+@keyframes tui-braille-cycle {
+  0%    { content: "⣾"; }
+  12.5% { content: "⣷"; }
+  25%   { content: "⣯"; }
+  37.5% { content: "⣟"; }
+  50%   { content: "⡿"; }
+  62.5% { content: "⢿"; }
+  75%   { content: "⣻"; }
+  87.5% { content: "⣽"; }
+  100%  { content: "⣾"; }
+}
+
+@keyframes tui-block-cycle {
+  0%    { content: "▏"; }
+  12.5% { content: "▎"; }
+  25%   { content: "▍"; }
+  37.5% { content: "▌"; }
+  50%   { content: "▋"; }
+  62.5% { content: "▊"; }
+  75%   { content: "▉"; }
+  87.5% { content: "█"; }
+  100%  { content: "▏"; }
+}
+
+@keyframes tui-dots-cycle {
+  0%   { content: "⠋"; }
+  10%  { content: "⠙"; }
+  20%  { content: "⠹"; }
+  30%  { content: "⠸"; }
+  40%  { content: "⠼"; }
+  50%  { content: "⠴"; }
+  60%  { content: "⠦"; }
+  70%  { content: "⠧"; }
+  80%  { content: "⠇"; }
+  90%  { content: "⠏"; }
+  100% { content: "⠋"; }
+}
+
+/* ── TUI spinner component classes ───────────────────────────────────── */
+
+.tui-spinner {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-feature-settings: "liga" 0;
+  line-height: 1;
+  vertical-align: middle;
+  color: currentColor;
+}
+
+.tui-spinner::before {
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  display: inline-block;
+}
+
+.tui-spinner--braille::before {
+  content: "⣾";
+  animation-name: tui-braille-cycle;
+  animation-duration: calc(var(--duration-spinner-step) * 8);
+}
+
+.tui-spinner--block::before {
+  content: "▏";
+  animation-name: tui-block-cycle;
+  animation-duration: calc(var(--duration-spinner-step) * 8);
+}
+
+.tui-spinner--dots::before {
+  content: "⠋";
+  animation-name: tui-dots-cycle;
+  animation-duration: calc(var(--duration-spinner-step) * 10);
+}
+
+/* ── TUI determinate progress bar ────────────────────────────────────── */
+
+.tui-progress {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1;
+  font-feature-settings: "liga" 0;
+}
+
+.tui-progress__bracket {
+  opacity: 0.5;
+}
+
+.tui-progress__track {
+  display: inline-block;
+  letter-spacing: 0;
+}
+
+.tui-progress__fill {
+  color: var(--green-house-200);
+}
+
+.tui-progress__empty {
+  color: var(--muted-foreground);
+  opacity: 0.4;
+}
+
+/* ── Cute label character-level animation ────────────────────────────── */
+
+.cute-label {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.5px;
+  color: currentColor;
+  /* ensures characters participate in tight inline layout */
+  white-space: pre;
+}
+
+.cute-label__char {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(3px);
+  animation:
+    cute-label-reveal 180ms var(--ease-enter-out) calc(var(--cute-i, 0) * 25ms) forwards,
+    cute-label-breathe 1.8s ease-in-out calc(var(--cute-i, 0) * 60ms + 400ms) infinite;
+}
+
+@keyframes cute-label-reveal {
+  from { opacity: 0; transform: translateY(3px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes cute-label-breathe {
+  0%, 100% { opacity: 0.85; }
+  50%      { opacity: 1; }
+}
+
+/* ── Glow-live container pulse (Phase 01a) ───────────────────────────── */
+/* Applied to a card wrapper when arbitration (spec §3.3) awards the
+   live tier to that surface. Kept here with the loading keyframes
+   because its timing is aligned with the spinner cadence.            */
+
+@keyframes glow-live-pulse {
+  0%, 100% { box-shadow: 0 0 6px var(--glow-live-color); }
+  50%      { box-shadow: 0 0 14px var(--glow-live-color); }
+}
+
+.glow-live {
+  animation: glow-live-pulse 1.8s ease-in-out infinite;
+}
+
+/* ── Reduced motion fallbacks ────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .tui-spinner::before {
+    animation: none;
+  }
+  .tui-spinner--braille::before { content: "·"; }
+  .tui-spinner--block::before { content: "█"; }
+  .tui-spinner--dots::before { content: "…"; }
+
+  .cute-label__char {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+
+  .glow-live {
+    animation: none;
+    /* still paint the glow statically */
+    box-shadow: 0 0 8px var(--glow-live-color);
+  }
+}

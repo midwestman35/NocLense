@@ -62,7 +62,7 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
 
     return (
       <div className="h-screen w-screen bg-[var(--background)] text-[var(--foreground)] flex items-center justify-center p-6">
-        <div className="max-w-xl w-full rounded-xl border border-[var(--destructive)]/40 bg-[var(--destructive)]/10 p-6 shadow-[var(--shadow-lg)]">
+        <div className="max-w-xl w-full rounded-xl border border-[var(--destructive)]/40 bg-[var(--destructive)]/10 p-6 shadow-[var(--shadow-floating)]">
           <div className="flex items-center gap-3 mb-3">
             <AlertTriangle className="text-[var(--destructive)]" size={22} />
             <h1 className="text-lg font-semibold">Application Error</h1>

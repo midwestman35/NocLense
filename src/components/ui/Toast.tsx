@@ -53,7 +53,7 @@ function ToastItem({ item, onDismiss }: { item: ToastItem; onDismiss: (id: strin
     <div
       ref={ref}
       className={clsx(
-        'flex items-start gap-2.5 px-3.5 py-3 rounded-[var(--radius-lg)] border shadow-[var(--shadow-md)]',
+        'flex items-start gap-2.5 px-3.5 py-3 rounded-[var(--radius-lg)] border shadow-[var(--shadow-raised)]',
         'bg-[var(--card)] text-[var(--card-foreground)] text-xs leading-relaxed',
         'animate-toast-in',
         VARIANT_STYLES[item.variant]

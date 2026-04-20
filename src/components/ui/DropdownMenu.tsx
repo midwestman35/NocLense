@@ -38,7 +38,7 @@ export function DropdownMenu({ trigger, children, align = 'left', className }: D
             className={twMerge(
               clsx(
                 'absolute top-full mt-1 z-[var(--z-dropdown)] min-w-[180px] overflow-hidden rounded-[var(--radius-lg)] border border-[var(--button-subtle-border)]',
-                'text-[var(--popover-foreground)] shadow-[var(--shadow-md)] backdrop-blur-md',
+                'text-[var(--popover-foreground)] shadow-[var(--shadow-raised)] backdrop-blur-md',
                 'py-1',
                 align === 'right' ? 'right-0' : 'left-0',
                 className

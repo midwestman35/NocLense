@@ -12,7 +12,7 @@ const cardVariants: Record<CardVariant, string> = {
   default:
     'rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--card)] text-[var(--card-foreground)]',
   elevated:
-    'rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--card)] text-[var(--card-foreground)] shadow-[var(--shadow-md)]',
+    'rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--card)] text-[var(--card-foreground)] shadow-[var(--shadow-raised)]',
 };
 
 export function Card({ variant = 'default', className, ...props }: CardProps) {
