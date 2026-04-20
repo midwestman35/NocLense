@@ -16,7 +16,7 @@
 | `Ctrl+W` | Electron | Close window |
 | `Ctrl+R` | Electron | Reload |
 | `Ctrl+Shift+R` | Electron | Hard reload |
-| `Ctrl+T` | browser | New tab (N/A in Electron main window, but reserved for future secondary windows) |
+| `Ctrl+T` | browser | New tab (reserved for future secondary windows) |
 | `Ctrl+Tab` | OS / Electron | Window/tab switch |
 | `Alt+F4` | OS | Close app |
 | `Ctrl+N` | Electron | New window |
@@ -27,44 +27,59 @@
 
 ## 2. Approved shortcuts for polish pass
 
-| Combo | Surface | Phase | Action |
-|---|---|---|---|
-| `Ctrl+Shift+P` | AI card | 01b | Pin focused block to Evidence *(was Ctrl+P — moved to avoid print)* |
-| `Esc` | AI card | 01b | Abort in-flight request / cancel typewriter reveal |
-| `Alt+↑` / `Alt+↓` | AI card | 01b | Navigate phase / investigation history |
-| `Ctrl+Enter` | AI chat input | 01b | Send (multi-line compatible) |
-| `Ctrl+G` | Log Stream | 02 | Go to entry by line number (dialog) |
-| `Ctrl+[` / `Ctrl+]` | Log Stream | 02 | Cycle through active citation matches |
-| `Ctrl+Shift+E` | Evidence | 01c | Export Evidence as `.noclense` |
-| `Ctrl+Shift+N` | Any | 01c | Add engineer note to active block |
-| `Shift+↑` / `Shift+↓` | Log Stream | 02 | Adjust split pane by 80px *(future — Phase 04)* |
-| `Tab` / `Shift+Tab` | Any | global | Focus navigation (browser default preserved) |
+Each row includes **focus preconditions** — when the app is expected to intercept the combo and when it must fall through to the default handler.
 
-## 3. Rejected / deferred
+| Combo | Surface | Phase | Action | Focus precondition |
+|---|---|---|---|---|
+| `Ctrl+Shift+P` | AI Diagnose card | 01b | Pin currently-focused block to Evidence | Focus inside `[data-surface="ai-diagnose"]` AND not inside a text input / textarea / contenteditable |
+| `Esc` | AI Diagnose card | 01b | Abort in-flight request or cancel typewriter reveal | Focus inside `[data-surface="ai-diagnose"]`; falls through to native Esc in modals/dialogs |
+| `Alt+↑` / `Alt+↓` | AI Diagnose card | 01b | Navigate phase / investigation history | Focus inside `[data-surface="ai-diagnose"]`; suppressed inside text inputs |
+| `Ctrl+Enter` | AI chat input | 01b | Send (multi-line compatible) | Only when focus is in the AI chat textarea |
+| `Ctrl+G` | Log Stream | 02 | Go to entry by line number (opens dialog) | Focus inside `[data-surface="log-stream"]`; suppressed inside text inputs |
+| `Ctrl+[` / `Ctrl+]` | Log Stream | 02 | Cycle through active citation matches | Focus inside `[data-surface="log-stream"]`; suppressed inside text inputs |
+| `Ctrl+Shift+E` | Evidence | 01c | Export Evidence as `.noclense` | Focus inside `[data-surface="evidence"]` or when evidence has non-empty contents and an active case exists |
+| `Ctrl+Shift+N` | Any surface | 01c | Add engineer note to active block | Any focus; opens in a dedicated input so doesn't conflict |
+| `Tab` / `Shift+Tab` | Any | global | Focus navigation (browser default preserved) | Always |
+
+**Ctrl+Shift+P scope decision (resolved):** AI-card-focused in **01b**, promoted to global pin (any focused canonical block across surfaces) in **01c** once Evidence integration lands. Between 01b and 01c, pressing Ctrl+Shift+P outside the AI card is a no-op.
+
+## 3. Input suppression matrix
+
+All approved app shortcuts MUST fall through to default when focus is in:
+
+| Context | Shortcuts to suppress |
+|---|---|
+| `<input>` (any type) | All app shortcuts except `Ctrl+Enter` (in AI chat textarea — explicit opt-in) |
+| `<textarea>` | Same as `<input>` |
+| `contenteditable="true"` | All app shortcuts |
+| Native `<dialog>` open | Only `Esc` remains native; all other app shortcuts suppressed |
+| Menu bar / context menu open (Electron) | All app shortcuts suppressed; menu handles keyboard directly |
+
+Implementation pattern (Phase 01b): central keyboard handler checks `document.activeElement` against the suppression matrix before dispatching the app handler.
+
+## 4. Rejected / deferred
 
 | Combo | Reason |
 |---|---|
 | `Ctrl+K` | Command palette deferred per spec §7. Global key reserved until palette lands post-polish. |
 | `Ctrl+P` (pin) | Conflicts with OS print. Moved to `Ctrl+Shift+P`. |
-| `Ctrl+/` | Common "focus search" but collides with browser's View Source in some builds. Defer. |
-| `/` prefix (vim-style command) | UX concern: interferes with text typing in inputs. Defer with command palette. |
-| Single-letter shortcuts (no modifier) | Never — collides with log filter input. |
+| `Ctrl+/` | Conflicts with browser View Source in some builds. Defer. |
+| `/` prefix (vim-style command) | Interferes with text typing. Defer with command palette. |
+| Single-letter shortcuts without modifier | Never — collides with log filter input. |
+| `Shift+↑` / `Shift+↓` split-pane resize | **Removed.** Resizable surfaces are deferred to Phase 6+ roadmap (spec §5.5). Reserve for future if the feature returns. |
 
-## 4. Platform-specific notes
+## 5. Platform-specific notes
 
-- **macOS:** `Cmd` replaces `Ctrl` for all approved shortcuts above. Electron's `CommandOrControl` accelerator is the correct binding syntax.
-- **Linux Electron:** follows Ctrl-key conventions. No special handling.
+- **macOS:** `Cmd` replaces `Ctrl` for all approved shortcuts. Electron's `CommandOrControl` accelerator is the correct binding syntax.
+- **Linux Electron:** follows Ctrl-key conventions.
 - **Reduced motion:** no shortcut changes under `prefers-reduced-motion`. Typewriter-reveal cancels remain instant regardless.
-
-## 5. Unresolved — Phase 01b must decide
-
-- Whether `Ctrl+Shift+P` pin action is global (any focused block in any surface) or AI-card-only. Recommend AI-card-only for Phase 01b; promote to global in Phase 01c once Evidence integration is proven.
-- Whether `Esc` should also close the AI card when no operation is in flight. Recommend NO — `Esc` is cancel-only; closing cards requires an explicit control.
 
 ## 6. Validation
 
-Phase 01b smoke test: on Windows Electron build, verify:
+Phase 01b smoke test on Windows Electron build, verify:
 1. `Ctrl+P` still opens system print dialog (not intercepted).
-2. `Ctrl+Shift+P` pins when AI card focused.
+2. `Ctrl+Shift+P` pins when AI card is focused; is a no-op elsewhere.
 3. `Esc` cancels typewriter reveal without closing the card.
-4. `Alt+↑` does not collide with browser "navigate back" (it shouldn't in Electron main window).
+4. `Alt+↑` does not collide with browser "navigate back" in the Electron main window.
+5. Typing `Ctrl+Enter` inside the chat textarea sends; typing the same combo anywhere else is a no-op.
+6. All approved shortcuts fall through when focus is in any `<input>` or `<textarea>`.

@@ -10,71 +10,137 @@
 
 Prevent two token systems running in parallel during Phase 01a. Every new token has a documented relationship to what it replaces, and every deprecated token has a phase by which it must be gone.
 
-## 2. Shadow scale
+## 2. Actual stylesheet topology
 
-| Current (in `src/styles/theme.css` or inline) | Replacement | Deprecation phase |
-|---|---|---|
-| `--shadow-sm` | `--shadow-flat` (1px border only) | 01a |
-| `--shadow-md` | `--shadow-raised` (1px + 2px layered) | 01a |
-| `--shadow-lg` | `--shadow-floating` (4px + 12px) | 01a |
-| *(new)* | `--shadow-glow-live` (green multi-layer) | 01a |
-| *(new)* | `--shadow-glow-error` (red multi-layer) | 01a |
+| File | Role |
+|---|---|
+| `src/index.css` | Global entry. Imports `tailwindcss` then `./styles/tokens.css`. Owns global keyframes (`phase-dot-pulse`, `evidence-add`, `room-fade-in`, etc.), scrollbar styling, and body reset. |
+| `src/styles/tokens.css` | All CSS custom properties. Primitives (`--green-house-*`), semantic colors (`--background`, `--foreground`), structural tokens (`--card-radius`), state tokens (`--phase-dot-active`). Light + dark + red theme blocks. |
 
-Codemod: `rg -l '\-\-shadow-(sm|md|lg)' src/` → sweep replacements in Phase 01a PR.
+**Ownership rule for Phase 01a:**
+- All NEW tokens added in Phase 01a land in `src/styles/tokens.css`.
+- Global keyframes (new spinners, glow pulses, label reveals) land in `src/index.css` next to the existing `phase-dot-pulse` family.
+- No new `state-tokens.css` file. No separation of primitives vs. state into separate files (the Phase 00 first cut proposed this; reconsidered because it adds import order risk without a real benefit given the current file count).
 
-## 3. Accent / glow tokens
+## 3. Current live token inventory (from `src/styles/tokens.css`)
+
+The token map below enumerates every token the UI polish redesign touches. Tokens not listed here are kept unchanged.
+
+### 3.1 Shadow scale
 
 | Current | Replacement | Deprecation phase |
 |---|---|---|
-| Hardcoded accent-dot colors in `WorkspaceCard.tsx` variants | `--glow-idle` / `--glow-ready` / `--glow-live` / `--glow-alert` | 01a |
-| Per-component `::after` pulse keyframes | Single `@keyframes pulse-live` in `tokens.css` | 01a |
+| `--shadow-sm` (tokens.css:52) | `--shadow-flat` (1px border only) | 01a |
+| `--shadow-md` (tokens.css:53) | `--shadow-raised` (1px + 2px layered) | 01a |
+| `--shadow-lg` (tokens.css:54) | `--shadow-floating` (4px + 12px) | 01a |
+| *(new)* | `--shadow-glow-live` (green multi-layer) | 01a |
+| *(new)* | `--shadow-glow-error` (red multi-layer) | 01a |
 
-## 4. Motion tokens
+Codemod: `rg -l '\-\-shadow-(sm|md|lg)' src/` → sweep in the Phase 01a PR.
 
-| Current | Status | Notes |
+### 3.2 Card / room structural tokens (kept, not migrated)
+
+| Token (tokens.css line) | Disposition |
+|---|---|
+| `--card-radius: 12px` (172) | Kept. Audit during Phase 01a to ensure concentric outer = inner + padding is honored. |
+| `--card-border` (173), `--card-border-hover` (174) | Kept. Layered on top of new glow tokens; not replaced. |
+| `--card-header-height: 40px` (175), `--card-collapsed-height: 36px` (176) | Kept. |
+| `--card-expand-duration: 350ms` (177) | Kept. |
+| `--room-transition-duration: 600ms` (169), `--room-transition-ease` (170) | Kept; referenced by `evidence-add` keyframe. |
+
+### 3.3 Phase dot tokens and keyframe
+
+| Current | Disposition |
+|---|---|
+| `--phase-dot-size: 8px` (tokens.css:183) | Kept. |
+| `--phase-dot-inactive` / `-complete` / `-active` (184–186) | Kept. |
+| `--phase-dot-glow: 0 0 8px rgba(118,206,64,0.4)` (187) | Kept. Referenced by `.animate-phase-pulse`. |
+| `@keyframes phase-dot-pulse` (index.css:39–42) | Kept. |
+| `.animate-phase-pulse` utility (index.css:43–45) | Kept. |
+
+### 3.4 Existing keyframes (index.css)
+
+| Keyframe (index.css line) | Disposition |
+|---|---|
+| `phase-dot-pulse` (39) | Kept. Pattern for new `glow-live` pulse. |
+| `evidence-add` (48) | Kept. Pattern for new Evidence pin-in animation. |
+| `room-fade-in` (58) | Kept. Used by room transitions. |
+
+New keyframes added in Phase 01a (braille-step, block-step, dots-step, progress-fill, typewriter-reveal, breathing-wave) land next to these.
+
+### 3.5 Motion tokens (additions, no replacements)
+
+| Existing in tokens.css | Disposition |
+|---|---|
+| `--duration-fast / --duration-normal / --duration-slow / --duration-enter` | Kept, consumed by existing components. |
+| `--ease-default / --ease-out / --ease-in` | Kept. |
+
+| New (Phase 01a adds) | Runtime consumer |
+|---|---|
+| `--duration-interrupt: 120ms` | CSS — hover/focus/active transitions |
+| `--duration-scale-press: 150ms` | CSS — button press (`active:scale-[0.96]`) |
+| `--duration-stagger-step: 40ms` | CSS + anime.js — enter stagger across lists |
+| `--duration-exit: 160ms` | CSS + Motion — AnimatePresence exit |
+| `--duration-spinner-step: 100ms` | CSS `content` cycle (TUI glyphs) |
+| `--ease-tui-step-8: steps(8, end)` | CSS — 8-frame glyphs (braille, block) |
+| `--ease-tui-step-10: steps(10, end)` | CSS — 10-frame glyph (dots) |
+| `--ease-enter-out: cubic-bezier(0.2,0,0,1)` | CSS + Motion — enter curves |
+| `--ease-exit-in: cubic-bezier(0.4,0,1,1)` | CSS + Motion — exit curves |
+
+**Runtime ownership** per the motion-library ownership table in design spec §4.1:
+- CSS owns: state transitions, spinners, typewriter/breathing keyframes.
+- Motion owns: AnimatePresence mount/unmount.
+- anime.js owns: stagger orchestration on lists, timeline, value tweening.
+
+### 3.6 Glow tier tokens (new)
+
+| Token | Value (hex/rgba TBD in 01a) | State machine reference |
 |---|---|---|
-| `--duration-fast` | Kept | |
-| `--duration-normal` | Kept | |
-| `--duration-slow` | Kept | |
-| `--duration-enter` | Kept | |
-| `--ease-default` | Kept | |
-| `--ease-out` | Kept | |
-| `--ease-in` | Kept | |
-| *(new)* `--duration-interrupt: 120ms` | Added | hover / focus / active |
-| *(new)* `--duration-scale-press: 150ms` | Added | button press |
-| *(new)* `--duration-stagger-step: 40ms` | Added | enter stagger |
-| *(new)* `--duration-exit: 160ms` | Added | exit transitions |
-| *(new)* `--duration-spinner-step: 100ms` | Added | TUI glyph cycle |
-| *(new)* `--ease-tui-step-8` / `--ease-tui-step-10` | Added | steps() easing |
-| *(new)* `--ease-enter-out` / `--ease-exit-in` | Added | cubic-beziers |
+| `--glow-idle` | no glow, `--card-border` only | Default |
+| `--glow-ready` | 4px subtle green | Surface connected |
+| `--glow-live` | 10px pulsing, consumes new `@keyframes glow-live-pulse` | Data streaming (arbitrated per room) |
+| `--glow-alert` | 12px red | Alert state |
 
-## 5. Radius scale
+Values finalized in Phase 01a against existing `--green-house-*` and `--destructive`.
 
-**Known issue:** the published scale (`4/6/8/12/16`) does not exactly match what's applied to the active shell today. Phase 01a:
+## 4. Radius reconciliation
 
-1. Audit every `border-radius` value in `src/` against the scale.
-2. Reconcile: either bring the code to the tokens, or publish the actual radii as the tokens.
+**Known issue from Codex review:** the design spec previously cited a `4/6/8/12/16` radius scale that does not match `--card-radius: 12px` or actual usage patterns. Phase 01a action:
+
+1. Inventory every `border-radius` value in `src/` (Tailwind classes + raw CSS).
+2. Reconcile: either normalize code to the scale, or publish the actual radii as the tokens.
 3. Publish the reconciled scale in `tokens.css` with comments showing the concentric pattern (outer = inner + padding).
 
-## 6. Primitive vs. state tokens
+## 5. Alias and deprecation policy during Phase 01a
 
-**Rule:** primitive tokens (colors, radii, durations, eases) are distinct from state tokens (e.g., `--shadow-glow-live`). State tokens compose primitives via CSS `var()`; they never redefine or alias primitives at the top level.
+**Coexistence:** for a single PR cycle, both old and new shadow tokens MAY coexist in `tokens.css` with the new tokens defined and the old kept as-is. The Phase 01a PR MUST:
 
-Example:
+1. Introduce the new tokens.
+2. Sweep all consumers to the new tokens via codemod.
+3. Delete the old tokens in the SAME PR.
+
+No long-tail deprecation cycle. The codebase is small enough that a single atomic sweep is lower risk than a two-step migration.
+
+## 6. Primitive vs. state tokens (naming convention only)
+
+**Rule:** state tokens compose primitives via `var()`; they never redefine primitives at the top level.
 
 ```css
 :root {
   /* Primitive */
-  --green-house-500: #4ade80;
+  --green-house-500: #417621;
   /* State (composes primitive) */
-  --shadow-glow-live: 0 0 10px rgba(74, 222, 128, 0.35), 0 0 20px rgba(74, 222, 128, 0.15);
+  --shadow-glow-live:
+    0 0 10px rgba(118, 206, 64, 0.35),
+    0 0 20px rgba(118, 206, 64, 0.15);
 }
 ```
 
-State tokens live in `src/styles/state-tokens.css` (new file Phase 01a); primitives stay in `src/styles/theme.css`.
+Both live in the same file (`tokens.css`). No structural separation.
 
 ## 7. Non-goals for Phase 01a
 
 - Not restructuring the palette. `--green-house-50..950` stays as-is.
 - Not changing font tokens.
-- Not introducing a token-system library (e.g. Style Dictionary). Plain CSS custom properties only.
+- Not introducing a token-system library (Style Dictionary, etc.). Plain CSS custom properties only.
+- Not migrating Tailwind custom config. Tailwind v4 `@theme` inline config lands separately if needed.

@@ -262,7 +262,9 @@ Harness lives in `scripts/perf-harness.ts`. CI does not run it (too flaky in hea
 - **Analysis** — per-hypothesis status update with supporting evidence and citations
 - **Action** — recommendation (Jira / Test script / Resolve)
 
-**TypeScript schema (versioned, Phase 00 lands in `src/types/investigation.ts`):**
+**TypeScript schema (versioned, Phase 00 lands in `src/types/canonical.ts`):**
+
+*(File-location note: `src/types/investigation.ts` was already taken by the Investigation Setup Modal handoff type with four import sites. Rather than relocate that legacy type and retest imports, the canonical schema lives alongside it under `canonical.ts`. This avoids a disruptive rename for a purely cosmetic alignment.)*
 
 ```ts
 export const INVESTIGATION_SCHEMA_VERSION = 1 as const;
@@ -526,7 +528,7 @@ Each phase completes when its validation bars are clear AND Codex has reviewed.
 
 | # | Scope | Gate |
 |---|---|---|
-| **00** | **Contracts.** Canonical investigation schema (`src/types/investigation.ts` v1). Citation model with byte-offset locator. AI response adapter contract. OC parser grammar contract. Token migration map. Shortcut conflict audit. LogEntry field additions (`traceId`, `byteOffset`, `lineNumber`). Benchmark harness skeleton. | Codex |
+| **00** | **Contracts.** Canonical investigation schema (`src/types/canonical.ts` v1 — `investigation.ts` name is taken by the Setup modal handoff). Citation model with byte-offset locator. AI response adapter contract. OC parser grammar contract. Token migration map. Shortcut conflict audit. LogEntry field additions (`traceId`, `byteOffset`, `lineNumber`). Benchmark harness skeleton. | Codex |
 | **01a** | **Visual polish (surface-neutral).** Token inventory applied, glow tiers + state machine, shadow scale, spinner family, cute-label hook, motion tokens, text-wrap sweep. No data-model changes. No canonical renderer yet. | Codex |
 | **01b** | **AI/Diagnose renderer.** Canonical block renderer (non-streaming), stage bar, Investigate URL entry, typewriter reveal, shortcut set from Phase 00. | Codex |
 | **01c** | **Pin-to-Evidence integration.** Evidence surface consumes block references from §5.4 schema. No export work yet. | Codex |

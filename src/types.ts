@@ -26,6 +26,15 @@ export interface LogEntry {
     displayMessage: string;
     payload: string;
     type: 'LOG' | 'JSON';
+    /**
+     * Parsed JSON body when `type === 'JSON'`. Still `any` for now —
+     * narrowing to `unknown` breaks ~30 call sites in parser.ts that
+     * access fields directly without type guards. Tracked as Phase 02
+     * tech debt: the OC parser refactor will introduce a typed
+     * intermediate shape (`ParsedLogJson`) and tighten this to
+     * `ParsedLogJson | undefined`.
+     */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     json?: any;
     isSip: boolean;
     sipMethod?: string | null;
@@ -57,13 +66,19 @@ export interface LogEntry {
      * Phase 00 additions (UI polish redesign — canonical citation model).
      * All optional for backward compatibility with existing parsers.
      * See docs/superpowers/specs/2026-04-20-ui-polish-redesign-design.md §5.3.
+     *
+     * Locator invariant: `lineNumber` and `byteOffset` are paired. A parser
+     * either populates BOTH or NEITHER. Citation consumers treat
+     * `byteOffset` as canonical and `lineNumber` as display. Phase 02
+     * enforces the invariant in the OC parser; legacy parsers (Datadog CSV,
+     * Homer SIP JSON) leave both undefined and citations fall back to `id`.
      */
 
     /** First-class correlation field extracted from OC-format JSON body. */
     traceId?: string;
-    /** 1-based line number in the source file where this entry starts. */
+    /** 1-based line number in the source file where this entry starts. Paired with byteOffset. */
     lineNumber?: number;
-    /** Byte offset where this entry starts in the source file. Stable citation locator. */
+    /** Byte offset where this entry starts in the source file. Paired with lineNumber. Canonical citation locator. */
     byteOffset?: number;
     /** True when the JSON body failed to parse. Entry still renders with muted marker. */
     jsonMalformed?: boolean;

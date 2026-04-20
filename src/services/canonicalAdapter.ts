@@ -2,16 +2,26 @@
  * canonicalAdapter.ts — contract between Unleashed AI responses and the
  * canonical Investigation schema.
  *
- * Phase 00 deliverable: interface only. Phase 01b implements the adapter
- * by calling `unleashService.diagnose()` and mapping the response into a
- * stream of canonical Blocks via the stage pipeline.
+ * Phase 00 deliverable: contract + intermediate shapes. Phase 01b
+ * implements by mapping Unleashed responses through the stage pipeline.
  *
- * The adapter is the ONE place that knows how to translate free-form AI
- * output into the canonical discriminated union. UI surfaces consume the
- * canonical types only — they never see raw Unleashed payloads.
+ * Separation of concerns:
+ *   - Validator: parses `unknown` (raw HTTP body) → `UnleashResponseShape`
+ *     with structural guarantees. Throws on failure.
+ *   - Adapter: takes validated `UnleashResponseShape` → stream of
+ *     stage-typed canonical Blocks.
+ *
+ * The adapter is the ONE place that knows how to translate AI output
+ * into canonical types. Consumers see canonical types only.
  */
 
-import type { Block, Citation, Investigation } from '../types/canonical';
+import type {
+  BlockOf,
+  Citation,
+  Investigation,
+} from '../types/canonical';
+
+// ─── Stage → allowed block kinds (enforced at the type level) ────────────
 
 export type DiagnoseStage =
   | 'ingest'
@@ -21,20 +31,49 @@ export type DiagnoseStage =
   | 'analyze'
   | 'act';
 
-export interface StageStartEvent {
+/**
+ * Each stage produces blocks of exactly one kind. This map makes the
+ * constraint checkable at compile time and prevents accidentally emitting
+ * (e.g.) a `hypothesis` block from the `ingest` stage.
+ */
+export type StageBlockKindMap = {
+  ingest: 'context';
+  pattern: 'prior-art';
+  hypothesize: 'hypothesis';
+  collect: 'collection';
+  analyze: 'analysis';
+  act: 'action';
+};
+
+export type BlocksProducedByStage<S extends DiagnoseStage> = Array<
+  BlockOf<StageBlockKindMap[S]>
+>;
+
+// ─── Adapter events ──────────────────────────────────────────────────────
+
+export interface StageStartEvent<S extends DiagnoseStage = DiagnoseStage> {
   kind: 'stage-start';
-  stage: DiagnoseStage;
+  stage: S;
   at: number;
 }
 
-export interface StageCompleteEvent {
+export interface StageCompleteEvent<S extends DiagnoseStage = DiagnoseStage> {
   kind: 'stage-complete';
-  stage: DiagnoseStage;
+  stage: S;
   at: number;
-  /** Blocks produced by this stage, ready to insert into Investigation.blocks. */
-  producedBlocks: Block[];
-  /** New citations produced by this stage, keyed for merge into investigation.citations. */
+  /**
+   * Blocks produced by this stage. Typed to the exact kind the stage
+   * is allowed to emit (see StageBlockKindMap).
+   */
+  producedBlocks: BlocksProducedByStage<S>;
+  /** New citations produced by this stage, keyed into the investigation's citation pool. */
   producedCitations: Citation[];
+  /**
+   * Merge semantics for reruns. On a fresh diagnose this is 'append'.
+   * On log-attach or refine reruns, later stages may replace prior
+   * outputs of the same stage (e.g. analyze runs again against new logs).
+   */
+  merge: 'append' | 'replace-stage-output';
 }
 
 export interface AdapterErrorEvent {
@@ -53,14 +92,39 @@ export interface AdapterCompleteEvent {
 
 export type AdapterEvent =
   | StageStartEvent
-  | StageCompleteEvent
+  | StageCompleteEvent<DiagnoseStage>
   | AdapterErrorEvent
   | AdapterCompleteEvent;
 
+// ─── Adapter input — supports fresh + rerun modes ────────────────────────
+
+/**
+ * Diagnose mode, discriminated. Phase 01b handles 'fresh'; 'attach-logs'
+ * and 'refine' land in Phase 02 and 01b respectively.
+ */
+export type DiagnoseMode =
+  | {
+      kind: 'fresh';
+      ticketUrl: string;
+      /** Optional pre-fetched Zendesk context to skip Stage 0 fetch. */
+      seedContext?: string;
+    }
+  | {
+      kind: 'attach-logs';
+      /** The investigation already produced by a prior fresh run. */
+      priorInvestigation: Investigation;
+      /** Logs that just arrived — triggers re-run of stages 3/4. */
+      attachedLogs: Array<{ fileName: string; byteCount: number }>;
+    }
+  | {
+      kind: 'refine';
+      priorInvestigation: Investigation;
+      /** The user's follow-up question that refines analysis. */
+      question: string;
+    };
+
 export interface DiagnoseAdapterInput {
-  ticketUrl: string;
-  /** Pre-fetched Zendesk context or undefined to let the adapter fetch. */
-  seedContext?: string;
+  mode: DiagnoseMode;
   /** Unix ms timestamp used as creation time. Defaults to Date.now(). */
   now?: number;
   /** Abort signal for user-initiated cancel. */
@@ -68,30 +132,68 @@ export interface DiagnoseAdapterInput {
 }
 
 /**
- * Adapter signature: produces an async-iterable of events. UI consumes events
- * to update the stage bar and block renderer incrementally. Phase 01b renders
- * blocks as they arrive (typewriter reveal) but all arrive together today
- * because Unleashed is request-response.
- *
- * Phase 05+ may swap in a truly streaming implementation without changing
- * this contract.
+ * Adapter signature: async-iterable of events. UI consumes events to
+ * update the stage bar and block renderer incrementally. Phase 01b's
+ * implementation yields all events at once because Unleashed is
+ * request-response; Phase 05+ may swap in a streaming backend without
+ * changing this contract.
  */
 export interface CanonicalDiagnoseAdapter {
   diagnose(input: DiagnoseAdapterInput): AsyncIterable<AdapterEvent>;
 }
 
+// ─── Validator contract (separate from narrowing type guards) ────────────
+
 /**
- * Response-contract assertion helpers. Phase 01b will use these to validate
- * Unleashed responses conform to expectations before attempting to map them.
- * Phase 00 exports the contract only — no runtime behavior yet.
+ * Intermediate shape — what the adapter requires the validated Unleashed
+ * response to look like. Structural, not behavioral. Replaces the
+ * loose `ExpectedUnleashResponseShape` from the Phase 00 first cut.
+ *
+ * Phase 01b's validator parses the raw HTTP response body against this
+ * shape and throws on structural failure. The adapter trusts this shape;
+ * downstream narrowing happens via canonical type guards.
  */
-export interface ExpectedUnleashResponseShape {
-  /** We expect at least one of these top-level fields on every Diagnose response. */
-  summary?: string;
-  rootCause?: string;
-  hypotheses?: unknown;
-  correlatedLogs?: unknown;
-  logSuggestions?: unknown;
-  appliedTroubleshooting?: string;
-  rawResponse?: string;
+export interface UnleashResponseShape {
+  summary: string;
+  rootCause: string;
+  hypotheses: UnleashHypothesis[];
+  correlatedLogs: UnleashCorrelatedLog[];
+  logSuggestions: UnleashLogSuggestion[];
+  appliedTroubleshooting: string;
+  /** Verbatim assistant text for audit / .noclense export. */
+  rawResponse: string;
+}
+
+export interface UnleashHypothesis {
+  rank: 1 | 2 | 3;
+  title: string;
+  supportingEvidence: string;
+  evidenceToConfirm: string;
+  evidenceToRuleOut: string;
+  statusHint?: 'INCONCLUSIVE' | 'CONFIRMED' | 'RULED_OUT';
+}
+
+export interface UnleashCorrelatedLog {
+  /** Session-scoped LogEntry.id. Resolved to a persisted citation locator by the adapter. */
+  logId: number;
+  index: number;
+  reason: string;
+}
+
+export interface UnleashLogSuggestion {
+  source: string;
+  reason: string;
+  query?: string;
+}
+
+/**
+ * Validator contract. Phase 01b implements. Phase 00 exports the shape.
+ */
+export interface UnleashResponseValidator {
+  /**
+   * @throws StructuralValidationError when `raw` does not match the
+   *         expected shape. The adapter is responsible for surfacing the
+   *         failure as an AdapterErrorEvent.
+   */
+  validate(raw: unknown): UnleashResponseShape;
 }
