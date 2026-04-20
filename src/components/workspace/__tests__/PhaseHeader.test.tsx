@@ -31,8 +31,13 @@ describe('PhaseHeader', () => {
     expect(screen.getByLabelText('Toggle theme')).toBeInTheDocument();
   });
 
-  it('renders settings button', () => {
-    render(<PhaseHeader phase="import" onPhaseChange={() => {}} onSettingsClick={() => {}} />);
-    expect(screen.getByLabelText('Settings')).toBeInTheDocument();
+  // NOTE: a previous "renders settings button" test asserted a
+  // Settings button and an `onSettingsClick` prop. Both were removed
+  // in commit 09d55ad ("settings cleanup"); the test was left
+  // asserting the removed UI. Replaced with an assertion that
+  // confirms the removal (no Settings control rendered).
+  it('does not render a settings button (removed in 09d55ad)', () => {
+    render(<PhaseHeader phase="import" onPhaseChange={() => {}} />);
+    expect(screen.queryByLabelText('Settings')).not.toBeInTheDocument();
   });
 });

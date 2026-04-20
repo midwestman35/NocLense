@@ -39,15 +39,15 @@ The token map below enumerates every token the UI polish redesign touches. Token
 
 Codemod: `rg -l '\-\-shadow-(sm|md|lg)' src/` → sweep in the Phase 01a PR.
 
-### 3.2 Card / room structural tokens (kept, not migrated)
+### 3.2 Card / room structural tokens
 
-| Token (tokens.css line) | Disposition |
+| Token | Disposition |
 |---|---|
-| `--card-radius: 12px` (172) | Kept. Audit during Phase 01a to ensure concentric outer = inner + padding is honored. |
-| `--card-border` (173), `--card-border-hover` (174) | Kept. Layered on top of new glow tokens; not replaced. |
-| `--card-header-height: 40px` (175), `--card-collapsed-height: 36px` (176) | Kept. |
-| `--card-expand-duration: 350ms` (177) | Kept. |
-| `--room-transition-duration: 600ms` (169), `--room-transition-ease` (170) | Kept; referenced by `evidence-add` keyframe. |
+| `--card-radius: var(--radius-lg)` | Composed from the primitive radius scale in ckpt 10. Resolves to 12px. Concentric rule enforced: inner = outer − padding. See §4 for the full reconciled radius scale. |
+| `--card-border`, `--card-border-hover` | Kept. Layered on top of new glow tokens; not replaced. |
+| `--card-header-height: 40px`, `--card-collapsed-height: 36px` | Kept. |
+| `--card-expand-duration: 350ms` | Kept. |
+| `--room-transition-duration: 600ms`, `--room-transition-ease` | Kept; referenced by `evidence-add` keyframe. |
 
 ### 3.3 Phase dot tokens and keyframe
 

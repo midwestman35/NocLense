@@ -348,33 +348,39 @@ describe('coverage nits (ckpt 9 residuals)', () => {
     expect(listener).toHaveBeenCalledTimes(1);
   });
 
-  it('debounce wake that keeps the same winner does NOT emit', () => {
-    // A becomes live (first swap, no debounce).
+  it('debounce wake that resolves a pending higher-priority swap fires exactly one emit', () => {
+    // A takes live on first swap (no debounce yet — lastSwapAtMs
+    // starts at 0 so the first swap is unconditional).
     store.notify('a', 'ai-stream');
-    // Lower-priority B notifies within the debounce window. B would
-    // lose arbitration (A is higher priority and fresh), so the
-    // scheduled wake that re-evaluates at window close will find the
-    // same winner and stay silent.
+    expect(store.tierFor('a')).toBe('live');
+
+    // 50ms later, B arrives at HIGHER priority. B would win
+    // arbitration, but sinceSwap = 50ms < SWAP_DEBOUNCE_MS, so the
+    // swap is deferred and a debounce wake is scheduled for the
+    // remaining window (~250ms).
     vi.advanceTimersByTime(50);
-    store.notify('b', 'connector-heartbeat');
+    store.notify('b', 'parse-overlay');
+    // At this moment: A still live, B ready (connected), timer
+    // scheduled. The notify() itself emitted once (B: idle → ready).
     listener.mockClear();
 
-    // Fast-forward past the 300ms debounce window. The scheduled
-    // timer fires, arbitrate re-runs, finds the same winner (A),
-    // and should NOT emit.
+    // Fire the wake. arbitrate re-runs, debounce window is now
+    // closed, swap applies (A → ready, B → live). Exactly one emit.
     vi.advanceTimersByTime(SWAP_DEBOUNCE_MS);
-    expect(store.tierFor('a')).toBe('live');
-    expect(store.tierFor('b')).toBe('ready');
-    expect(listener).not.toHaveBeenCalled();
+    expect(store.tierFor('b')).toBe('live');
+    expect(store.tierFor('a')).toBe('ready');
+    expect(listener).toHaveBeenCalledTimes(1);
   });
 
-  it('equal-priority kind rerender: recency breaks the tie', () => {
+  it('equal-priority tiebreak: most-recent notify wins', () => {
     // A is live at ai-stream.
     store.notify('a', 'ai-stream');
     expect(store.tierFor('a')).toBe('live');
 
     // B notifies at the SAME priority (ai-stream) later. Tie-break
-    // rule: equal priority, most-recent wins.
+    // rule: equal priority, most-recent wins. This is NOT a rerender
+    // test — it verifies the recency field in arbitration, which the
+    // rerender path in RoomLiveStateContext.test.tsx builds on.
     vi.advanceTimersByTime(SWAP_DEBOUNCE_MS + 10);
     store.notify('b', 'ai-stream');
     vi.advanceTimersByTime(SWAP_DEBOUNCE_MS + 10);
