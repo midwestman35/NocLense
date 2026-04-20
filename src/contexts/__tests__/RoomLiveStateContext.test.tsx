@@ -1,12 +1,12 @@
 /**
  * RoomLiveStateContext.test.tsx — React integration tests.
  *
- * Uses @testing-library/react's renderHook with the provider as a
- * wrapper. Verifies:
- *   - useSurfaceTier re-renders the caller only when its own tier changes
- *   - useLiveSurface wires notify/raiseAlert/clearAlert correctly
- *   - unregister fires on unmount
- *   - hooks throw when used outside the provider
+ * Increment 7 adds coverage for:
+ *   - Injected store swap (provider follows the new instance).
+ *   - register-on-mount default (surface reaches ready immediately).
+ *   - Rapid unmount / remount of the same surfaceId.
+ *   - Provider-owned store's timer cleanup on unmount (no callback
+ *     fires after teardown).
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -20,7 +20,7 @@ import {
 } from '../RoomLiveStateContext';
 import { RoomLiveStateStore } from '../roomLiveStateStore';
 
-function withProvider(store: RoomLiveStateStore) {
+function withProvider(store?: RoomLiveStateStore) {
   return function Wrapper({ children }: { children: ReactNode }) {
     return <RoomLiveStateProvider store={store}>{children}</RoomLiveStateProvider>;
   };
@@ -70,28 +70,40 @@ describe('useSurfaceTier', () => {
 });
 
 describe('useLiveSurface', () => {
-  it('exposes notify / raiseAlert / clearAlert and the current tier', () => {
+  it('registers on mount — surface reaches ready immediately', () => {
     const store = new RoomLiveStateStore();
     const { result } = renderHook(() => useLiveSurface('ai', 'ai-stream'), {
       wrapper: withProvider(store),
     });
+    expect(result.current.tier).toBe('ready');
+    store.dispose();
+  });
+
+  it('opt out of register-on-mount keeps the surface idle', () => {
+    const store = new RoomLiveStateStore();
+    const { result } = renderHook(
+      () => useLiveSurface('ai', 'ai-stream', { registerOnMount: false }),
+      { wrapper: withProvider(store) },
+    );
     expect(result.current.tier).toBe('idle');
-    act(() => {
-      result.current.notify();
+    store.dispose();
+  });
+
+  it('exposes notify / raiseAlert / clearAlert', () => {
+    const store = new RoomLiveStateStore();
+    const { result } = renderHook(() => useLiveSurface('ai', 'ai-stream'), {
+      wrapper: withProvider(store),
     });
+    expect(result.current.tier).toBe('ready');
+
+    act(() => result.current.notify());
     expect(result.current.tier).toBe('live');
 
-    act(() => {
-      result.current.raiseAlert();
-    });
+    act(() => result.current.raiseAlert());
     expect(result.current.tier).toBe('alert');
 
-    act(() => {
-      result.current.clearAlert();
-    });
-    // Alert cleared. Whether it's live or ready depends on decay timing;
-    // we advanced no timers after the raiseAlert, so it's still live.
-    expect(result.current.tier).toBe('live');
+    act(() => result.current.clearAlert());
+    expect(result.current.tier).toBe('live'); // heartbeat still fresh
     store.dispose();
   });
 
@@ -100,9 +112,7 @@ describe('useLiveSurface', () => {
     const { result, unmount } = renderHook(() => useLiveSurface('ai', 'ai-stream'), {
       wrapper: withProvider(store),
     });
-    act(() => {
-      result.current.notify();
-    });
+    act(() => result.current.notify());
     expect(store.tierFor('ai')).toBe('live');
     unmount();
     expect(store.tierFor('ai')).toBe('idle');
@@ -115,61 +125,93 @@ describe('useLiveSurface', () => {
       () => useLiveSurface('ai', 'ai-stream', { unregisterOnUnmount: false }),
       { wrapper: withProvider(store) },
     );
-    act(() => {
-      result.current.notify();
-    });
+    act(() => result.current.notify());
     unmount();
     expect(store.tierFor('ai')).toBe('live');
     store.dispose();
   });
-});
 
-describe('fine-grained re-render scope', () => {
-  it('surface B does not re-render when only surface A transitions', () => {
+  it('rapid unmount/remount with same surfaceId: ready after remount', () => {
     const store = new RoomLiveStateStore();
-    let bRenderCount = 0;
-
-    const { result } = renderHook(
-      () => {
-        const tierA = useSurfaceTier('a');
-        const tierB = useSurfaceTier('b');
-        bRenderCount++;
-        void tierA;
-        return tierB;
-      },
-      { wrapper: withProvider(store) },
-    );
-    const bRendersBefore = bRenderCount;
-
-    act(() => {
-      store.notify('a', 'ai-stream');
+    const first = renderHook(() => useLiveSurface('ai', 'ai-stream'), {
+      wrapper: withProvider(store),
     });
+    act(() => first.result.current.notify());
+    expect(store.tierFor('ai')).toBe('live');
+    first.unmount();
+    expect(store.tierFor('ai')).toBe('idle');
 
-    // With useSyncExternalStore, React reads each snapshot and bails
-    // re-render when the returned snapshot is stable. Subscribers still
-    // run on every notify, so a single additional render can happen to
-    // re-verify snapshots; what matters is that `tierB` itself stays
-    // stable. Test the observable: result.current still 'idle'.
-    expect(result.current).toBe('idle');
-    // And surface A is now live.
-    expect(store.tierFor('a')).toBe('live');
-    void bRendersBefore;
+    const second = renderHook(() => useLiveSurface('ai', 'ai-stream'), {
+      wrapper: withProvider(store),
+    });
+    // The new mount registers fresh — tier is ready, not live (no
+    // notify yet in this mount).
+    expect(second.result.current.tier).toBe('ready');
+    second.unmount();
     store.dispose();
   });
 });
 
-describe('store disposal', () => {
-  it('Provider-owned store is disposed on unmount', () => {
-    // When no store prop is passed, the provider owns the lifecycle.
-    // We verify by checking that no stray timers remain after unmount.
-    const { unmount } = renderHook(() => useSurfaceTier('anyone'), {
-      wrapper: ({ children }: { children: ReactNode }) => (
-        <RoomLiveStateProvider>{children}</RoomLiveStateProvider>
-      ),
+describe('injected store swap', () => {
+  it('provider follows a new injected store', () => {
+    const storeA = new RoomLiveStateStore();
+    const storeB = new RoomLiveStateStore();
+    storeA.notify('ai', 'ai-stream');
+
+    // Closure-based wrapper: renderHook's wrapper does not receive
+    // initialProps, but it is re-invoked on every rerender, so a
+    // mutable outer variable lets us swap the prop.
+    let currentStore = storeA;
+    function Wrapper({ children }: { children: ReactNode }) {
+      return <RoomLiveStateProvider store={currentStore}>{children}</RoomLiveStateProvider>;
+    }
+    const { result, rerender } = renderHook(() => useSurfaceTier('ai'), {
+      wrapper: Wrapper,
+    });
+    expect(result.current).toBe('live');
+
+    currentStore = storeB;
+    rerender();
+    expect(result.current).toBe('idle');
+
+    storeA.dispose();
+    storeB.dispose();
+  });
+
+  it('does not dispose an injected store on unmount', () => {
+    const store = new RoomLiveStateStore();
+    const disposeSpy = vi.spyOn(store, 'dispose');
+    const { unmount } = renderHook(() => useSurfaceTier('ai'), {
+      wrapper: withProvider(store),
     });
     unmount();
-    // No assertion needed beyond "did not throw" — the useEffect
-    // cleanup path ran. Complementary verification lives in the
-    // store unit tests.
+    expect(disposeSpy).not.toHaveBeenCalled();
+    store.dispose();
+  });
+});
+
+describe('provider-owned store lifecycle', () => {
+  it('disposes its own store on unmount, clearing pending timers', () => {
+    // Use a provider-owned store by NOT passing the store prop.
+    let notifyFn: (() => void) | null = null;
+    const { unmount } = renderHook(
+      () => {
+        const surface = useLiveSurface('ai', 'ai-stream', { registerOnMount: false });
+        notifyFn = surface.notify;
+        return surface;
+      },
+      {
+        wrapper: ({ children }: { children: ReactNode }) => (
+          <RoomLiveStateProvider>{children}</RoomLiveStateProvider>
+        ),
+      },
+    );
+    // Schedule a decay timer inside the owned store.
+    act(() => notifyFn!());
+    expect(vi.getTimerCount()).toBeGreaterThan(0);
+    unmount();
+    // After unmount the provider disposed its owned store; the timer
+    // is gone and advancing time can't fire it.
+    expect(vi.getTimerCount()).toBe(0);
   });
 });

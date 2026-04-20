@@ -2,28 +2,18 @@
  * RoomLiveStateContext.tsx — React bindings for the arbitrated glow
  * state machine (spec §3.3).
  *
- * Phase 01a increment 6. Wraps `RoomLiveStateStore` with
- * `useSyncExternalStore` so each consumer re-renders ONLY when its
- * own surface tier changes, not on every notify across the room.
- *
- * Usage:
- *   <RoomLiveStateProvider>
- *     <Investigate />
- *   </RoomLiveStateProvider>
- *
- *   // Inside a surface component:
- *   const { tier, notify, raiseAlert, clearAlert } =
- *     useLiveSurface('ai-diagnose-card', 'ai-stream');
- *
- *   useEffect(() => {
- *     if (response.streaming) notify();
- *   }, [response.streaming]);
- *
- *   return (
- *     <GlowHost tier={tier} borderRadius="var(--card-radius)">
- *       <Card>…</Card>
- *     </GlowHost>
- *   );
+ * Phase 01a increment 7 addresses the Codex review of increment 6:
+ *   - Provider uses a lazy-init useRef for the owned store, so a
+ *     later `store` prop change is actually followed. The owned
+ *     store (if any) is disposed on unmount; an injected store is
+ *     never disposed by the provider.
+ *   - useLiveSurface now calls store.register() on mount (and on
+ *     surfaceId/kind change), so surfaces reach the `ready` tier
+ *     immediately without needing a prior notify. Auto-unregisters
+ *     on unmount.
+ *   - useSurfaceTier's doc softened: useSyncExternalStore calls
+ *     getSnapshot for every subscriber on every emit; React bails
+ *     re-render when the returned snapshot is stable.
  */
 
 import {
@@ -31,7 +21,7 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useMemo,
+  useRef,
   useSyncExternalStore,
 } from 'react';
 import type { ReactNode } from 'react';
@@ -48,12 +38,12 @@ const RoomLiveStateContext = createContext<RoomLiveStateStore | null>(null);
 export interface RoomLiveStateProviderProps {
   children: ReactNode;
   /**
-   * Optional store injection (useful for tests and for sharing a store
-   * between multiple provider trees). If omitted, a fresh store is
-   * created and disposed on unmount.
+   * Inject an externally-managed store (tests, nested providers).
+   * The provider never disposes an injected store. If omitted, the
+   * provider creates and owns one, and disposes it on unmount.
    */
   store?: RoomLiveStateStore;
-  /** Forwarded to a fresh store when `store` is omitted. */
+  /** Passed to a newly-created owned store. Ignored when `store` is set. */
   storeOptions?: RoomLiveStateStoreOptions;
 }
 
@@ -62,24 +52,34 @@ export function RoomLiveStateProvider({
   store,
   storeOptions,
 }: RoomLiveStateProviderProps) {
-  const managedStore = useMemo(
-    () => store ?? new RoomLiveStateStore(storeOptions),
-    // Only create on mount — store identity must be stable across
-    // re-renders so listeners don't thrash.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  );
+  // Lazy-init owned store. Only created when no `store` is injected,
+  // and only on first render. Reads the current `store` prop on every
+  // render, so a caller switching to a new injected store is followed.
+  const ownedStoreRef = useRef<RoomLiveStateStore | null>(null);
+  if (!store && ownedStoreRef.current === null) {
+    ownedStoreRef.current = new RoomLiveStateStore(storeOptions);
+  }
+  const activeStore = store ?? ownedStoreRef.current;
+  if (!activeStore) {
+    // Defensive — the conditional above guarantees one exists. Throw
+    // loudly if React ever lands in this branch so the regression is
+    // visible immediately.
+    throw new Error('RoomLiveStateProvider: store initialization failed.');
+  }
 
   useEffect(() => {
-    // If the provider owns the store, clean up its timer on unmount.
-    if (!store) {
-      return () => managedStore.dispose();
-    }
-    return undefined;
-  }, [store, managedStore]);
+    // Dispose ONLY the owned store — an injected store belongs to the
+    // caller. Runs once on unmount.
+    return () => {
+      if (ownedStoreRef.current) {
+        ownedStoreRef.current.dispose();
+        ownedStoreRef.current = null;
+      }
+    };
+  }, []);
 
   return (
-    <RoomLiveStateContext.Provider value={managedStore}>
+    <RoomLiveStateContext.Provider value={activeStore}>
       {children}
     </RoomLiveStateContext.Provider>
   );
@@ -96,7 +96,16 @@ function useStore(): RoomLiveStateStore {
   return store;
 }
 
-/** Subscribe to the effective tier for one surface. Re-renders only on its change. */
+/**
+ * Subscribe to the effective tier for one surface.
+ *
+ * Note: useSyncExternalStore calls `getSnapshot` for every subscriber
+ * on every emit. React bails the re-render when the returned snapshot
+ * is stable (same string value). Consumers watching a surface whose
+ * tier hasn't changed do not re-render, but `getSnapshot` itself runs
+ * on every notify across the room — this is O(surfaces) per notify,
+ * which is cheap for realistic room sizes (< 10 surfaces).
+ */
 export function useSurfaceTier(surfaceId: string): GlowTier {
   const store = useStore();
   const getSnapshot = useCallback(() => store.tierFor(surfaceId), [store, surfaceId]);
@@ -115,14 +124,23 @@ export interface UseLiveSurfaceResult {
 }
 
 export interface UseLiveSurfaceOptions {
-  /** When true, unregister the surface on component unmount (default). */
+  /** Call register() on mount so tier becomes `ready` without a prior notify (default). */
+  registerOnMount?: boolean;
+  /** Unregister the surface on component unmount (default). */
   unregisterOnUnmount?: boolean;
 }
 
 /**
- * Bind a component to a live-state surface. Returns the tier and
- * control callbacks. Automatically unregisters the surface when the
- * component unmounts.
+ * Bind a component to a live-state surface.
+ *
+ * By default the hook registers the surface on mount (so it reaches
+ * `ready` immediately, per spec §3.3) and unregisters on unmount.
+ * Callers can opt out of either side for advanced lifecycle control
+ * (e.g. a surface that should stay alive across re-mounts).
+ *
+ * If `surfaceId` or `kind` changes across renders, the hook re-
+ * registers under the new id/kind and unregisters the old one on
+ * effect cleanup.
  */
 export function useLiveSurface(
   surfaceId: string,
@@ -131,12 +149,15 @@ export function useLiveSurface(
 ): UseLiveSurfaceResult {
   const store = useStore();
   const tier = useSurfaceTier(surfaceId);
+  const registerOnMount = options.registerOnMount ?? true;
   const unregisterOnUnmount = options.unregisterOnUnmount ?? true;
 
   useEffect(() => {
-    if (!unregisterOnUnmount) return undefined;
-    return () => store.unregister(surfaceId);
-  }, [store, surfaceId, unregisterOnUnmount]);
+    if (registerOnMount) store.register(surfaceId, kind);
+    return () => {
+      if (unregisterOnUnmount) store.unregister(surfaceId);
+    };
+  }, [store, surfaceId, kind, registerOnMount, unregisterOnUnmount]);
 
   const notify = useCallback(() => store.notify(surfaceId, kind), [store, surfaceId, kind]);
   const raiseAlert = useCallback(() => store.raiseAlert(surfaceId), [store, surfaceId]);

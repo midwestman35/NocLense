@@ -173,25 +173,14 @@
   --ease-exit-in: cubic-bezier(0.4, 0, 1, 1);
 }
 
-/* Phase 01a — Glow tier tokens. Values composed from palette primitives.
-   State-machine arbitration per design spec §3.3 (one live per room).
-   All four tier tokens are valid box-shadow values (idle is `none`),
-   so they are type-interchangeable at consumer sites.                 */
-:root {
-  --glow-ready-color: rgba(118, 206, 64, 0.18);
-  --glow-live-color: rgba(118, 206, 64, 0.35);
-  --glow-alert-color: rgba(239, 68, 68, 0.35);
-
-  --glow-idle: none;
-  --glow-ready: 0 0 4px var(--glow-ready-color);
-  --glow-live: 0 0 10px var(--glow-live-color);
-  --glow-alert: 0 0 12px var(--glow-alert-color);
-}
-[data-theme="light"] {
-  --glow-ready-color: rgba(81, 145, 43, 0.2);
-  --glow-live-color: rgba(81, 145, 43, 0.3);
-  --glow-alert-color: rgba(220, 38, 38, 0.25);
-}
+/* Phase 01a glow-tier geometry.
+   Canonical tokens: --shadow-glow-ready / --shadow-glow-live /
+   --shadow-glow-error (declared in the light + dark theme blocks
+   above). Consumer: `.glow-surface--{ready,live,alert}` in
+   src/styles/loading.css.
+   The separate --glow-* family that previously lived here was never
+   referenced by any CSS class — removed in increment 7 to keep one
+   source of truth per Codex review. */
 
 :root {
   --border-width: 1px;

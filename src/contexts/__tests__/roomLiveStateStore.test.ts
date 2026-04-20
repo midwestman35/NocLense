@@ -143,28 +143,118 @@ describe('alert tier', () => {
     expect(store.tierFor('ai')).toBe('alert');
   });
 
-  it('alert persists until clearAlert', () => {
+  it('alert persists until clearAlert; after clear, surface is ready (connected)', () => {
     store.raiseAlert('x');
     expect(store.tierFor('x')).toBe('alert');
     vi.advanceTimersByTime(60_000);
     expect(store.tierFor('x')).toBe('alert');
     store.clearAlert('x');
-    expect(store.tierFor('x')).toBe('idle');
+    // Alert implied connection; clearing the alert leaves the surface
+    // at ready, not idle. To go to idle, caller must unregister.
+    expect(store.tierFor('x')).toBe('ready');
   });
 
-  it('alert on one surface does not suppress live on another', () => {
-    store.raiseAlert('errored');
+  it('alert on any surface WINS room arbitration (spec §3.3 lines 77-85)', () => {
+    // ai is live first.
+    store.notify('ai', 'ai-stream');
+    expect(store.tierFor('ai')).toBe('live');
+
+    // errored raises an alert. Alert beats every tier at the room
+    // level, so `ai` drops from live to ready and `errored` becomes
+    // the active-live surface (visually rendered as alert).
     vi.advanceTimersByTime(SWAP_DEBOUNCE_MS + 10);
+    store.raiseAlert('errored');
+    expect(store.tierFor('errored')).toBe('alert');
+    expect(store.tierFor('ai')).toBe('ready');
+  });
+
+  it('clearing the alert returns arbitration to normal priority', () => {
     store.notify('ai', 'ai-stream');
     vi.advanceTimersByTime(SWAP_DEBOUNCE_MS + 10);
-    expect(store.tierFor('errored')).toBe('alert');
+    store.raiseAlert('errored');
+    expect(store.tierFor('ai')).toBe('ready');
+
+    // Clear the alert — ai regains live (after debounce).
+    vi.advanceTimersByTime(SWAP_DEBOUNCE_MS + 10);
+    store.clearAlert('errored');
+    vi.advanceTimersByTime(SWAP_DEBOUNCE_MS + 10);
     expect(store.tierFor('ai')).toBe('live');
+    expect(store.tierFor('errored')).toBe('ready');
   });
 
   it('unregister clears alert state', () => {
     store.raiseAlert('x');
     store.unregister('x');
     expect(store.tierFor('x')).toBe('idle');
+  });
+});
+
+describe('register semantic (Phase 01a increment 7)', () => {
+  it('register(id, kind) puts a surface at ready without any prior notify', () => {
+    store.register('ai', 'ai-stream');
+    expect(store.tierFor('ai')).toBe('ready');
+  });
+
+  it('register → notify → live; after decay, back to ready (not idle)', () => {
+    store.register('ai', 'ai-stream');
+    store.notify('ai', 'ai-stream');
+    expect(store.tierFor('ai')).toBe('live');
+    vi.advanceTimersByTime(LIVE_DECAY_MS + 50);
+    expect(store.tierFor('ai')).toBe('ready');
+  });
+
+  it('register then unregister returns to idle', () => {
+    store.register('ai', 'ai-stream');
+    store.unregister('ai');
+    expect(store.tierFor('ai')).toBe('idle');
+  });
+});
+
+describe('boundary behavior', () => {
+  it('live decays at EXACTLY LIVE_DECAY_MS, not before', () => {
+    store.notify('ai', 'ai-stream');
+    vi.advanceTimersByTime(LIVE_DECAY_MS - 1);
+    expect(store.tierFor('ai')).toBe('live');
+    // Cross the boundary.
+    vi.advanceTimersByTime(2);
+    expect(store.tierFor('ai')).toBe('ready');
+  });
+
+  it('repeat notify on the active surface extends its live window', () => {
+    store.notify('ai', 'ai-stream');
+    vi.advanceTimersByTime(LIVE_DECAY_MS - 500);
+    store.notify('ai', 'ai-stream');
+    // Even past the original boundary, ai remains live thanks to the
+    // re-notify.
+    vi.advanceTimersByTime(600);
+    expect(store.tierFor('ai')).toBe('live');
+    // And it eventually decays from the new notify.
+    vi.advanceTimersByTime(LIVE_DECAY_MS);
+    expect(store.tierFor('ai')).toBe('ready');
+  });
+});
+
+describe('timer safety', () => {
+  it('dispose cancels pending timers', () => {
+    store.notify('ai', 'ai-stream');
+    expect(vi.getTimerCount()).toBeGreaterThan(0);
+    store.dispose();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('mutations after dispose are no-ops and do not throw', () => {
+    store.dispose();
+    expect(() => store.notify('ai', 'ai-stream')).not.toThrow();
+    expect(() => store.raiseAlert('x')).not.toThrow();
+    expect(() => store.register('y', 'datadog-stream')).not.toThrow();
+    expect(store.tierFor('ai')).toBe('idle');
+  });
+
+  it('arbitration settled to nothing-active clears any scheduled timer', () => {
+    store.notify('ai', 'ai-stream');
+    expect(vi.getTimerCount()).toBeGreaterThan(0);
+    store.unregister('ai');
+    expect(vi.getTimerCount()).toBe(0);
   });
 });
 
