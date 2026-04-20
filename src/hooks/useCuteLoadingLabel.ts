@@ -155,13 +155,18 @@ export function useCuteLoadingLabel(
   const reducedMotion = usePrefersReducedMotion();
   const sequence = useMemo(() => sequenceForOperation(operation), [operation]);
   const [index, setIndex] = useState(0);
-  const [prevOperation, setPrevOperation] = useState<OperationKind>(operation);
 
-  // React's "derive state from props" pattern — setState during render
-  // is explicitly supported for resetting on prop change without an
-  // effect round-trip. See react.dev/reference/react/useState.
-  if (prevOperation !== operation) {
-    setPrevOperation(operation);
+  // A "session key" changes on ANY transition that should reset the
+  // phrase index: operation change, isLoading flipping either
+  // direction. React's "derive state from props" pattern (setState
+  // during render; see react.dev/reference/react/useState) resets
+  // index on every session boundary without an effect round-trip.
+  // This fixes the prior same-operation re-entry bug where
+  // isLoading: false → true preserved stale index.
+  const sessionKey = `${operation}:${isLoading ? 'on' : 'off'}`;
+  const [prevSessionKey, setPrevSessionKey] = useState(sessionKey);
+  if (prevSessionKey !== sessionKey) {
+    setPrevSessionKey(sessionKey);
     setIndex(0);
   }
 

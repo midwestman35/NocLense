@@ -59,15 +59,30 @@ Codemod: `rg -l '\-\-shadow-(sm|md|lg)' src/` → sweep in the Phase 01a PR.
 | `@keyframes phase-dot-pulse` (index.css:39–42) | Kept. |
 | `.animate-phase-pulse` utility (index.css:43–45) | Kept. |
 
-### 3.4 Existing keyframes (index.css)
+### 3.4 Keyframe ownership
 
-| Keyframe (index.css line) | Disposition |
-|---|---|
-| `phase-dot-pulse` (39) | Kept. Pattern for new `glow-live` pulse. |
-| `evidence-add` (48) | Kept. Pattern for new Evidence pin-in animation. |
-| `room-fade-in` (58) | Kept. Used by room transitions. |
+Existing keyframes in `src/index.css` (kept where they are):
 
-New keyframes added in Phase 01a (braille-step, block-step, dots-step, progress-fill, typewriter-reveal, breathing-wave) land next to these.
+| Keyframe | Location | Disposition |
+|---|---|---|
+| `phase-dot-pulse` | index.css:39 | Kept. |
+| `evidence-add` | index.css:48 | Kept. |
+| `room-fade-in` | index.css:58 | Kept. |
+| `toast-in` | index.css:67 | Kept. Reduced-motion guard added in 01a ckpt 2. |
+| `shimmer` | index.css:82 | Kept. Reduced-motion guard added in 01a ckpt 2. |
+
+New Phase 01a keyframes live in `src/styles/loading.css`, co-located with the classes that consume them. Shipped in checkpoint 1 / 2:
+
+| Keyframe | Location | Consumer class |
+|---|---|---|
+| `tui-braille-cycle` | loading.css | `.tui-spinner--braille` |
+| `tui-block-cycle` | loading.css | `.tui-spinner--block` |
+| `tui-dots-cycle` | loading.css | `.tui-spinner--dots` |
+| `cute-label-reveal` | loading.css | `.cute-label__char` (first animation) |
+| `cute-label-breathe` | loading.css | `.cute-label__char` (second animation) |
+| `glow-live-pulse` | loading.css | `.glow-live::after` |
+
+The Phase 00 first cut proposed names like `braille-step`, `block-step`, `progress-fill`, `typewriter-reveal`, `breathing-wave`. The shipped names above supersede those — update any downstream reference to the shipped names.
 
 ### 3.5 Motion tokens (additions, no replacements)
 

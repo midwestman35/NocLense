@@ -9,6 +9,7 @@
 export { TuiSpinner, type TuiSpinnerKind, type TuiSpinnerProps } from './TuiSpinner';
 export { TuiProgress, type TuiProgressProps } from './TuiProgress';
 export { LoadingLabel, type LoadingLabelProps } from './LoadingLabel';
+export { GlowHost, type GlowHostProps } from './GlowHost';
 
 export {
   useCuteLoadingLabel,

@@ -163,7 +163,14 @@
    the elevation shadow.
    The overlay paints box-shadow using --shadow-glow-live (the
    declared state token), and the pulse is an opacity cycle on the
-   overlay itself.                                                    */
+   overlay itself.
+   HOSTING CONSTRAINT: .glow-live MUST be applied to an element that
+   does NOT have overflow: hidden, and whose parent does not clip
+   descendants either. The pseudo-element's box-shadow paints OUTSIDE
+   the host, which overflow-hidden would clip. When the target
+   surface is clipping (e.g. src/components/workspace/WorkspaceCard
+   uses overflow-hidden), wrap it in a non-clipping outer via the
+   <GlowHost> React primitive in src/components/loading/GlowHost.tsx.*/
 
 .glow-live {
   position: relative;
