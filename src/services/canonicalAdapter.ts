@@ -15,10 +15,18 @@
  * into canonical types. Consumers see canonical types only.
  */
 
-import type {
-  BlockOf,
-  Citation,
-  Investigation,
+import {
+  INVESTIGATION_SCHEMA_VERSION,
+  asBlockId,
+  asCitationId,
+  asInvestigationId,
+  type Block,
+  type BlockId,
+  type BlockOf,
+  type Citation,
+  type CitationId,
+  type CitationSource,
+  type Investigation,
 } from '../types/canonical';
 
 // ─── Stage → allowed block kinds (enforced at the type level) ────────────
@@ -196,4 +204,328 @@ export interface UnleashResponseValidator {
    *         failure as an AdapterErrorEvent.
    */
   validate(raw: unknown): UnleashResponseShape;
+}
+
+// ═══ Phase 01b implementations ═══════════════════════════════════════════
+
+/** Thrown by validateUnleashResponse with a path-precise message. */
+export class StructuralValidationError extends Error {
+  readonly path: string;
+  constructor(message: string, path: string) {
+    super(`${message} at ${path}`);
+    this.name = 'StructuralValidationError';
+    this.path = path;
+  }
+}
+
+function vAssert(cond: unknown, message: string, path: string): asserts cond {
+  if (!cond) throw new StructuralValidationError(message, path);
+}
+
+function vIsRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+function vOptionalString(v: unknown, path: string): string {
+  if (v === undefined || v === null) return '';
+  vAssert(typeof v === 'string', 'expected string or missing', path);
+  return v;
+}
+
+/**
+ * Validates a raw HTTP response body (or a loose DiagnosisResult) into
+ * a strict UnleashResponseShape.
+ *
+ * Graceful defaults:
+ *   - Missing arrays → empty array (hypotheses, correlatedLogs,
+ *     logSuggestions).
+ *   - Missing strings → empty string (summary, rootCause,
+ *     appliedTroubleshooting, rawResponse).
+ *
+ * Strict checks:
+ *   - Top-level must be an object.
+ *   - Array fields, if present, must actually be arrays.
+ *   - Hypothesis rank must be 1 | 2 | 3 (no coercion).
+ *   - Correlated log `logId` and `index` must be numbers.
+ */
+export function validateUnleashResponse(raw: unknown): UnleashResponseShape {
+  vAssert(vIsRecord(raw), 'not an object', '$');
+
+  const hypothesesRaw = raw.hypotheses;
+  const hypotheses: UnleashHypothesis[] = [];
+  if (hypothesesRaw !== undefined) {
+    vAssert(Array.isArray(hypothesesRaw), 'not an array', '$.hypotheses');
+    for (let i = 0; i < hypothesesRaw.length; i++) {
+      const h = hypothesesRaw[i];
+      const path = `$.hypotheses[${i}]`;
+      vAssert(vIsRecord(h), 'not an object', path);
+      vAssert(
+        h.rank === 1 || h.rank === 2 || h.rank === 3,
+        'rank must be 1 | 2 | 3',
+        `${path}.rank`,
+      );
+      const statusHint = h.statusHint;
+      if (statusHint !== undefined) {
+        vAssert(
+          statusHint === 'CONFIRMED' ||
+            statusHint === 'RULED_OUT' ||
+            statusHint === 'INCONCLUSIVE',
+          'statusHint must be CONFIRMED | RULED_OUT | INCONCLUSIVE',
+          `${path}.statusHint`,
+        );
+      }
+      hypotheses.push({
+        rank: h.rank,
+        title: vOptionalString(h.title, `${path}.title`),
+        supportingEvidence: vOptionalString(h.supportingEvidence, `${path}.supportingEvidence`),
+        evidenceToConfirm: vOptionalString(h.evidenceToConfirm, `${path}.evidenceToConfirm`),
+        evidenceToRuleOut: vOptionalString(h.evidenceToRuleOut, `${path}.evidenceToRuleOut`),
+        statusHint: statusHint as UnleashHypothesis['statusHint'],
+      });
+    }
+  }
+
+  const correlatedRaw = raw.correlatedLogs;
+  const correlatedLogs: UnleashCorrelatedLog[] = [];
+  if (correlatedRaw !== undefined) {
+    vAssert(Array.isArray(correlatedRaw), 'not an array', '$.correlatedLogs');
+    for (let i = 0; i < correlatedRaw.length; i++) {
+      const c = correlatedRaw[i];
+      const path = `$.correlatedLogs[${i}]`;
+      vAssert(vIsRecord(c), 'not an object', path);
+      vAssert(typeof c.logId === 'number', 'logId must be number', `${path}.logId`);
+      vAssert(typeof c.index === 'number', 'index must be number', `${path}.index`);
+      correlatedLogs.push({
+        logId: c.logId,
+        index: c.index,
+        reason: vOptionalString(c.reason, `${path}.reason`),
+      });
+    }
+  }
+
+  const suggRaw = raw.logSuggestions;
+  const logSuggestions: UnleashLogSuggestion[] = [];
+  if (suggRaw !== undefined) {
+    vAssert(Array.isArray(suggRaw), 'not an array', '$.logSuggestions');
+    for (let i = 0; i < suggRaw.length; i++) {
+      const s = suggRaw[i];
+      const path = `$.logSuggestions[${i}]`;
+      vAssert(vIsRecord(s), 'not an object', path);
+      logSuggestions.push({
+        source: vOptionalString(s.source, `${path}.source`),
+        reason: vOptionalString(s.reason, `${path}.reason`),
+        query: s.query === undefined ? undefined : vOptionalString(s.query, `${path}.query`),
+      });
+    }
+  }
+
+  return {
+    summary: vOptionalString(raw.summary, '$.summary'),
+    rootCause: vOptionalString(raw.rootCause, '$.rootCause'),
+    hypotheses,
+    correlatedLogs,
+    logSuggestions,
+    appliedTroubleshooting: vOptionalString(raw.appliedTroubleshooting, '$.appliedTroubleshooting'),
+    rawResponse: vOptionalString(raw.rawResponse, '$.rawResponse'),
+  };
+}
+
+/** Source-locator for a correlated log. Returned by the caller's resolver. */
+export interface ResolvedLogLocator {
+  fileName: string;
+  lineNumber: number;
+  byteOffset: number;
+}
+
+export interface BuildInvestigationInput {
+  response: UnleashResponseShape;
+  ticketUrl?: string;
+  /**
+   * Customer name for ContextBody (§5.1 required field). Defaults to
+   * '(unknown customer)' when the caller can't resolve one.
+   */
+  customer?: string;
+  /** Investigation id. Defaults to a fresh UUID via idFactory. */
+  investigationId?: string;
+  /** UUID source. Defaults to globalThis.crypto.randomUUID. Inject for tests. */
+  idFactory?: () => string;
+  /** Clock source. Defaults to Date.now. */
+  now?: () => number;
+  /**
+   * Resolves an Unleash logId + prompt index to a persisted citation
+   * locator. Returning null skips that citation entirely — the log
+   * ref is lost but the response still produces a usable Investigation.
+   */
+  resolveLogLocator?: (logId: number, index: number) => ResolvedLogLocator | null;
+}
+
+/**
+ * Build a canonical Investigation from a validated Unleash response.
+ *
+ * Mapping (v1 approximation per spec §5.2):
+ *   - Context:    single block; `customer`, `ticketUrl`, `reported`
+ *                 (reported is `summary` truncated to 280 chars).
+ *   - Prior Art:  none — the current Unleash prompt doesn't emit
+ *                 structured prior-art rows. Added in Phase 01b.3+
+ *                 when the prompt grows.
+ *   - Hypotheses: one block per UnleashHypothesis, mapping rank /
+ *                 title / supportingEvidence / evidenceToConfirm /
+ *                 evidenceToRuleOut / status (default INCONCLUSIVE).
+ *   - Collection: single block with one step per logSuggestion.
+ *                 Omitted when no suggestions.
+ *   - Analysis:   one block per Hypothesis. The rank-1 hypothesis
+ *                 gets `summary = rootCause || summary` and all
+ *                 resolved correlated-log citations. Other ranks get
+ *                 a placeholder until per-hypothesis analysis lands.
+ *   - Action:     single block, kind='resolve', summary =
+ *                 appliedTroubleshooting || rootCause || summary.
+ *
+ * Deterministic when both `idFactory` and `now` are injected — tests
+ * lock the output without snapshot fragility.
+ */
+export function buildInvestigationFromResponse(input: BuildInvestigationInput): Investigation {
+  const now = input.now ?? Date.now;
+  const idFactory = input.idFactory ?? (() => globalThis.crypto.randomUUID());
+  const createdAt = now();
+  const customer = input.customer ?? '(unknown customer)';
+  const investigationId = asInvestigationId(input.investigationId ?? idFactory());
+
+  // ─── Citations pool (from correlatedLogs that resolve a locator) ───────
+  const citations: Record<CitationId, Citation> = {};
+  const citationIdsInOrder: CitationId[] = [];
+  for (const cl of input.response.correlatedLogs) {
+    const locator = input.resolveLogLocator?.(cl.logId, cl.index);
+    if (!locator) continue;
+    const id = asCitationId(idFactory());
+    const source: CitationSource = {
+      kind: 'log',
+      fileName: locator.fileName,
+      lineNumber: locator.lineNumber,
+      byteOffset: locator.byteOffset,
+    };
+    citations[id] = {
+      id,
+      displayText: `${locator.fileName}:${locator.lineNumber}`,
+      source,
+      createdAt,
+    };
+    citationIdsInOrder.push(id);
+  }
+
+  const blocks: Block[] = [];
+
+  // ─── Context ───────────────────────────────────────────────────────────
+  blocks.push({
+    id: asBlockId(idFactory()),
+    kind: 'context',
+    createdAt,
+    updatedAt: createdAt,
+    citations: [],
+    body: {
+      customer,
+      ticketUrl: input.ticketUrl,
+      reported: truncate(input.response.summary, 280),
+    },
+  });
+
+  // ─── Hypotheses ────────────────────────────────────────────────────────
+  const hypothesisBlockIds: BlockId[] = [];
+  for (const h of input.response.hypotheses) {
+    const id = asBlockId(idFactory());
+    hypothesisBlockIds.push(id);
+    blocks.push({
+      id,
+      kind: 'hypothesis',
+      createdAt,
+      updatedAt: createdAt,
+      citations: [],
+      body: {
+        rank: h.rank,
+        title: h.title,
+        supportingEvidence: h.supportingEvidence,
+        evidenceToConfirm: h.evidenceToConfirm,
+        evidenceToRuleOut: h.evidenceToRuleOut,
+        status: h.statusHint ?? 'INCONCLUSIVE',
+      },
+    });
+  }
+
+  // ─── Collection (optional) ─────────────────────────────────────────────
+  if (input.response.logSuggestions.length > 0) {
+    blocks.push({
+      id: asBlockId(idFactory()),
+      kind: 'collection',
+      createdAt,
+      updatedAt: createdAt,
+      citations: [],
+      body: {
+        steps: input.response.logSuggestions.map((s) => ({
+          label: s.source ? `${s.source}: ${s.reason}` : s.reason,
+          command: s.query,
+        })),
+      },
+    });
+  }
+
+  // ─── Analysis — one per hypothesis ─────────────────────────────────────
+  // Rank-1 hypothesis receives the correlated-log citations and the
+  // substantive summary. Others get placeholders — per-hypothesis
+  // analysis relies on richer Unleash prompting (Phase 01b.3+).
+  const topRankHypothesisId = hypothesisBlockIds[0] ?? null;
+  const topRankSummary =
+    input.response.rootCause ||
+    input.response.summary ||
+    'No analysis produced by the AI response.';
+  for (const hypId of hypothesisBlockIds) {
+    const isTop = hypId === topRankHypothesisId;
+    blocks.push({
+      id: asBlockId(idFactory()),
+      kind: 'analysis',
+      createdAt,
+      updatedAt: createdAt,
+      citations: isTop ? citationIdsInOrder.slice() : [],
+      body: {
+        hypothesisBlockId: hypId,
+        statusUpdate: 'INCONCLUSIVE',
+        summary: isTop ? topRankSummary : 'Further investigation needed.',
+      },
+    });
+  }
+
+  // ─── Action ────────────────────────────────────────────────────────────
+  const actionSummary =
+    input.response.appliedTroubleshooting ||
+    input.response.rootCause ||
+    input.response.summary ||
+    'Recommend further investigation.';
+  blocks.push({
+    id: asBlockId(idFactory()),
+    kind: 'action',
+    createdAt,
+    updatedAt: createdAt,
+    citations: [],
+    body: {
+      summary: actionSummary,
+      payload: {
+        kind: 'resolve',
+        resolutionNote: actionSummary,
+        tags: [],
+      },
+    },
+  });
+
+  return {
+    schemaVersion: INVESTIGATION_SCHEMA_VERSION,
+    id: investigationId,
+    ticketUrl: input.ticketUrl,
+    createdAt,
+    updatedAt: createdAt,
+    blocks,
+    citations,
+  };
+}
+
+function truncate(s: string, max: number): string {
+  if (s.length <= max) return s;
+  return s.slice(0, max - 1) + '…';
 }
