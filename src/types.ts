@@ -52,6 +52,21 @@ export interface LogEntry {
     _callIdLower?: string;
     embedding?: number[];
     hasEmbedding?: boolean;
+
+    /**
+     * Phase 00 additions (UI polish redesign — canonical citation model).
+     * All optional for backward compatibility with existing parsers.
+     * See docs/superpowers/specs/2026-04-20-ui-polish-redesign-design.md §5.3.
+     */
+
+    /** First-class correlation field extracted from OC-format JSON body. */
+    traceId?: string;
+    /** 1-based line number in the source file where this entry starts. */
+    lineNumber?: number;
+    /** Byte offset where this entry starts in the source file. Stable citation locator. */
+    byteOffset?: number;
+    /** True when the JSON body failed to parse. Entry still renders with muted marker. */
+    jsonMalformed?: boolean;
 }
 
 export interface LogState {
