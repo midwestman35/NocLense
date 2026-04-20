@@ -18,7 +18,7 @@ import {
   useLiveSurface,
   useSurfaceTier,
 } from '../RoomLiveStateContext';
-import { RoomLiveStateStore } from '../roomLiveStateStore';
+import { RoomLiveStateStore, type LiveSurfaceKind } from '../roomLiveStateStore';
 
 function withProvider(store?: RoomLiveStateStore) {
   return function Wrapper({ children }: { children: ReactNode }) {

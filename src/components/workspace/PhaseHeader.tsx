@@ -44,11 +44,11 @@ export function PhaseHeader({
       <div className="relative flex h-full items-center px-4">
         {/* Left: Logo */}
         <div className="flex items-center gap-2.5 text-sm font-semibold tracking-tight text-[var(--foreground)]">
-          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] border border-[var(--button-subtle-border)] bg-[var(--button-subtle-surface)] shadow-[var(--shadow-flat)]">
+          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-[var(--button-subtle-border)] bg-[var(--button-subtle-surface)] shadow-[var(--shadow-flat)]">
             <img
               src={APP_ICON_SRC}
               alt="NocLense icon"
-              className="h-[18px] w-[18px] shrink-0 rounded-[4px]"
+              className="h-[18px] w-[18px] shrink-0 rounded-[var(--radius-xs)]"
             />
           </div>
           <span className="leading-none">NocLense</span>

@@ -130,13 +130,37 @@ truth.
 Values are finalized against `--green-house-*` (light/dark-tuned
 green opacities) and `--destructive` (red).
 
-## 4. Radius reconciliation
+## 4. Radius reconciliation (shipped in ckpt 10)
 
-**Known issue from Codex review:** the design spec previously cited a `4/6/8/12/16` radius scale that does not match `--card-radius: 12px` or actual usage patterns. Phase 01a action:
+The design spec's `4/6/8/12/16` scale is now the committed token set. `tokens.css` exposes:
 
-1. Inventory every `border-radius` value in `src/` (Tailwind classes + raw CSS).
-2. Reconcile: either normalize code to the scale, or publish the actual radii as the tokens.
-3. Publish the reconciled scale in `tokens.css` with comments showing the concentric pattern (outer = inner + padding).
+| Token | Value | Intended use |
+|---|---|---|
+| `--radius-xs` | `4px` | Small embedded elements (logo image, compact chips, tight inline badges) |
+| `--radius-sm` | `6px` | Tooltips, skeletons, inline pill badges |
+| `--radius-md` | `8px` | Buttons, inputs, chips, menu items, popovers, small cards |
+| `--radius-lg` | `12px` | Cards, dialogs, modal panels, dropdowns at rest |
+| `--radius-xl` | `16px` | Reserved for outsized hero surfaces; no current consumer |
+
+`--card-radius` was previously a duplicate of `--radius-lg` (both `12px`). It's now composed: `--card-radius: var(--radius-lg)`, preserving the semantic name while sharing the primitive.
+
+**Outliers normalized (ckpt 10 sweep):**
+
+| Before | After | Consumer |
+|---|---|---|
+| `rounded-[4px]` | `rounded-[var(--radius-xs)]` | `PhaseHeader` logo image |
+| `rounded-[7px]` | `rounded-[var(--radius-md)]` | `PhaseHeader` logo chip (was 1px below md) |
+| `rounded-[10px]` | `rounded-[var(--radius-md)]` | `ChangelogDropdown` button |
+| `rounded-[14px]` | `rounded-[var(--radius-lg)]` | `ChangelogDropdown` panel (was between md and xl) |
+
+**Intentional exemptions** (NOT on the UI radius scale):
+
+- `::-webkit-scrollbar-thumb { border-radius: 3px }` in `index.css`. Scrollbar chrome; browser norm.
+- `rounded-[1px]` on `<mark>` elements in `highlightUtils.tsx`. Text-match hairline highlight; visual role is a subtle rectangle tick, not a rounded surface.
+
+**Concentric pattern guidance** (copied into the `tokens.css` comment):
+
+> For nested rounded surfaces, use `inner-radius = outer-radius - padding`. A card at `--radius-lg` (12px) with 8px internal padding hosts content with `--radius-xs` (4px). Always prefer token references over arbitrary values so the scale stays the single source of truth.
 
 ## 5. Alias and deprecation policy during Phase 01a
 

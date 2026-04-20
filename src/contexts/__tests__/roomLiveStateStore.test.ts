@@ -331,6 +331,58 @@ describe('timer safety', () => {
   });
 });
 
+describe('coverage nits (ckpt 9 residuals)', () => {
+  it('register() transitions idle → ready while another surface is live', () => {
+    // Incumbent A is live.
+    store.notify('a', 'ai-stream');
+    expect(store.tierFor('a')).toBe('live');
+
+    // B registers — its tier goes idle → ready while A stays live.
+    // This is the `!wasConnected` emit path with arbitrate() returning
+    // false (no swap).
+    listener.mockClear();
+    store.register('b', 'datadog-stream');
+    expect(store.tierFor('a')).toBe('live');
+    expect(store.tierFor('b')).toBe('ready');
+    // Emit fired because B transitioned observably.
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it('debounce wake that keeps the same winner does NOT emit', () => {
+    // A becomes live (first swap, no debounce).
+    store.notify('a', 'ai-stream');
+    // Lower-priority B notifies within the debounce window. B would
+    // lose arbitration (A is higher priority and fresh), so the
+    // scheduled wake that re-evaluates at window close will find the
+    // same winner and stay silent.
+    vi.advanceTimersByTime(50);
+    store.notify('b', 'connector-heartbeat');
+    listener.mockClear();
+
+    // Fast-forward past the 300ms debounce window. The scheduled
+    // timer fires, arbitrate re-runs, finds the same winner (A),
+    // and should NOT emit.
+    vi.advanceTimersByTime(SWAP_DEBOUNCE_MS);
+    expect(store.tierFor('a')).toBe('live');
+    expect(store.tierFor('b')).toBe('ready');
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it('equal-priority kind rerender: recency breaks the tie', () => {
+    // A is live at ai-stream.
+    store.notify('a', 'ai-stream');
+    expect(store.tierFor('a')).toBe('live');
+
+    // B notifies at the SAME priority (ai-stream) later. Tie-break
+    // rule: equal priority, most-recent wins.
+    vi.advanceTimersByTime(SWAP_DEBOUNCE_MS + 10);
+    store.notify('b', 'ai-stream');
+    vi.advanceTimersByTime(SWAP_DEBOUNCE_MS + 10);
+    expect(store.tierFor('b')).toBe('live');
+    expect(store.tierFor('a')).toBe('ready');
+  });
+});
+
 describe('no-op emit suppression', () => {
   it('repeat register() on already-connected surface with same kind does not emit', () => {
     store.register('ai', 'ai-stream');

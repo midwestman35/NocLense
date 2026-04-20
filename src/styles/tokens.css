@@ -121,7 +121,30 @@
     0 0 24px rgba(239, 68, 68, 0.15);
 }
 
+/*
+ * Radius scale (Phase 01a increment 10 — reconciled).
+ *
+ * Spec §3.2 publishes a 4/6/8/12/16 scale. Prior to increment 10,
+ * tokens.css exposed only 6/8/12/16 (the xs tier was missing), and
+ * component files contained one-off arbitrary values (7px, 10px,
+ * 14px) that didn't align to any token. Increment 10:
+ *   - Adds --radius-xs: 4px to complete the spec scale.
+ *   - Normalizes the arbitrary-value outliers to the nearest token
+ *     (7→md, 10→md, 14→lg, 4→xs).
+ *   - Composes --card-radius from --radius-lg to remove the 12px
+ *     duplicate.
+ *   - Keeps the scrollbar's 3px as-is (scrollbar chrome, not part
+ *     of the UI radius system).
+ *
+ * Concentric pattern: for nested rounded surfaces, use
+ *   inner-radius = outer-radius - padding
+ * So a card at --radius-lg (12px) with 8px internal padding hosts
+ * content with border-radius --radius-xs (4px) for visual
+ * consistency. Always prefer token references over arbitrary
+ * values so the scale stays the single source of truth.
+ */
 :root {
+  --radius-xs: 4px;
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 12px;
@@ -223,7 +246,7 @@
   --room-transition-duration: 600ms;
   --room-transition-ease: cubic-bezier(0.33, 1, 0.68, 1);
 
-  --card-radius: 12px;
+  --card-radius: var(--radius-lg); /* composed from primitive scale */
   --card-border: #263025;
   --card-border-hover: #3a5030;
   --card-header-height: 40px;

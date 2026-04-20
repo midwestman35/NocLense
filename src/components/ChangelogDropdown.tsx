@@ -266,7 +266,7 @@ const ChangelogDropdown = () => {
       <button
         ref={buttonRef}
         onClick={() => setIsOpen((open) => !open)}
-        className="inline-flex h-8 items-center gap-1.5 rounded-[10px] border border-[var(--button-subtle-border)] bg-[var(--button-subtle-surface)] px-2.5 text-[13px] font-semibold text-[var(--foreground)] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-colors hover:bg-[var(--button-subtle-hover)]"
+        className="inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--button-subtle-border)] bg-[var(--button-subtle-surface)] px-2.5 text-[13px] font-semibold text-[var(--foreground)] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-colors hover:bg-[var(--button-subtle-hover)]"
         title="View changelog"
       >
         <span>LogScrub</span>
@@ -278,7 +278,7 @@ const ChangelogDropdown = () => {
           <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
 
           <div
-            className="fixed z-50 flex max-h-[min(42rem,calc(100vh-5rem))] flex-col overflow-hidden rounded-[14px] border border-[var(--button-subtle-border)] shadow-[var(--shadow-raised)] backdrop-blur-md"
+            className="fixed z-50 flex max-h-[min(42rem,calc(100vh-5rem))] flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--button-subtle-border)] shadow-[var(--shadow-raised)] backdrop-blur-md"
             style={{
               top: menuPos.top,
               left: menuPos.left,
