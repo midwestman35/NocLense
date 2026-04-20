@@ -232,6 +232,10 @@ function vOptionalString(v: unknown, path: string): string {
   return v;
 }
 
+function vIsNonNegativeInteger(v: unknown): v is number {
+  return typeof v === 'number' && Number.isInteger(v) && v >= 0;
+}
+
 /**
  * Validates a raw HTTP response body (or a loose DiagnosisResult) into
  * a strict UnleashResponseShape.
@@ -246,7 +250,7 @@ function vOptionalString(v: unknown, path: string): string {
  *   - Top-level must be an object.
  *   - Array fields, if present, must actually be arrays.
  *   - Hypothesis rank must be 1 | 2 | 3 (no coercion).
- *   - Correlated log `logId` and `index` must be numbers.
+ *   - Correlated log `logId` and `index` must be non-negative integers.
  */
 export function validateUnleashResponse(raw: unknown): UnleashResponseShape {
   vAssert(vIsRecord(raw), 'not an object', '$');
@@ -293,8 +297,16 @@ export function validateUnleashResponse(raw: unknown): UnleashResponseShape {
       const c = correlatedRaw[i];
       const path = `$.correlatedLogs[${i}]`;
       vAssert(vIsRecord(c), 'not an object', path);
-      vAssert(typeof c.logId === 'number', 'logId must be number', `${path}.logId`);
-      vAssert(typeof c.index === 'number', 'index must be number', `${path}.index`);
+      vAssert(
+        vIsNonNegativeInteger(c.logId),
+        'logId must be a non-negative integer',
+        `${path}.logId`,
+      );
+      vAssert(
+        vIsNonNegativeInteger(c.index),
+        'index must be a non-negative integer',
+        `${path}.index`,
+      );
       correlatedLogs.push({
         logId: c.logId,
         index: c.index,
@@ -429,10 +441,13 @@ export function buildInvestigationFromResponse(input: BuildInvestigationInput): 
   });
 
   // ─── Hypotheses ────────────────────────────────────────────────────────
-  const hypothesisBlockIds: BlockId[] = [];
+  const hypothesisBlocks: Array<{
+    blockId: BlockId;
+    hypothesis: UnleashHypothesis;
+  }> = [];
   for (const h of input.response.hypotheses) {
     const id = asBlockId(idFactory());
-    hypothesisBlockIds.push(id);
+    hypothesisBlocks.push({ blockId: id, hypothesis: h });
     blocks.push({
       id,
       kind: 'hypothesis',
@@ -471,13 +486,20 @@ export function buildInvestigationFromResponse(input: BuildInvestigationInput): 
   // Rank-1 hypothesis receives the correlated-log citations and the
   // substantive summary. Others get placeholders — per-hypothesis
   // analysis relies on richer Unleash prompting (Phase 01b.3+).
-  const topRankHypothesisId = hypothesisBlockIds[0] ?? null;
+  let topRankHypothesisId: BlockId | null = null;
+  let topRankValue = Number.POSITIVE_INFINITY;
+  for (const { blockId, hypothesis } of hypothesisBlocks) {
+    if (hypothesis.rank < topRankValue) {
+      topRankHypothesisId = blockId;
+      topRankValue = hypothesis.rank;
+    }
+  }
   const topRankSummary =
     input.response.rootCause ||
     input.response.summary ||
     'No analysis produced by the AI response.';
-  for (const hypId of hypothesisBlockIds) {
-    const isTop = hypId === topRankHypothesisId;
+  for (const { blockId, hypothesis } of hypothesisBlocks) {
+    const isTop = blockId === topRankHypothesisId;
     blocks.push({
       id: asBlockId(idFactory()),
       kind: 'analysis',
@@ -485,8 +507,8 @@ export function buildInvestigationFromResponse(input: BuildInvestigationInput): 
       updatedAt: createdAt,
       citations: isTop ? citationIdsInOrder.slice() : [],
       body: {
-        hypothesisBlockId: hypId,
-        statusUpdate: 'INCONCLUSIVE',
+        hypothesisBlockId: blockId,
+        statusUpdate: hypothesis.statusHint ?? 'INCONCLUSIVE',
         summary: isTop ? topRankSummary : 'Further investigation needed.',
       },
     });

@@ -91,9 +91,42 @@ describe('validateUnleashResponse', () => {
     expect(() => validateUnleashResponse(raw)).toThrow(/\$\.correlatedLogs\[0\]\.logId/);
   });
 
+  it('rejects correlated log numbers that are NaN, fractional, or negative', () => {
+    const invalidCases = [
+      { field: 'logId', value: Number.NaN, path: /\$\.correlatedLogs\[0\]\.logId/ },
+      { field: 'logId', value: 1.5, path: /\$\.correlatedLogs\[0\]\.logId/ },
+      { field: 'logId', value: -1, path: /\$\.correlatedLogs\[0\]\.logId/ },
+      { field: 'index', value: Number.NaN, path: /\$\.correlatedLogs\[0\]\.index/ },
+      { field: 'index', value: 2.25, path: /\$\.correlatedLogs\[0\]\.index/ },
+      { field: 'index', value: -3, path: /\$\.correlatedLogs\[0\]\.index/ },
+    ] as const;
+
+    for (const invalidCase of invalidCases) {
+      const raw = {
+        correlatedLogs: [
+          {
+            logId: invalidCase.field === 'logId' ? invalidCase.value : 1,
+            index: invalidCase.field === 'index' ? invalidCase.value : 0,
+            reason: 'x',
+          },
+        ],
+      };
+      expect(() => validateUnleashResponse(raw)).toThrow(invalidCase.path);
+    }
+  });
+
   it('throws on non-array hypotheses when present', () => {
     expect(() => validateUnleashResponse({ hypotheses: 'no' })).toThrow(
       /\$\.hypotheses/,
+    );
+  });
+
+  it('throws on non-array correlatedLogs and logSuggestions when present', () => {
+    expect(() => validateUnleashResponse({ correlatedLogs: 'no' })).toThrow(
+      /\$\.correlatedLogs/,
+    );
+    expect(() => validateUnleashResponse({ logSuggestions: 'no' })).toThrow(
+      /\$\.logSuggestions/,
     );
   });
 
@@ -263,6 +296,191 @@ describe('buildInvestigationFromResponse — structural shape', () => {
     expect(alt.citations).toHaveLength(0);
     if (isBlockOfKind(top, 'analysis')) expect(top.body.summary).toBe('PBX reg failure');
     if (isBlockOfKind(alt, 'analysis')) expect(alt.body.summary).toMatch(/Further investigation/);
+  });
+
+  it('selects the top analysis target by lowest rank even when hypotheses are unordered', () => {
+    const inv = buildInvestigationFromResponse({
+      ...baseInput({
+        ...EMPTY_RESPONSE,
+        rootCause: 'Root cause',
+        hypotheses: [
+          { rank: 3, title: 'Third', supportingEvidence: '', evidenceToConfirm: '', evidenceToRuleOut: '' },
+          { rank: 1, title: 'First', supportingEvidence: '', evidenceToConfirm: '', evidenceToRuleOut: '' },
+          { rank: 2, title: 'Second', supportingEvidence: '', evidenceToConfirm: '', evidenceToRuleOut: '' },
+        ],
+        correlatedLogs: [{ logId: 7, index: 0, reason: 'r' }],
+      }),
+      resolveLogLocator: () => ({ fileName: 'log.txt', lineNumber: 10, byteOffset: 20 }),
+    });
+
+    const hypotheses = inv.blocks.filter((b) => b.kind === 'hypothesis');
+    const analyses = inv.blocks.filter((b) => b.kind === 'analysis');
+    const firstHypothesis = hypotheses.find(
+      (block) => isBlockOfKind(block, 'hypothesis') && block.body.title === 'First',
+    );
+    if (!firstHypothesis) throw new Error('expected First hypothesis block');
+    const firstAnalysis = analyses.find(
+      (block) =>
+        isBlockOfKind(block, 'analysis') &&
+        block.body.hypothesisBlockId === firstHypothesis.id,
+    );
+    if (!firstAnalysis || !isBlockOfKind(firstAnalysis, 'analysis')) {
+      throw new Error('expected First analysis block');
+    }
+
+    expect(firstAnalysis.citations).toHaveLength(1);
+    expect(firstAnalysis.body.summary).toBe('Root cause');
+  });
+
+  it('keeps the first-inserted hypothesis when duplicate top ranks tie', () => {
+    const inv = buildInvestigationFromResponse({
+      ...baseInput({
+        ...EMPTY_RESPONSE,
+        summary: 'Fallback summary',
+        hypotheses: [
+          { rank: 1, title: 'First top', supportingEvidence: '', evidenceToConfirm: '', evidenceToRuleOut: '' },
+          { rank: 1, title: 'Second top', supportingEvidence: '', evidenceToConfirm: '', evidenceToRuleOut: '' },
+        ],
+        correlatedLogs: [{ logId: 8, index: 0, reason: 'r' }],
+      }),
+      resolveLogLocator: () => ({ fileName: 'log.txt', lineNumber: 11, byteOffset: 21 }),
+    });
+
+    const hypotheses = inv.blocks.filter((b) => b.kind === 'hypothesis');
+    const analyses = inv.blocks.filter((b) => b.kind === 'analysis');
+    const firstTop = hypotheses.find(
+      (block) => isBlockOfKind(block, 'hypothesis') && block.body.title === 'First top',
+    );
+    const secondTop = hypotheses.find(
+      (block) => isBlockOfKind(block, 'hypothesis') && block.body.title === 'Second top',
+    );
+    if (!firstTop || !secondTop) throw new Error('expected tied hypothesis blocks');
+
+    const firstAnalysis = analyses.find(
+      (block) =>
+        isBlockOfKind(block, 'analysis') &&
+        block.body.hypothesisBlockId === firstTop.id,
+    );
+    const secondAnalysis = analyses.find(
+      (block) =>
+        isBlockOfKind(block, 'analysis') &&
+        block.body.hypothesisBlockId === secondTop.id,
+    );
+    if (
+      !firstAnalysis ||
+      !secondAnalysis ||
+      !isBlockOfKind(firstAnalysis, 'analysis') ||
+      !isBlockOfKind(secondAnalysis, 'analysis')
+    ) {
+      throw new Error('expected tied analysis blocks');
+    }
+
+    expect(firstAnalysis.citations).toHaveLength(1);
+    expect(secondAnalysis.citations).toHaveLength(0);
+    expect(firstAnalysis.body.summary).toBe('Fallback summary');
+    expect(secondAnalysis.body.summary).toMatch(/Further investigation/);
+  });
+
+  it('falls back to the lowest available rank when rank 1 is absent', () => {
+    const inv = buildInvestigationFromResponse({
+      ...baseInput({
+        ...EMPTY_RESPONSE,
+        rootCause: 'Root cause',
+        hypotheses: [
+          { rank: 3, title: 'Third', supportingEvidence: '', evidenceToConfirm: '', evidenceToRuleOut: '' },
+          { rank: 2, title: 'Second', supportingEvidence: '', evidenceToConfirm: '', evidenceToRuleOut: '' },
+        ],
+        correlatedLogs: [{ logId: 9, index: 0, reason: 'r' }],
+      }),
+      resolveLogLocator: () => ({ fileName: 'log.txt', lineNumber: 12, byteOffset: 22 }),
+    });
+
+    const hypotheses = inv.blocks.filter((b) => b.kind === 'hypothesis');
+    const analyses = inv.blocks.filter((b) => b.kind === 'analysis');
+    const second = hypotheses.find(
+      (block) => isBlockOfKind(block, 'hypothesis') && block.body.title === 'Second',
+    );
+    const third = hypotheses.find(
+      (block) => isBlockOfKind(block, 'hypothesis') && block.body.title === 'Third',
+    );
+    if (!second || !third) throw new Error('expected fallback hypothesis blocks');
+
+    const secondAnalysis = analyses.find(
+      (block) =>
+        isBlockOfKind(block, 'analysis') &&
+        block.body.hypothesisBlockId === second.id,
+    );
+    const thirdAnalysis = analyses.find(
+      (block) =>
+        isBlockOfKind(block, 'analysis') &&
+        block.body.hypothesisBlockId === third.id,
+    );
+    if (
+      !secondAnalysis ||
+      !thirdAnalysis ||
+      !isBlockOfKind(secondAnalysis, 'analysis') ||
+      !isBlockOfKind(thirdAnalysis, 'analysis')
+    ) {
+      throw new Error('expected fallback analysis blocks');
+    }
+
+    expect(secondAnalysis.citations).toHaveLength(1);
+    expect(thirdAnalysis.citations).toHaveLength(0);
+    expect(secondAnalysis.body.summary).toBe('Root cause');
+  });
+
+  it('propagates hypothesis status hints into paired analysis blocks', () => {
+    const inv = buildInvestigationFromResponse(
+      baseInput({
+        ...EMPTY_RESPONSE,
+        hypotheses: [
+          {
+            rank: 1,
+            title: 'Confirmed',
+            supportingEvidence: '',
+            evidenceToConfirm: '',
+            evidenceToRuleOut: '',
+            statusHint: 'CONFIRMED',
+          },
+          {
+            rank: 2,
+            title: 'Ruled out',
+            supportingEvidence: '',
+            evidenceToConfirm: '',
+            evidenceToRuleOut: '',
+            statusHint: 'RULED_OUT',
+          },
+          {
+            rank: 3,
+            title: 'Default',
+            supportingEvidence: '',
+            evidenceToConfirm: '',
+            evidenceToRuleOut: '',
+          },
+        ],
+      }),
+    );
+
+    const hypotheses = inv.blocks.filter((b) => b.kind === 'hypothesis');
+    const analyses = inv.blocks.filter((b) => b.kind === 'analysis');
+    const statuses = new Map<string, string>();
+
+    for (const hypothesis of hypotheses) {
+      if (!isBlockOfKind(hypothesis, 'hypothesis')) continue;
+      const analysis = analyses.find(
+        (block) =>
+          isBlockOfKind(block, 'analysis') &&
+          block.body.hypothesisBlockId === hypothesis.id,
+      );
+      if (!analysis || !isBlockOfKind(analysis, 'analysis')) {
+        throw new Error(`expected analysis for ${hypothesis.body.title}`);
+      }
+      statuses.set(hypothesis.body.title, analysis.body.statusUpdate);
+    }
+
+    expect(statuses.get('Confirmed')).toBe('CONFIRMED');
+    expect(statuses.get('Ruled out')).toBe('RULED_OUT');
+    expect(statuses.get('Default')).toBe('INCONCLUSIVE');
   });
 
   it('skips citations when resolveLogLocator returns null', () => {
