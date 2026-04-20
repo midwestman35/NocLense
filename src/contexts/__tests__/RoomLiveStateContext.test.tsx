@@ -131,6 +131,46 @@ describe('useLiveSurface', () => {
     store.dispose();
   });
 
+  it('changing surfaceId within same mount unregisters old id and registers new', () => {
+    const store = new RoomLiveStateStore();
+    const { result, rerender } = renderHook(
+      ({ id }: { id: string }) => useLiveSurface(id, 'ai-stream'),
+      {
+        wrapper: withProvider(store),
+        initialProps: { id: 'old-id' },
+      },
+    );
+    // Prime: old-id is ready from register-on-mount. Notify to bump to live.
+    act(() => result.current.notify());
+    expect(store.tierFor('old-id')).toBe('live');
+
+    rerender({ id: 'new-id' });
+    // Effect cleanup for the first effect runs on rerender (deps
+    // changed), calling unregister('old-id'). Then the new effect
+    // registers 'new-id'.
+    expect(store.tierFor('old-id')).toBe('idle');
+    expect(store.tierFor('new-id')).toBe('ready');
+    store.dispose();
+  });
+
+  it('changing kind within same mount re-registers under the new kind', () => {
+    const store = new RoomLiveStateStore();
+    const { rerender } = renderHook(
+      ({ kind }: { kind: 'ai-stream' | 'datadog-stream' }) =>
+        useLiveSurface('s', kind),
+      {
+        wrapper: withProvider(store),
+        initialProps: { kind: 'ai-stream' as const },
+      },
+    );
+    expect(store.tierFor('s')).toBe('ready');
+    rerender({ kind: 'datadog-stream' as const });
+    // The surface is unregistered then re-registered. Final tier is
+    // ready (the new register call on the new kind).
+    expect(store.tierFor('s')).toBe('ready');
+    store.dispose();
+  });
+
   it('rapid unmount/remount with same surfaceId: ready after remount', () => {
     const store = new RoomLiveStateStore();
     const first = renderHook(() => useLiveSurface('ai', 'ai-stream'), {

@@ -108,16 +108,27 @@ The Phase 00 first cut proposed names like `braille-step`, `block-step`, `progre
 - Motion owns: AnimatePresence mount/unmount.
 - anime.js owns: stagger orchestration on lists, timeline, value tweening.
 
-### 3.6 Glow tier tokens (new)
+### 3.6 Glow tier tokens (shipped)
 
-| Token | Value (hex/rgba TBD in 01a) | State machine reference |
-|---|---|---|
-| `--glow-idle` | no glow, `--card-border` only | Default |
-| `--glow-ready` | 4px subtle green | Surface connected |
-| `--glow-live` | 10px pulsing, consumes new `@keyframes glow-live-pulse` | Data streaming (arbitrated per room) |
-| `--glow-alert` | 12px red | Alert state |
+The **canonical** glow-geometry token family is `--shadow-glow-*`,
+declared in the light + dark theme blocks of `src/styles/tokens.css`.
+Each is a full `box-shadow` value (not a color) so consumers compose
+directly via `box-shadow: var(--shadow-glow-ready)`.
 
-Values finalized in Phase 01a against existing `--green-house-*` and `--destructive`.
+| Token | Geometry | Consumer (CSS class) | State machine reference |
+|---|---|---|---|
+| *(no shadow)* | `box-shadow: none` | `.glow-surface` base, no modifier | idle tier (no rendered glow) |
+| `--shadow-glow-ready` | 4px subtle green | `.glow-surface--ready` | ready tier — surface connected |
+| `--shadow-glow-live` | 10px multi-layer green, paired with `@keyframes glow-live-pulse` | `.glow-surface--live` | live tier — data streaming (arbitrated per room) |
+| `--shadow-glow-error` | 12px red | `.glow-surface--alert` | alert tier |
+
+A separate `--glow-idle/ready/live/alert` family was declared in
+checkpoint 6 but never consumed by any class — removed in checkpoint
+7 per the Codex review. `--shadow-glow-*` is the single source of
+truth.
+
+Values are finalized against `--green-house-*` (light/dark-tuned
+green opacities) and `--destructive` (red).
 
 ## 4. Radius reconciliation
 

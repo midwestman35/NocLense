@@ -43,7 +43,15 @@ export interface RoomLiveStateProviderProps {
    * provider creates and owns one, and disposes it on unmount.
    */
   store?: RoomLiveStateStore;
-  /** Passed to a newly-created owned store. Ignored when `store` is set. */
+  /**
+   * Passed to a newly-created owned store. Ignored when `store` is
+   * set. IMPORTANT: read ONCE on first render; subsequent changes to
+   * this prop are silently ignored (the owned store is already
+   * constructed). Treat this as `initialStoreOptions` — it is
+   * documentation-level mount-only. If a test needs to swap options
+   * mid-run, construct a new RoomLiveStateStore with the new options
+   * and pass it via `store` instead.
+   */
   storeOptions?: RoomLiveStateStoreOptions;
 }
 

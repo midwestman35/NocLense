@@ -1,43 +1,53 @@
 /**
  * roomLiveStateStore.ts — arbitrated glow-tier state machine (spec §3.3).
  *
- * Phase 01a increment 7 hardens increment 6 per the Codex review:
- *   - Alert now wins room arbitration (raiseAlert / clearAlert
- *     re-arbitrate; any active alert suppresses the green live pulse
- *     elsewhere in the room).
- *   - `register(id, kind)` explicitly puts a surface at the `ready`
- *     tier — spec §3.3's "connected and operational" without needing
- *     a prior notify.
- *   - Decay uses `>= LIVE_DECAY_MS` and schedules the exact remaining
- *     delay (no +10ms cushion).
- *   - `disposed` flag guards mutators and timer callbacks; stale
- *     timers are cleared when arbitration settles.
+ * Phase 01a checkpoint 8 — further hardening per the increment-7
+ * Codex review:
+ *   - Alert promotion bypasses the 300ms swap debounce (spec §3.3
+ *     lines 77-85: "alert on any surface — red always wins"). The
+ *     previous implementation correctly picked the alerting surface
+ *     as the winner but queued the swap through the normal debounce
+ *     path, leaving a surface as `alert` while another still
+ *     rendered `live` for up to 300ms.
+ *   - Single commit point. Public mutators call arbitrate() (which
+ *     no longer emits) and then emit once at the end. Subscribers
+ *     never observe a pre-arbitration intermediate snapshot.
+ *   - Multi-alert policy documented: every surface in alertSurfaces
+ *     renders 'alert'; the internal active-live slot picks the
+ *     first-inserted alert surface, but that identity is internal —
+ *     visually every alerting surface is red.
  *
  * Arbitration rules (spec §3.3):
  *   - Tiers: idle / ready / live / alert.
  *   - Only ONE surface per room holds the "active live" slot.
- *   - Alert beats every other tier: if any surface has an alert, it
- *     becomes the active-live slot (rendering red), and every other
- *     surface — even those with fresh notifies — falls back to ready.
+ *   - Alert beats every other tier at the room level:
+ *       * If any surface has an unacknowledged alert, that surface
+ *         owns the active-live slot (rendering red).
+ *       * Every other surface — even those with fresh notifies —
+ *         falls back to ready.
  *   - Among non-alert contenders, priority (highest wins):
  *       parse-overlay > ai-stream > datadog-stream > connector-heartbeat.
- *   - `live` auto-decays to `ready` after 3s without a new notify.
+ *   - `live` auto-decays to `ready` after LIVE_DECAY_MS without a
+ *     new notify.
  *   - `ready` persists (it means "connected", not "seen recently").
- *   - 300ms debounce between active-live swaps to suppress flicker.
- *   - `alert` persists until explicitly cleared (clearAlert).
+ *   - SWAP_DEBOUNCE_MS debounce between non-alert swaps to suppress
+ *     flicker. Alert promotions BYPASS this debounce.
+ *   - `alert` persists until explicitly cleared.
  *
  * Semantics:
  *   register(id, kind)     — surface connected. Tier = ready.
- *   notify(id, kind)       — surface has fresh activity. Competes for live.
- *                            Implies register.
+ *   notify(id, kind)       — surface has fresh activity. Competes
+ *                            for live. Implies register.
  *   unregister(id)         — surface disconnected. Tier = idle.
- *                            Clears heartbeat + registration + alert.
- *   raiseAlert(id)         — surface has a user-facing error. Tier = alert.
- *                            Re-arbitrates (alert wins the active slot).
+ *   raiseAlert(id)         — surface has an error. Tier = alert;
+ *                            other surfaces in the room fall to ready.
  *   clearAlert(id)         — acknowledge alert. Re-arbitrates.
+ *                            Surface stays ready (since raiseAlert
+ *                            implies connection) until caller
+ *                            unregisters.
  *   tierFor(id)            — current visible tier for a surface.
- *   dispose()              — provider teardown. Cancels timers, clears
- *                            listeners, blocks further mutations.
+ *   dispose()              — provider teardown. Blocks further
+ *                            mutations, cancels timers.
  */
 
 export type GlowTier = 'idle' | 'ready' | 'live' | 'alert';
@@ -64,11 +74,8 @@ interface Heartbeat {
 }
 
 export interface RoomLiveStateStoreOptions {
-  /** Clock source. Defaults to Date.now. */
   now?: () => number;
-  /** Timer factory. Defaults to globalThis.setTimeout. */
   setTimeout?: (fn: () => void, ms: number) => ReturnType<typeof setTimeout>;
-  /** Cancel factory. Defaults to globalThis.clearTimeout. */
   clearTimeout?: (id: ReturnType<typeof setTimeout>) => void;
 }
 
@@ -93,7 +100,6 @@ export class RoomLiveStateStore {
     this.clearTimeoutFn = opts.clearTimeout ?? ((id) => clearTimeout(id));
   }
 
-  /** Stable listener registration. Returns an unsubscribe. */
   readonly subscribe = (listener: () => void): (() => void) => {
     if (this.disposed) return () => {};
     this.listeners.add(listener);
@@ -102,72 +108,54 @@ export class RoomLiveStateStore {
     };
   };
 
-  /** Mark a surface as connected (spec §3.3 ready tier: "operational"). */
   register(surfaceId: string, kind: LiveSurfaceKind): void {
     if (this.disposed) return;
-    const alreadyConnected = this.connected.has(surfaceId);
     this.connected.add(surfaceId);
     this.surfaceKinds.set(surfaceId, kind);
-    if (!alreadyConnected) this.emit();
     this.arbitrate();
+    this.emit();
   }
 
-  /** Surface has fresh activity. Becomes a candidate for the live tier. */
   notify(surfaceId: string, kind: LiveSurfaceKind): void {
     if (this.disposed) return;
     this.connected.add(surfaceId);
     this.surfaceKinds.set(surfaceId, kind);
     this.heartbeats.set(surfaceId, { kind, lastNotifyMs: this.now() });
     this.arbitrate();
+    this.emit();
   }
 
-  /** Surface disconnects. Tier returns to idle across all state. */
   unregister(surfaceId: string): void {
     if (this.disposed) return;
-    const hadConnected = this.connected.delete(surfaceId);
-    const hadHeartbeat = this.heartbeats.delete(surfaceId);
-    const hadAlert = this.alertSurfaces.delete(surfaceId);
-    const had = hadConnected || hadHeartbeat || hadAlert;
+    this.connected.delete(surfaceId);
+    this.heartbeats.delete(surfaceId);
+    this.alertSurfaces.delete(surfaceId);
     this.surfaceKinds.delete(surfaceId);
     if (this.activeLiveSurfaceId === surfaceId) {
       this.activeLiveSurfaceId = null;
     }
-    if (had) this.arbitrate();
+    this.arbitrate();
+    this.emit();
   }
 
-  /** Raise alert. Re-arbitrates: alert wins the active-live slot. */
   raiseAlert(surfaceId: string): void {
     if (this.disposed) return;
     if (this.alertSurfaces.has(surfaceId)) return;
     this.alertSurfaces.add(surfaceId);
-    // Alert implies connection — surface can't alert if it's idle.
+    // Alert implies connection. Surface stays at `ready` after
+    // clearAlert until the caller unregisters.
     this.connected.add(surfaceId);
-    // Emit unconditionally: the tier changes for this surface (to alert)
-    // AND potentially for every other surface in the room (live → ready).
-    // arbitrate() only emits on active-live swaps, which isn't enough.
-    this.emit();
     this.arbitrate();
+    this.emit();
   }
 
-  /** Acknowledge alert. Re-arbitrates. */
   clearAlert(surfaceId: string): void {
     if (this.disposed) return;
     if (!this.alertSurfaces.delete(surfaceId)) return;
-    // Same reasoning as raiseAlert — clearing affects this surface's
-    // tier deterministically even if arbitrate won't produce a swap.
-    this.emit();
     this.arbitrate();
+    this.emit();
   }
 
-  /**
-   * Current tier for a surface. Reads snapshot state only.
-   *
-   * Resolution order:
-   *   1. alert      → surface has an unacknowledged alert
-   *   2. live       → surface holds the active-live slot AND has no alert
-   *   3. ready      → surface is connected (registered or has a heartbeat)
-   *   4. idle       → surface unknown
-   */
   tierFor(surfaceId: string): GlowTier {
     if (this.alertSurfaces.has(surfaceId)) return 'alert';
     if (this.activeLiveSurfaceId === surfaceId) return 'live';
@@ -175,7 +163,6 @@ export class RoomLiveStateStore {
     return 'idle';
   }
 
-  /** Provider teardown. Idempotent. */
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
@@ -186,7 +173,11 @@ export class RoomLiveStateStore {
     this.listeners.clear();
   }
 
-  /** Core arbitration. Picks the active-live slot and handles decay + debounce. */
+  /**
+   * Arbitration. Updates activeLiveSurfaceId and scheduled timers.
+   * Does NOT emit — public mutators emit exactly once at the end of
+   * their call, so subscribers never see intermediate state.
+   */
   private arbitrate(): void {
     if (this.disposed) return;
     const now = this.now();
@@ -195,11 +186,15 @@ export class RoomLiveStateStore {
     let nextWakeMs: number | null = null;
 
     if (this.alertSurfaces.size > 0) {
-      // Alert wins. Pick the first alert surface deterministically (Set
-      // iteration is insertion order). Alert doesn't decay, so no wake.
+      // Alert wins at the room level. Pick the first-inserted alert
+      // surface (Set iteration is insertion order) as the internal
+      // active-live identity. Every surface in alertSurfaces still
+      // renders 'alert' via tierFor — the identity only matters for
+      // whether a DIFFERENT non-alert surface might render 'live'
+      // (it cannot, because activeLiveSurfaceId points at an alert).
       newLiveId = this.alertSurfaces.values().next().value ?? null;
+      // Alert does not decay, so no wake is needed for alert state.
     } else {
-      // Priority arbitration over fresh heartbeats only.
       let best: { id: string; priority: number; lastNotifyMs: number } | null = null;
       for (const [id, hb] of this.heartbeats) {
         const age = now - hb.lastNotifyMs;
@@ -217,30 +212,27 @@ export class RoomLiveStateStore {
       if (best) nextWakeMs = LIVE_DECAY_MS - (now - best.lastNotifyMs);
     }
 
-    // Apply swap with debounce.
-    let swapped = false;
     if (newLiveId !== this.activeLiveSurfaceId) {
       const sinceSwap = now - this.lastSwapAtMs;
-      if (this.lastSwapAtMs === 0 || sinceSwap >= SWAP_DEBOUNCE_MS) {
+      // Alert promotions bypass debounce (spec §3.3 — alert always
+      // wins, even inside the 300ms window). A swap INTO an alerting
+      // surface is urgent; swaps OUT of alert or between non-alert
+      // surfaces respect the debounce.
+      const newIsAlert = newLiveId !== null && this.alertSurfaces.has(newLiveId);
+      const firstSwap = this.lastSwapAtMs === 0;
+      const debounceOk = firstSwap || sinceSwap >= SWAP_DEBOUNCE_MS;
+      if (newIsAlert || debounceOk) {
         this.activeLiveSurfaceId = newLiveId;
         this.lastSwapAtMs = now;
-        swapped = true;
       } else {
-        // Defer — schedule arbitration for the exact remaining window.
         this.scheduleArbitration(SWAP_DEBOUNCE_MS - sinceSwap);
         return;
       }
     }
 
-    if (swapped) this.emit();
-
-    // Schedule next decay check for the active live surface (if any,
-    // and if it's decay-bound — alerts don't decay).
     if (nextWakeMs !== null && nextWakeMs > 0) {
       this.scheduleArbitration(nextWakeMs);
     } else {
-      // Arbitration settled with nothing time-bound. Clear any stale
-      // timer so it can't wake later and re-enter arbitrate.
       this.cancelScheduledArbitration();
     }
   }
@@ -251,7 +243,10 @@ export class RoomLiveStateStore {
     this.scheduledTimer = this.setTimeoutFn(() => {
       this.scheduledTimer = null;
       if (this.disposed) return;
+      // Timer-driven arbitration emits on its own — no public mutator
+      // wraps the callback.
       this.arbitrate();
+      this.emit();
     }, delayMs);
   }
 

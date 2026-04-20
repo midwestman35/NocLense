@@ -234,6 +234,79 @@ describe('boundary behavior', () => {
   });
 });
 
+describe('alert bypasses debounce', () => {
+  it('alert raised 1ms after a swap suppresses the prior live surface IMMEDIATELY', () => {
+    // ai becomes live (first swap — no debounce involved).
+    store.notify('ai', 'ai-stream');
+    expect(store.tierFor('ai')).toBe('live');
+
+    // 1ms later — well inside the 300ms window — an alert arrives.
+    vi.advanceTimersByTime(1);
+    store.raiseAlert('err');
+
+    // Spec §3.3: alert always wins. The alerting surface owns the
+    // active-live slot immediately; the prior live surface drops to
+    // ready with no 300ms delay.
+    expect(store.tierFor('err')).toBe('alert');
+    expect(store.tierFor('ai')).toBe('ready');
+  });
+
+  it('alert raised 299ms after a swap also bypasses debounce', () => {
+    store.notify('ai', 'ai-stream');
+    vi.advanceTimersByTime(299);
+    store.raiseAlert('err');
+    expect(store.tierFor('err')).toBe('alert');
+    expect(store.tierFor('ai')).toBe('ready');
+  });
+
+  it('clearing alert respects normal debounce on the way back to priority', () => {
+    // Establish a debounced baseline: ai swaps in, then err alerts
+    // (bypasses debounce), immediately swapping activeLive. The swap
+    // resets lastSwapAtMs, so a subsequent non-alert swap debounces.
+    store.notify('ai', 'ai-stream');
+    vi.advanceTimersByTime(10);
+    store.raiseAlert('err');
+    expect(store.tierFor('err')).toBe('alert');
+
+    // Immediately clear. Normal priority arbitration resumes: ai is
+    // the fresh non-alert candidate, but the prior swap (into err)
+    // is within the debounce window, so the swap back defers.
+    vi.advanceTimersByTime(10);
+    store.clearAlert('err');
+    // Still within debounce (20ms since last swap).
+    expect(store.tierFor('ai')).toBe('ready');
+    // Past the window.
+    vi.advanceTimersByTime(SWAP_DEBOUNCE_MS + 10);
+    expect(store.tierFor('ai')).toBe('live');
+  });
+});
+
+describe('multi-alert policy', () => {
+  it('every surface in alertSurfaces renders alert simultaneously', () => {
+    store.raiseAlert('a');
+    store.raiseAlert('b');
+    store.raiseAlert('c');
+    expect(store.tierFor('a')).toBe('alert');
+    expect(store.tierFor('b')).toBe('alert');
+    expect(store.tierFor('c')).toBe('alert');
+  });
+
+  it('non-alert surfaces remain at most ready while any alert is active', () => {
+    store.notify('ai', 'ai-stream');
+    store.raiseAlert('a');
+    store.raiseAlert('b');
+    expect(store.tierFor('ai')).toBe('ready');
+  });
+
+  it('clearing one of two alerts leaves the other as alert (no priority fight)', () => {
+    store.raiseAlert('a');
+    store.raiseAlert('b');
+    store.clearAlert('a');
+    expect(store.tierFor('a')).toBe('ready');
+    expect(store.tierFor('b')).toBe('alert');
+  });
+});
+
 describe('timer safety', () => {
   it('dispose cancels pending timers', () => {
     store.notify('ai', 'ai-stream');
