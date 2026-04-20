@@ -91,7 +91,7 @@ const SipFilterDropdown = ({
             </button>
 
             {isOpen && (
-                <div className="absolute top-full left-0 mt-1 bg-[var(--card)] border border-[var(--border)] rounded-md shadow-lg z-50 min-w-[220px] max-h-[320px] overflow-y-auto">
+                <div className="absolute top-full left-0 mt-1 bg-[var(--card)] border border-[var(--border)] rounded-md shadow-[var(--shadow-raised)] z-50 min-w-[220px] max-h-[320px] overflow-y-auto">
                     <div className="px-2 py-1 border-b border-[var(--border)] flex items-center justify-between">
                         <span className="text-xs font-medium text-[var(--muted-foreground)] px-2">Show only (multi-select)</span>
                         {hasAnyFilter && (

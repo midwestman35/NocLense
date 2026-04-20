@@ -5,14 +5,20 @@
  * phrase; the surrounding `<LoadingLabel>` component renders it with
  * character-level animation.
  *
- * Determinism: phrase sequence is derived from a per-OperationKind seed
- * (simple LCG shuffle). Tests, reloads, and concurrent loads of the same
- * operation produce the same sequence; concurrent loads of different
- * operations produce independent sequences. No shared global state.
+ * Determinism: the phrase sequence is a Fisher–Yates shuffle seeded
+ * with a stable djb2 hash of the `OperationKind` string. Different
+ * operations always produce different seeds (no hand-maintained seed
+ * table); the same operation always produces the same sequence
+ * (tests, reloads, and concurrent loads all agree).
  *
- * Reduced motion: returns index-0 of the sequence and does not start the
- * interval. The visual reveal animation also short-circuits in CSS
- * (`loading.css @media (prefers-reduced-motion: reduce)`).
+ * Reduced motion: when `prefers-reduced-motion: reduce` is active,
+ * the hook returns phrase #0 of the operation's sequence and does
+ * not start the interval. Spec §3.7: "picks the operation-specific
+ * first phrase and stays there."
+ *
+ * Operation change: the interval re-keys on `operation`, so swapping
+ * operations resets the index to 0 rather than leaking stale state
+ * from a different sequence.
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -53,50 +59,82 @@ export const CUTE_PHRASE_POOL: readonly string[] = Object.freeze([
   'brb…',
 ]);
 
-/**
- * Per-operation seed. Chosen so the first phrase for each operation differs
- * and the sequences don't obviously rhyme. Stable across refactors — change
- * only with a comment explaining why.
- */
-const OPERATION_SEEDS: Record<OperationKind, number> = {
-  'file-parse': 2,
-  'ai-diagnose': 5,
-  'ai-chat': 11,
-  'datadog-query': 17,
-  'zendesk-lookup': 23,
-  'jira-lookup': 29,
-  'evidence-export': 37,
-  'connector-heartbeat': 41,
-  generic: 0,
-};
-
 /** Phrase change cadence, matches spec §3.7. */
 export const CUTE_LABEL_CYCLE_MS = 2500;
 
-/** Linear-congruential generator — fast, deterministic, good enough for shuffle. */
+/**
+ * Per-operation first phrase. Hand-assigned from the pool so each
+ * operation has a semantically relevant opener AND uniqueness is
+ * guaranteed without relying on hash distribution (djb2 + 9 operations
+ * across 20 phrases doesn't spread perfectly — verified in tests).
+ *
+ * Adding a new OperationKind: pick an unused CUTE_PHRASE_POOL index.
+ * Tests enforce uniqueness.
+ */
+const FIRST_PHRASE_INDEX: Record<OperationKind, number> = {
+  'file-parse': 5, // parsing…
+  'ai-diagnose': 0, // thinking…
+  'ai-chat': 10, // hmm…
+  'datadog-query': 12, // grepping…
+  'zendesk-lookup': 6, // indexing…
+  'jira-lookup': 17, // tracing…
+  'evidence-export': 11, // assembling…
+  'connector-heartbeat': 19, // brb…
+  generic: 1, // working…
+};
+
+/** djb2 hash — deterministic, good enough to seed the per-op shuffle. */
+export function hashOperationKind(operation: string): number {
+  let hash = 5381;
+  for (let i = 0; i < operation.length; i++) {
+    hash = ((hash << 5) + hash + operation.charCodeAt(i)) & 0x7fffffff;
+  }
+  return hash || 1; // never 0 (breaks LCG)
+}
+
+/** Linear-congruential generator — pure deterministic integer sequence. */
 function lcg(seed: number): number {
   return (seed * 1103515245 + 12345) & 0x7fffffff;
 }
 
-/**
- * Fisher–Yates shuffle seeded from `seed`. Pure function: same seed → same
- * output. Exported so callers (and tests) can pre-compute sequences.
- */
-export function buildPhraseSequence(seed: number): string[] {
-  const pool = CUTE_PHRASE_POOL.slice();
+/** Seeded Fisher–Yates. Pure function: same (arr, seed) → same output. */
+function shuffleSeeded<T>(arr: readonly T[], seed: number): T[] {
+  const out = arr.slice();
   let state = lcg(seed || 1);
-  for (let i = pool.length - 1; i > 0; i--) {
+  for (let i = out.length - 1; i > 0; i--) {
     state = lcg(state);
     const j = state % (i + 1);
-    const tmp = pool[i];
-    pool[i] = pool[j];
-    pool[j] = tmp;
+    const tmp = out[i];
+    out[i] = out[j];
+    out[j] = tmp;
   }
-  return pool;
+  return out;
+}
+
+/**
+ * Full-pool shuffle seeded by integer. Retained as an export for tests
+ * that want to validate the shuffle itself independent of first-phrase
+ * assignment. Consumers should prefer `sequenceForOperation`.
+ */
+export function buildPhraseSequence(seed: number): string[] {
+  return shuffleSeeded(CUTE_PHRASE_POOL, seed);
+}
+
+/**
+ * Per-operation phrase sequence. Starts with the operation's assigned
+ * first phrase (guaranteed unique per operation), then cycles through
+ * the remaining 19 phrases in a seeded-deterministic order.
+ */
+export function sequenceForOperation(operation: OperationKind): string[] {
+  const firstIdx = FIRST_PHRASE_INDEX[operation];
+  const first = CUTE_PHRASE_POOL[firstIdx];
+  const rest = CUTE_PHRASE_POOL.filter((_, i) => i !== firstIdx);
+  const shuffledRest = shuffleSeeded(rest, hashOperationKind(operation));
+  return [first, ...shuffledRest];
 }
 
 export interface UseCuteLoadingLabelResult {
-  /** Current phrase. Stable reference across re-renders while idle. */
+  /** Current phrase. Under reduced motion, always the operation's phrase #0. */
   phrase: string;
   /** Zero-based index into the operation's phrase sequence. */
   index: number;
@@ -105,19 +143,27 @@ export interface UseCuteLoadingLabelResult {
 }
 
 /**
- * @param operation — which operation is loading. Determines the phrase sequence.
- * @param isLoading — when false, the hook pauses cycling and returns phrase #0.
+ * @param operation — which operation is loading. Determines the phrase
+ *                    sequence via hashOperationKind().
+ * @param isLoading — when false, the hook pauses cycling and returns
+ *                    phrase #0.
  */
 export function useCuteLoadingLabel(
   operation: OperationKind,
   isLoading: boolean,
 ): UseCuteLoadingLabelResult {
   const reducedMotion = usePrefersReducedMotion();
-  const sequence = useMemo(
-    () => buildPhraseSequence(OPERATION_SEEDS[operation]),
-    [operation],
-  );
+  const sequence = useMemo(() => sequenceForOperation(operation), [operation]);
   const [index, setIndex] = useState(0);
+  const [prevOperation, setPrevOperation] = useState<OperationKind>(operation);
+
+  // React's "derive state from props" pattern — setState during render
+  // is explicitly supported for resetting on prop change without an
+  // effect round-trip. See react.dev/reference/react/useState.
+  if (prevOperation !== operation) {
+    setPrevOperation(operation);
+    setIndex(0);
+  }
 
   useEffect(() => {
     if (!isLoading || reducedMotion) return;
@@ -125,14 +171,12 @@ export function useCuteLoadingLabel(
       setIndex((i) => (i + 1) % sequence.length);
     }, CUTE_LABEL_CYCLE_MS);
     return () => window.clearInterval(id);
-  }, [isLoading, reducedMotion, sequence.length]);
+  }, [operation, isLoading, reducedMotion, sequence.length]);
 
-  // When not loading, report phrase #0 without mutating state. The
-  // internal `index` persists across loading sessions — a subsequent load
-  // may resume mid-sequence, which is visually fine (only one phrase is
-  // visible at a time). Callers needing a forced reset should re-mount
-  // the consuming component via a `key` prop.
-  const visibleIndex = isLoading ? index : 0;
+  // Visible index is always 0 under reduced motion or while idle;
+  // spec §3.7 requires reduced-motion users see only the operation's
+  // first phrase. Purely derived — no state mutation here.
+  const visibleIndex = isLoading && !reducedMotion ? index : 0;
 
   return {
     phrase: sequence[visibleIndex],

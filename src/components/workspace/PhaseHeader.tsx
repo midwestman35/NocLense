@@ -44,7 +44,7 @@ export function PhaseHeader({
       <div className="relative flex h-full items-center px-4">
         {/* Left: Logo */}
         <div className="flex items-center gap-2.5 text-sm font-semibold tracking-tight text-[var(--foreground)]">
-          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] border border-[var(--button-subtle-border)] bg-[var(--button-subtle-surface)] shadow-[var(--shadow-raised)]">
+          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] border border-[var(--button-subtle-border)] bg-[var(--button-subtle-surface)] shadow-[var(--shadow-flat)]">
             <img
               src={APP_ICON_SRC}
               alt="NocLense icon"
@@ -57,7 +57,7 @@ export function PhaseHeader({
         {/* Center-left: Ticket context (investigate + submit only) */}
         {ticketId && phase !== 'import' && (
           <div className="ml-6 flex items-center gap-2">
-            <span className="text-xs font-mono text-[var(--muted-foreground)]">#{ticketId}</span>
+            <span className="text-xs font-mono tabular-nums text-[var(--muted-foreground)]">#{ticketId}</span>
             {priorityLabel && (
               <span className="px-2 py-0.5 rounded-full text-[9px] font-semibold bg-[var(--destructive)]/12 text-[var(--destructive)] border border-[var(--destructive)]/20">
                 {priorityLabel}

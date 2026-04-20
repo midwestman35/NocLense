@@ -274,7 +274,7 @@ export default function InvestigationSetupModal({ ticketId, onConfirm, onCancel 
     >
       {/* Panel */}
       <div
-        className="relative flex w-full max-w-lg flex-col rounded-xl border shadow-2xl"
+        className="relative flex w-full max-w-lg flex-col rounded-xl border shadow-[var(--shadow-floating)]"
         style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)', maxHeight: '90vh' }}
       >
         {/* Header */}

@@ -1,0 +1,15 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`sequenceForOperation > is stable across refactors (snapshot of first phrase per operation) 1`] = `
+{
+  "ai-chat": "hmm…",
+  "ai-diagnose": "thinking…",
+  "connector-heartbeat": "brb…",
+  "datadog-query": "grepping…",
+  "evidence-export": "assembling…",
+  "file-parse": "parsing…",
+  "generic": "working…",
+  "jira-lookup": "tracing…",
+  "zendesk-lookup": "indexing…",
+}
+`;

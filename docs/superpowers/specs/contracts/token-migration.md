@@ -17,10 +17,11 @@ Prevent two token systems running in parallel during Phase 01a. Every new token 
 | `src/index.css` | Global entry. Imports `tailwindcss` then `./styles/tokens.css`. Owns global keyframes (`phase-dot-pulse`, `evidence-add`, `room-fade-in`, etc.), scrollbar styling, and body reset. |
 | `src/styles/tokens.css` | All CSS custom properties. Primitives (`--green-house-*`), semantic colors (`--background`, `--foreground`), structural tokens (`--card-radius`), state tokens (`--phase-dot-active`). Light + dark + red theme blocks. |
 
-**Ownership rule for Phase 01a:**
+**Ownership rule for Phase 01a (revised after Checkpoint 1 Codex review):**
 - All NEW tokens added in Phase 01a land in `src/styles/tokens.css`.
-- Global keyframes (new spinners, glow pulses, label reveals) land in `src/index.css` next to the existing `phase-dot-pulse` family.
-- No new `state-tokens.css` file. No separation of primitives vs. state into separate files (the Phase 00 first cut proposed this; reconsidered because it adds import order risk without a real benefit given the current file count).
+- **Existing** global keyframes (`phase-dot-pulse`, `evidence-add`, `room-fade-in`, `toast-in`, `shimmer`) stay in `src/index.css`.
+- **New loading-vocabulary keyframes** (`tui-braille-cycle`, `tui-block-cycle`, `tui-dots-cycle`, `glow-live-pulse`, `cute-label-reveal`, `cute-label-breathe`) land in `src/styles/loading.css`, imported from `src/index.css` after `tokens.css`. They're co-located with the `.tui-spinner`, `.glow-live`, and `.cute-label` classes that consume them so the loading-vocabulary primitives are a single reviewable file.
+- No new `state-tokens.css` file. No separation of primitives vs. state into separate files.
 
 ## 3. Current live token inventory (from `src/styles/tokens.css`)
 

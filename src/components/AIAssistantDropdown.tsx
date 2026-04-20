@@ -42,7 +42,7 @@ const AIAssistantDropdown = ({ onOpenAssistant, onOpenSettings }: AIAssistantDro
           />
 
           {/* Dropdown panel */}
-          <div className="absolute top-full right-0 mt-1 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 overflow-hidden">
+          <div className="absolute top-full right-0 mt-1 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-[var(--shadow-raised)] z-50 overflow-hidden">
             <button
               onClick={handleOpenAssistant}
               className="flex items-center gap-2 px-4 py-2 text-sm text-slate-200 hover:bg-white/10 cursor-pointer w-full text-left transition-colors"

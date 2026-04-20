@@ -42,7 +42,7 @@ export default function FilterChips() {
           <button
             type="button"
             onClick={handleRestoreFilters}
-            className="filter-chip flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-medium whitespace-nowrap text-amber-300 shadow-sm shrink-0 hover:bg-amber-500/15"
+            className="filter-chip flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-medium whitespace-nowrap text-amber-300 shadow-[var(--shadow-flat)] shrink-0 hover:bg-amber-500/15"
             title="Restore the filters cleared by Jump To"
           >
             Restore jump filters
@@ -51,7 +51,7 @@ export default function FilterChips() {
         {activeCorrelations.map((filter) => (
           <div
             key={`${filter.type}-${filter.value}`}
-            className="filter-chip flex items-center gap-1 bg-[var(--foreground)]/10 text-[var(--foreground)] border border-[var(--foreground)]/20 px-2.5 py-1 rounded-full text-xs whitespace-nowrap shadow-sm shrink-0"
+            className="filter-chip flex items-center gap-1 bg-[var(--foreground)]/10 text-[var(--foreground)] border border-[var(--foreground)]/20 px-2.5 py-1 rounded-full text-xs whitespace-nowrap shadow-[var(--shadow-flat)] shrink-0"
           >
             <span className="font-bold uppercase opacity-75 text-[10px] tracking-wider">{filter.type}:</span>
             <span className="font-mono font-medium">{filter.value}</span>

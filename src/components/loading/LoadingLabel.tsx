@@ -16,39 +16,78 @@
 
 import type { CSSProperties, HTMLAttributes } from 'react';
 
-export interface LoadingLabelProps extends Omit<HTMLAttributes<HTMLSpanElement>, 'children'> {
+/**
+ * Accessibility invariants (role, aria-live, aria-label) are NOT exposed
+ * as props — callers cannot accidentally override the live-region
+ * contract. If a label is decorative (paired with another status
+ * element), pass `decorative` to suppress the live region entirely.
+ */
+type ReservedAria = 'role' | 'aria-live' | 'aria-label' | 'aria-atomic';
+type BaseSpanProps = Omit<HTMLAttributes<HTMLSpanElement>, 'children' | ReservedAria>;
+
+export interface LoadingLabelProps extends BaseSpanProps {
   /** The phrase to render. Change triggers a re-reveal via key mount. */
   text: string;
   /**
    * Accessible status label, announced by screen readers. NOT the cute
    * phrase — pass a describing phrase like "Analyzing logs" instead so
-   * the assistive experience stays informative.
+   * the assistive experience stays informative. Ignored when
+   * `decorative` is true.
    */
-  ariaStatus: string;
+  ariaStatus?: string;
+  /**
+   * When true, the label is marked `aria-hidden` and contributes no
+   * live-region announcements. Use when pairing with a sibling status
+   * element (e.g. TuiSpinner with its own announce) to avoid double
+   * announcements for one operation.
+   */
+  decorative?: boolean;
 }
 
-export function LoadingLabel({ text, ariaStatus, className, ...rest }: LoadingLabelProps) {
+/** Type helper for CSS custom properties — no `unknown` cast gymnastics. */
+type CssVarStyle = CSSProperties & Record<`--${string}`, string | number>;
+
+export function LoadingLabel({
+  text,
+  ariaStatus,
+  decorative = false,
+  className,
+  ...rest
+}: LoadingLabelProps) {
   const cls = ['cute-label', className].filter(Boolean).join(' ');
+  const chars = (
+    <span aria-hidden="true">
+      {Array.from(text).map((ch, i) => (
+        <span
+          key={`${text}-${i}`}
+          className="cute-label__char"
+          style={{ '--cute-i': i } as CssVarStyle}
+        >
+          {ch === ' ' ? '\u00A0' : ch}
+        </span>
+      ))}
+    </span>
+  );
+
+  // Rest is spread FIRST so the invariant aria props below it cannot be
+  // overridden by callers. ReservedAria is also stripped from props.
+  if (decorative) {
+    return (
+      <span {...rest} className={cls} aria-hidden="true">
+        {chars}
+      </span>
+    );
+  }
   return (
     <span
+      {...rest}
+      className={cls}
       role="status"
       aria-live="polite"
-      aria-label={ariaStatus}
-      className={cls}
-      {...rest}
+      aria-label={ariaStatus ?? 'Loading'}
     >
-      <span className="sr-only">{ariaStatus}</span>
-      <span aria-hidden="true">
-        {Array.from(text).map((ch, i) => (
-          <span
-            key={`${text}-${i}`}
-            className="cute-label__char"
-            style={{ ['--cute-i' as unknown as string]: i } as CSSProperties}
-          >
-            {ch === ' ' ? '\u00A0' : ch}
-          </span>
-        ))}
-      </span>
+      <span className="sr-only">{ariaStatus ?? 'Loading'}</span>
+      {chars}
     </span>
   );
 }

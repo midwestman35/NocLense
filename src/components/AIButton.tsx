@@ -263,7 +263,7 @@ export default function AIButton({
       {isPanelOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={handleClose}>
           <div
-            className="w-full max-w-2xl max-h-[80vh] m-4 rounded-lg shadow-xl flex flex-col"
+            className="w-full max-w-2xl max-h-[80vh] m-4 rounded-lg shadow-[var(--shadow-floating)] flex flex-col"
             style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}
             onClick={e => e.stopPropagation()}
           >

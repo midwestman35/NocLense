@@ -9,9 +9,10 @@
  */
 
 /* ── TUI spinner keyframes ──────────────────────────────────────────────
-   Content strings cycle at each keyframe boundary. Strings can't
-   interpolate in CSS, so linear timing produces a clean step effect
-   without needing explicit steps() easing on the animation itself.   */
+   Content strings cycle at each keyframe boundary. The spinner
+   animations below use explicit steps() easings from tokens.css so
+   the step cadence is a single source of truth and the token contract
+   in docs/.../contracts/token-migration.md is honored.               */
 
 @keyframes tui-braille-cycle {
   0%    { content: "⣾"; }
@@ -55,6 +56,11 @@
 
 .tui-spinner {
   display: inline-block;
+  /* Reserve a fixed cell so font fallback glyph-width drift doesn't
+     push adjacent text around. 1ch of the monospace font is stable. */
+  width: 1ch;
+  min-width: 1ch;
+  text-align: center;
   font-family: var(--font-mono);
   font-feature-settings: "liga" 0;
   line-height: 1;
@@ -63,7 +69,6 @@
 }
 
 .tui-spinner::before {
-  animation-timing-function: linear;
   animation-iteration-count: infinite;
   display: inline-block;
 }
@@ -72,18 +77,21 @@
   content: "⣾";
   animation-name: tui-braille-cycle;
   animation-duration: calc(var(--duration-spinner-step) * 8);
+  animation-timing-function: var(--ease-tui-step-8);
 }
 
 .tui-spinner--block::before {
   content: "▏";
   animation-name: tui-block-cycle;
   animation-duration: calc(var(--duration-spinner-step) * 8);
+  animation-timing-function: var(--ease-tui-step-8);
 }
 
 .tui-spinner--dots::before {
   content: "⠋";
   animation-name: tui-dots-cycle;
   animation-duration: calc(var(--duration-spinner-step) * 10);
+  animation-timing-function: var(--ease-tui-step-10);
 }
 
 /* ── TUI determinate progress bar ────────────────────────────────────── */
@@ -149,16 +157,31 @@
 
 /* ── Glow-live container pulse (Phase 01a) ───────────────────────────── */
 /* Applied to a card wrapper when arbitration (spec §3.3) awards the
-   live tier to that surface. Kept here with the loading keyframes
-   because its timing is aligned with the spinner cadence.            */
-
-@keyframes glow-live-pulse {
-  0%, 100% { box-shadow: 0 0 6px var(--glow-live-color); }
-  50%      { box-shadow: 0 0 14px var(--glow-live-color); }
-}
+   live tier to that surface. Rendered via a pseudo-element overlay
+   so the host's base elevation (shadow-raised / shadow-floating)
+   survives untouched — animating box-shadow on the host would stomp
+   the elevation shadow.
+   The overlay paints box-shadow using --shadow-glow-live (the
+   declared state token), and the pulse is an opacity cycle on the
+   overlay itself.                                                    */
 
 .glow-live {
+  position: relative;
+}
+
+.glow-live::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  box-shadow: var(--shadow-glow-live);
   animation: glow-live-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes glow-live-pulse {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
 }
 
 /* ── Reduced motion fallbacks ────────────────────────────────────────── */
@@ -177,9 +200,8 @@
     transform: none;
   }
 
-  .glow-live {
+  .glow-live::after {
     animation: none;
-    /* still paint the glow statically */
-    box-shadow: 0 0 8px var(--glow-live-color);
+    opacity: 1;
   }
 }

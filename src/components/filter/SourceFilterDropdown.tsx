@@ -52,7 +52,7 @@ export default function SourceFilterDropdown({ sources, selected, onSelect }: So
       </button>
       {open && (
         <div
-          className="absolute top-full left-0 mt-1 z-[60] min-w-[160px] rounded-lg border shadow-xl py-1"
+          className="absolute top-full left-0 mt-1 z-[60] min-w-[160px] rounded-lg border shadow-[var(--shadow-raised)] py-1"
           style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
         >
           {selected && (

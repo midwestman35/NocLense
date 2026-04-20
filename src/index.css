@@ -104,3 +104,17 @@ code, pre, kbd, samp { font-variant-numeric: tabular-nums; }
   grid-template-columns: 20px 140px 1fr;
   font-size: var(--text-sm);
 }
+
+/* ── Reduced-motion fallbacks for preexisting animations (Phase 01a) ───
+   Spec §4.8 requires every animated surface to honor
+   prefers-reduced-motion. loading.css already handles new animations;
+   this block covers the animations that existed before the polish pass. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-phase-pulse,
+  .animate-evidence-add,
+  .animate-room-enter,
+  .animate-toast-in,
+  .animate-shimmer {
+    animation: none;
+  }
+}
