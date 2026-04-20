@@ -279,7 +279,22 @@ export async function importFiles(
     );
 
     if (Array.isArray(result)) {
-      const annotated = annotateLogs(result, dataset);
+      let parsedLogs = result;
+
+      // When the primary parser finds nothing for a plain-text file, fall back to
+      // line-by-line import so upload behaves consistently with the paste path.
+      if (parsedLogs.length === 0 && !file.name.toLowerCase().endsWith('.csv')) {
+        const fileText = await file.text();
+        const fallback = parseGenericFallbackText(fileText, currentMaxId, file.name, color, options.sourceType);
+        if (fallback.length > 0) {
+          parsedLogs = fallback;
+          const msg = `"${file.name}" did not match a known log format; imported ${fallback.length} line${fallback.length === 1 ? '' : 's'} as standalone events.`;
+          warnings.push(msg);
+          dataset.warnings = [...dataset.warnings, msg];
+        }
+      }
+
+      const annotated = annotateLogs(parsedLogs, dataset);
       dataset.logCount = annotated.length;
       allLogs = allLogs.concat(annotated);
       if (annotated.length > 0) {

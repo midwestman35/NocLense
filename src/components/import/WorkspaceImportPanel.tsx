@@ -55,6 +55,7 @@ export function WorkspaceImportPanel({ onComplete, onInvestigationReady }: Works
   const [error, setError] = useState<string | null>(null);
   const [notices, setNotices] = useState<string[]>([]);
   const [zdTicketInput, setZdTicketInput] = useState('');
+  const [isDragActive, setIsDragActive] = useState(false);
 
   const {
     logs,
@@ -148,6 +149,13 @@ export function WorkspaceImportPanel({ onComplete, onInvestigationReady }: Works
         useIndexedDB: shouldUseIndexedDB,
       });
 
+      const totalImported = result.datasets.reduce((sum, d) => sum + d.logCount, 0);
+
+      if (!result.usedIndexedDB && totalImported === 0) {
+        setError('No parsable events found in the uploaded file(s). Try the paste importer for plain-text logs.');
+        return;
+      }
+
       if (result.usedIndexedDB) {
         await enableIndexedDBMode();
       } else if (useIndexedDBMode && result.logs.length > 0) {
@@ -160,8 +168,15 @@ export function WorkspaceImportPanel({ onComplete, onInvestigationReady }: Works
       addImportedDatasets(result.datasets);
       attachToCase(result.datasets);
       setSelectedLogId(null);
-      setNotices(result.warnings.length > 0 ? result.warnings : [`Imported ${result.datasets.length} dataset${result.datasets.length === 1 ? '' : 's'}.`]);
-      toast(`Imported ${result.datasets.length} dataset${result.datasets.length === 1 ? '' : 's'}`, { variant: 'success' });
+
+      const hasWarnings = result.warnings.length > 0;
+      setNotices(hasWarnings ? result.warnings : [`Imported ${result.datasets.length} dataset${result.datasets.length === 1 ? '' : 's'}.`]);
+      if (hasWarnings) {
+        toast(`Imported ${totalImported.toLocaleString()} events (line-by-line fallback)`, { variant: 'warning' });
+      } else {
+        toast(`Imported ${result.datasets.length} dataset${result.datasets.length === 1 ? '' : 's'}`, { variant: 'success' });
+      }
+
       const zdId = zdTicketInput.trim().replace(/\D/g, '');
       if (zdId) {
         onInvestigationReady?.(zdId);
@@ -349,10 +364,20 @@ export function WorkspaceImportPanel({ onComplete, onInvestigationReady }: Works
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="flex w-full flex-col items-center justify-center rounded border border-dashed border-[var(--border)] bg-[var(--workspace)] px-4 py-6 text-center hover:border-[var(--ring)] hover:bg-[var(--muted)]"
+            onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragActive(true); }}
+            onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragActive(true); }}
+            onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragActive(false); }}
+            onDrop={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragActive(false); void handleFiles(e.dataTransfer.files); }}
+            className={`flex w-full flex-col items-center justify-center rounded border border-dashed px-4 py-6 text-center transition-colors ${
+              isDragActive
+                ? 'border-[var(--ring)] bg-[var(--muted)]'
+                : 'border-[var(--border)] bg-[var(--workspace)] hover:border-[var(--ring)] hover:bg-[var(--muted)]'
+            }`}
           >
             <FileUp size={28} className="mb-2 text-[var(--foreground)]" />
-            <div className="text-sm font-medium text-[var(--foreground)]">Choose files to import</div>
+            <div className="text-sm font-medium text-[var(--foreground)]">
+              {isDragActive ? 'Drop files to import' : 'Choose or drop files'}
+            </div>
             <div className="mt-1 text-xs text-[var(--muted-foreground)]">Supports `.log`, `.txt`, and `.csv`. Multiple files are merged by timestamp.</div>
           </button>
         </div>
