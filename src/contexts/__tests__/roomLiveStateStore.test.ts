@@ -331,6 +331,59 @@ describe('timer safety', () => {
   });
 });
 
+describe('no-op emit suppression', () => {
+  it('repeat register() on already-connected surface with same kind does not emit', () => {
+    store.register('ai', 'ai-stream');
+    listener.mockClear();
+    store.register('ai', 'ai-stream');
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it('repeat notify() on the active-live surface does not emit (just extends decay)', () => {
+    store.notify('ai', 'ai-stream');
+    listener.mockClear();
+    vi.advanceTimersByTime(100);
+    store.notify('ai', 'ai-stream');
+    // Same tier (still live, just with a refreshed decay window).
+    expect(store.tierFor('ai')).toBe('live');
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it('notify() on an idle surface emits once (idle → live transition)', () => {
+    listener.mockClear();
+    store.notify('ai', 'ai-stream');
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it('raiseAlert() on already-alerting surface does not emit', () => {
+    store.raiseAlert('x');
+    listener.mockClear();
+    store.raiseAlert('x');
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it('clearAlert() on a non-alerting surface does not emit', () => {
+    listener.mockClear();
+    store.clearAlert('never-alerted');
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it('unregister() of an unknown surface does not emit', () => {
+    listener.mockClear();
+    store.unregister('never-registered');
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it('timer-driven decay emits exactly once when live → ready transition fires', () => {
+    store.notify('ai', 'ai-stream');
+    listener.mockClear();
+    vi.advanceTimersByTime(LIVE_DECAY_MS + 50);
+    // activeLive: 'ai' → null is an observable change → exactly one emit.
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(store.tierFor('ai')).toBe('ready');
+  });
+});
+
 describe('listener notifications', () => {
   it('emits exactly once per state transition', () => {
     listener.mockClear();

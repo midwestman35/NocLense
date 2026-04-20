@@ -153,21 +153,40 @@ describe('useLiveSurface', () => {
     store.dispose();
   });
 
-  it('changing kind within same mount re-registers under the new kind', () => {
+  it('kind rerender is priority-sensitive: changes arbitration outcome', () => {
+    // Prove the kind prop actually participates in arbitration after
+    // a rerender. Setup a competitor surface at ai-stream (priority
+    // 30). Our hook starts with connector-heartbeat (priority 10) and
+    // loses. After a rerender to parse-overlay (priority 40), it wins.
     const store = new RoomLiveStateStore();
-    const { rerender } = renderHook(
-      ({ kind }: { kind: 'ai-stream' | 'datadog-stream' }) =>
-        useLiveSurface('s', kind),
+    const { result, rerender } = renderHook(
+      ({ kind }: { kind: LiveSurfaceKind }) => useLiveSurface('a', kind),
       {
         wrapper: withProvider(store),
-        initialProps: { kind: 'ai-stream' as const },
+        initialProps: { kind: 'connector-heartbeat' as LiveSurfaceKind },
       },
     );
-    expect(store.tierFor('s')).toBe('ready');
-    rerender({ kind: 'datadog-stream' as const });
-    // The surface is unregistered then re-registered. Final tier is
-    // ready (the new register call on the new kind).
-    expect(store.tierFor('s')).toBe('ready');
+
+    // Competitor b comes in at ai-stream priority and takes live.
+    store.notify('b', 'ai-stream');
+    expect(store.tierFor('b')).toBe('live');
+
+    // `a` notifies with its current low kind — b still wins on priority.
+    act(() => result.current.notify());
+    vi.advanceTimersByTime(350);
+    expect(store.tierFor('b')).toBe('live');
+    expect(store.tierFor('a')).toBe('ready');
+
+    // Rerender `a` to a higher-priority kind. The notify callback
+    // closes over the new kind (useCallback deps include kind).
+    rerender({ kind: 'parse-overlay' as LiveSurfaceKind });
+
+    act(() => result.current.notify());
+    vi.advanceTimersByTime(350);
+    // If kind were ignored, `a` would still be ready. Priority-
+    // sensitive assertion: `a` must now be live.
+    expect(store.tierFor('a')).toBe('live');
+    expect(store.tierFor('b')).toBe('ready');
     store.dispose();
   });
 

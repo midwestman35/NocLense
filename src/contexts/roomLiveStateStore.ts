@@ -110,48 +110,64 @@ export class RoomLiveStateStore {
 
   register(surfaceId: string, kind: LiveSurfaceKind): void {
     if (this.disposed) return;
+    const wasConnected = this.connected.has(surfaceId);
     this.connected.add(surfaceId);
     this.surfaceKinds.set(surfaceId, kind);
-    this.arbitrate();
-    this.emit();
+    // Emit only if something observable changed:
+    //   - !wasConnected: surface transitioned idle → ready.
+    //   - activeLive swap: arbitrate() changed the active slot.
+    // A repeat register on an already-connected surface with the
+    // same kind, no arbitration swap, does NOT wake listeners.
+    const swapped = this.arbitrate();
+    if (!wasConnected || swapped) this.emit();
   }
 
   notify(surfaceId: string, kind: LiveSurfaceKind): void {
     if (this.disposed) return;
+    const wasConnected = this.connected.has(surfaceId);
     this.connected.add(surfaceId);
     this.surfaceKinds.set(surfaceId, kind);
     this.heartbeats.set(surfaceId, { kind, lastNotifyMs: this.now() });
-    this.arbitrate();
-    this.emit();
+    // A repeat notify on the already-active live surface just
+    // extends its decay window; no tier transition, so no emit.
+    const swapped = this.arbitrate();
+    if (!wasConnected || swapped) this.emit();
   }
 
   unregister(surfaceId: string): void {
     if (this.disposed) return;
-    this.connected.delete(surfaceId);
-    this.heartbeats.delete(surfaceId);
-    this.alertSurfaces.delete(surfaceId);
+    const hadConnected = this.connected.delete(surfaceId);
+    const hadHeartbeat = this.heartbeats.delete(surfaceId);
+    const hadAlert = this.alertSurfaces.delete(surfaceId);
     this.surfaceKinds.delete(surfaceId);
     if (this.activeLiveSurfaceId === surfaceId) {
       this.activeLiveSurfaceId = null;
     }
-    this.arbitrate();
-    this.emit();
+    const swapped = this.arbitrate();
+    // Unregister emits if any tier-relevant state changed for this
+    // surface (connection / alert membership) or arbitration found
+    // a new active slot.
+    if (hadConnected || hadHeartbeat || hadAlert || swapped) this.emit();
   }
 
   raiseAlert(surfaceId: string): void {
     if (this.disposed) return;
-    if (this.alertSurfaces.has(surfaceId)) return;
+    if (this.alertSurfaces.has(surfaceId)) return; // no-op short-circuit
     this.alertSurfaces.add(surfaceId);
     // Alert implies connection. Surface stays at `ready` after
     // clearAlert until the caller unregisters.
     this.connected.add(surfaceId);
+    // Adding to alertSurfaces guarantees this surface's tier
+    // transitioned to alert — emit unconditionally.
     this.arbitrate();
     this.emit();
   }
 
   clearAlert(surfaceId: string): void {
     if (this.disposed) return;
-    if (!this.alertSurfaces.delete(surfaceId)) return;
+    if (!this.alertSurfaces.delete(surfaceId)) return; // no-op short-circuit
+    // Removing from alertSurfaces guarantees this surface's tier
+    // transitioned away from alert — emit unconditionally.
     this.arbitrate();
     this.emit();
   }
@@ -175,12 +191,17 @@ export class RoomLiveStateStore {
 
   /**
    * Arbitration. Updates activeLiveSurfaceId and scheduled timers.
-   * Does NOT emit — public mutators emit exactly once at the end of
-   * their call, so subscribers never see intermediate state.
+   * Does NOT emit — public mutators and the timer callback decide
+   * whether to emit based on this function's return value, so
+   * subscribers never see intermediate state and no-op mutations
+   * don't wake listeners.
+   *
+   * @returns true if activeLiveSurfaceId changed.
    */
-  private arbitrate(): void {
-    if (this.disposed) return;
+  private arbitrate(): boolean {
+    if (this.disposed) return false;
     const now = this.now();
+    const before = this.activeLiveSurfaceId;
 
     let newLiveId: string | null = null;
     let nextWakeMs: number | null = null;
@@ -226,7 +247,7 @@ export class RoomLiveStateStore {
         this.lastSwapAtMs = now;
       } else {
         this.scheduleArbitration(SWAP_DEBOUNCE_MS - sinceSwap);
-        return;
+        return this.activeLiveSurfaceId !== before;
       }
     }
 
@@ -235,6 +256,8 @@ export class RoomLiveStateStore {
     } else {
       this.cancelScheduledArbitration();
     }
+
+    return this.activeLiveSurfaceId !== before;
   }
 
   private scheduleArbitration(delayMs: number): void {
@@ -243,10 +266,11 @@ export class RoomLiveStateStore {
     this.scheduledTimer = this.setTimeoutFn(() => {
       this.scheduledTimer = null;
       if (this.disposed) return;
-      // Timer-driven arbitration emits on its own — no public mutator
-      // wraps the callback.
-      this.arbitrate();
-      this.emit();
+      // Timer-driven arbitration emits ONLY if the active-live slot
+      // changed. A timer that wakes to re-evaluate but finds the
+      // same winner (e.g. a rescheduled debounce that confirms no
+      // swap is needed) does not wake listeners.
+      if (this.arbitrate()) this.emit();
     }, delayMs);
   }
 
