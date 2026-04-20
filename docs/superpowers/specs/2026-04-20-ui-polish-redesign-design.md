@@ -239,8 +239,8 @@ The loading vocabulary is a **state chart**, not a fixed promise of duration. Ev
 | Hardware class | Windows 11, Intel i7-12th gen class, 32GB RAM, integrated GPU — matches user's daily machine |
 | Build mode | Electron production build (`npm run electron:build` output) |
 | Dataset fixture | Synthetic 100k-row log derived from real `DailyNOC` MACC backup (reproducible seed) |
-| Scroll script | Programmatic `wheelEvent` at 1000px/s for 10s continuous |
-| FPS capture | Chrome DevTools Protocol `Performance.getMetrics()` in Electron main, averaged over scroll window |
+| Scroll script | Programmatic `scrollBy()` at 1000px/s for 10s continuous, driven from the renderer (no CDP required) |
+| FPS capture | `requestAnimationFrame` timestamps captured in the renderer; FPS percentiles (avg / p5 / p50 / p95) computed from frame intervals |
 | Pass threshold | ≥ 55 fps average, ≥ 45 fps p5 |
 | Memory | `process.memoryUsage().heapUsed` sampled every 2s; pass if heap growth < 50 MB over 10 min idle |
 

@@ -1,62 +1,69 @@
 /*
- * perf-harness-snippet.js — paste-into-DevTools measurement runner.
+ * perf-harness-snippet.js — DevTools measurement runner for scroll-100k.
  *
- * Phase 01a checkpoint 4. This script runs inside the Electron
+ * Phase 01a checkpoint 5. This script runs inside the Electron
  * renderer (NOT Node). Paste it into DevTools Console with the
- * NocLense log viewer loaded, and it will:
+ * NocLense LogViewer mounted; it will:
  *
- *   1. Find the virtualized log scroll element.
- *   2. Programmatically scroll at ~1000px/s for 10 seconds.
- *   3. Capture requestAnimationFrame timestamps.
- *   4. Log the result as JSON to the console AND copy to clipboard.
+ *   1. Locate the scroll probe `[data-log-viewer-scroll]` (required —
+ *      no guesswork; snippet fails loudly if the probe is missing).
+ *   2. Preflight: verify scrollHeight > clientHeight.
+ *   3. Derive the actual row count from `[data-log-viewer-rows]` —
+ *      no hardcoded 100k.
+ *   4. Programmatically scroll at 1000 px/s for 10 seconds,
+ *      capturing requestAnimationFrame timestamps.
+ *   5. Emit a versioned ScrollSamples payload (console + clipboard)
+ *      that `scripts/perf-cli.ts submit` consumes.
  *
- * After the run, execute this in a terminal at the repo root to
- * persist and evaluate the samples:
+ * Selector and row-count contract match scripts/perf-harness.ts:
+ *     LOG_VIEWER_SCROLL_PROBE = 'data-log-viewer-scroll'
+ *     LOG_VIEWER_ROWS_PROBE   = 'data-log-viewer-rows'
+ *     SAMPLES_SCHEMA_VERSION  = 1
  *
- *   pbpaste | node --experimental-strip-types \
- *     scripts/perf-cli.ts submit \
- *     --scenario scroll-100k --phase 01a
- *
- * (Replace `pbpaste` with your OS clipboard-paste command.)
+ * Drift between this file and those constants is caught by
+ * scripts/__tests__/perf-harness.seam.test.ts.
  */
 
 (() => {
+  const SCROLL_PROBE = 'data-log-viewer-scroll';
+  const ROWS_PROBE = 'data-log-viewer-rows';
+  const SAMPLES_SCHEMA_VERSION = 1;
+  const CAPTURE_SOURCE = 'perf-harness-snippet.js@ckpt5';
+  const SCROLL_METHOD = 'programmatic-scrollby';
   const DURATION_MS = 10_000;
   const SCROLL_RATE_PX_S = 1000;
 
-  // Candidate selectors — tuned for the current LogViewer DOM. Update
-  // when the component structure changes.
-  const SELECTORS = [
-    '[data-log-viewer-scroll]',
-    '[data-testid="log-viewer-scroll"]',
-    '.log-viewer-scroll',
-  ];
-
-  let target = null;
-  for (const sel of SELECTORS) {
-    const el = document.querySelector(sel);
-    if (el) {
-      target = el;
-      break;
-    }
-  }
-  if (!target) {
-    // Fall back: look for tanstack-virtual's internal scroll element.
-    const tv = document.querySelector('[data-tanstack-virtual]')
-      || document.querySelector('.log-grid')?.parentElement?.parentElement;
-    if (tv) target = tv;
-  }
-
+  const target = document.querySelector(`[${SCROLL_PROBE}]`);
   if (!target) {
     console.error(
-      'perf-harness-snippet: could not locate log viewer scroll element. ' +
-      'Verify the LogViewer is open and DOM selectors match.'
+      `perf-harness-snippet: probe [${SCROLL_PROBE}] not found. ` +
+      'Ensure the LogViewer is mounted and rendering (Investigate phase, ' +
+      'logs loaded). The probe is set on the scroll container in ' +
+      'src/components/LogViewer.tsx.',
+    );
+    return;
+  }
+
+  if (target.scrollHeight <= target.clientHeight) {
+    console.error(
+      'perf-harness-snippet: scroll element has no overflow ' +
+      `(scrollHeight=${target.scrollHeight}, clientHeight=${target.clientHeight}). ` +
+      'Load a fixture with enough rows to require scrolling.',
+    );
+    return;
+  }
+
+  const rowsRaw = target.getAttribute(ROWS_PROBE);
+  const rowsLoaded = rowsRaw !== null ? Number.parseInt(rowsRaw, 10) : NaN;
+  if (!Number.isFinite(rowsLoaded) || rowsLoaded < 0) {
+    console.error(
+      `perf-harness-snippet: invalid row count on [${ROWS_PROBE}]: "${rowsRaw}". ` +
+      'The probe must reflect the number of virtualized rows.',
     );
     return;
   }
 
   const startScrollTop = Math.round(target.scrollTop || 0);
-  const rowsLoaded = 100_000; // snapshot assumption — update per scenario
 
   /** @type {number[]} */
   const frameTimestamps = [];
@@ -71,23 +78,29 @@
     frameTimestamps.push(t);
 
     if (t - startTime >= DURATION_MS) {
-      const samples = {
+      const payload = {
+        samplesSchemaVersion: SAMPLES_SCHEMA_VERSION,
         rowsLoaded,
         scrollDurationMs: Math.round(t - startTime),
         frameTimestamps,
         meta: {
+          captureSource: CAPTURE_SOURCE,
+          probeId: SCROLL_PROBE,
+          scrollMethod: SCROLL_METHOD,
           startScrollTop,
           endScrollTop: Math.round(target.scrollTop || 0),
-          frames: frameTimestamps.length,
-          selectorUsed: target.tagName + (target.className ? '.' + target.className.split(' ')[0] : ''),
           captureUnixMs: Date.now(),
         },
       };
-      const json = JSON.stringify(samples);
+      const json = JSON.stringify(payload);
       console.log('perf-harness-snippet:result', json);
       if (navigator.clipboard) {
         navigator.clipboard.writeText(json).then(
-          () => console.log('perf-harness-snippet: samples copied to clipboard'),
+          () => console.log(
+            'perf-harness-snippet: copied to clipboard. Submit with:\n' +
+            '  pbpaste | node --experimental-strip-types scripts/perf-cli.ts submit ' +
+            '--phase 01a --scenario scroll-100k',
+          ),
           (err) => console.warn('perf-harness-snippet: clipboard write failed', err),
         );
       }
@@ -101,6 +114,9 @@
     requestAnimationFrame(tick);
   }
 
-  console.log('perf-harness-snippet: starting 10s scroll capture');
+  console.log(
+    `perf-harness-snippet: starting 10s capture — ${rowsLoaded} rows, ` +
+    `probe=${SCROLL_PROBE}, method=${SCROLL_METHOD}`,
+  );
   requestAnimationFrame(tick);
 })();

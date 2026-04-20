@@ -302,7 +302,12 @@ const LogViewer = () => {
     <div className="flex-grow flex flex-col h-full w-full bg-[var(--workspace)] overflow-hidden">
       <TimeWindowStrip />
       <LogHeader />
-      <div ref={parentRef} className="flex-grow w-full overflow-y-auto relative">
+      <div
+        ref={parentRef}
+        data-log-viewer-scroll
+        data-log-viewer-rows={viewItems.length}
+        className="flex-grow w-full overflow-y-auto relative"
+      >
         {viewItems.length === 0 ? (
           <div className="absolute inset-0 flex items-center justify-center text-[var(--muted-foreground)] text-sm">
             No logs to display
