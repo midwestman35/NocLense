@@ -12,6 +12,24 @@ export { LoadingLabel, type LoadingLabelProps } from './LoadingLabel';
 export { GlowHost, type GlowHostProps } from './GlowHost';
 
 export {
+  RoomLiveStateProvider,
+  useLiveSurface,
+  useRoomLiveStateStore,
+  useSurfaceTier,
+  type GlowTier,
+  type LiveSurfaceKind,
+  type UseLiveSurfaceOptions,
+  type UseLiveSurfaceResult,
+} from '../../contexts/RoomLiveStateContext';
+export {
+  RoomLiveStateStore,
+  SURFACE_PRIORITY,
+  LIVE_DECAY_MS,
+  SWAP_DEBOUNCE_MS,
+  type RoomLiveStateStoreOptions,
+} from '../../contexts/roomLiveStateStore';
+
+export {
   useCuteLoadingLabel,
   buildPhraseSequence,
   CUTE_PHRASE_POOL,

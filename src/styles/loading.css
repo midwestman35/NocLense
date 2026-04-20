@@ -155,35 +155,55 @@
   50%      { opacity: 1; }
 }
 
-/* ── Glow-live container pulse (Phase 01a) ───────────────────────────── */
-/* Applied to a card wrapper when arbitration (spec §3.3) awards the
-   live tier to that surface. Rendered via a pseudo-element overlay
-   so the host's base elevation (shadow-raised / shadow-floating)
-   survives untouched — animating box-shadow on the host would stomp
-   the elevation shadow.
-   The overlay paints box-shadow using --shadow-glow-live (the
-   declared state token), and the pulse is an opacity cycle on the
-   overlay itself.
-   HOSTING CONSTRAINT: .glow-live MUST be applied to an element that
-   does NOT have overflow: hidden, and whose parent does not clip
-   descendants either. The pseudo-element's box-shadow paints OUTSIDE
-   the host, which overflow-hidden would clip. When the target
-   surface is clipping (e.g. src/components/workspace/WorkspaceCard
-   uses overflow-hidden), wrap it in a non-clipping outer via the
-   <GlowHost> React primitive in src/components/loading/GlowHost.tsx.*/
+/* ── Glow tier surface (Phase 01a §3.3 state machine) ───────────────────
+   Applied via the <GlowHost> React primitive (or the class pair
+   directly) to render the arbitrated glow tier for a surface.
+   Rendered via a pseudo-element overlay so the host's base elevation
+   (shadow-raised / shadow-floating) survives untouched — animating
+   box-shadow on the host would stomp the elevation shadow.
 
-.glow-live {
+   HOSTING CONSTRAINT: .glow-surface MUST be applied to an element
+   that does NOT have overflow: hidden, and whose parent does not
+   clip descendants either. The pseudo-element's box-shadow paints
+   OUTSIDE the host, which overflow-hidden would clip. For clipping
+   targets (e.g. WorkspaceCard uses overflow-hidden), use <GlowHost>
+   which wraps the child in a non-clipping outer.
+
+   Tier → rendering:
+     (no modifier)          idle  — pseudo-element has opacity 0
+     .glow-surface--ready   ready — static subtle green (glow-ready token)
+     .glow-surface--live    live  — full green, opacity pulse 0.55↔1 @ 1.8s
+     .glow-surface--alert   alert — red, static (no pulse)               */
+
+.glow-surface {
   position: relative;
 }
 
-.glow-live::after {
+.glow-surface::after {
   content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
   border-radius: inherit;
+  opacity: 0;
+  box-shadow: none;
+  transition: opacity 250ms ease-in-out, box-shadow 250ms ease-in-out;
+}
+
+.glow-surface--ready::after {
+  box-shadow: var(--shadow-glow-ready);
+  opacity: 1;
+}
+
+.glow-surface--live::after {
   box-shadow: var(--shadow-glow-live);
   animation: glow-live-pulse 1.8s ease-in-out infinite;
+  opacity: 1;
+}
+
+.glow-surface--alert::after {
+  box-shadow: var(--shadow-glow-error);
+  opacity: 1;
 }
 
 @keyframes glow-live-pulse {
@@ -207,8 +227,10 @@
     transform: none;
   }
 
-  .glow-live::after {
+  .glow-surface--live::after {
     animation: none;
-    opacity: 1;
+  }
+  .glow-surface::after {
+    transition: none;
   }
 }
