@@ -56,11 +56,12 @@ Files above 50 MB trigger streaming mode in `src/utils/parser.ts`:
 ### AI Integration
 
 - **Never call AI APIs from components.** All Unleashed AI calls go through `src/services/unleashService.ts`; all AI panel state lives in `src/components/ai/`.
-- **Unleash-only**: The app uses Unleashed AI exclusively. `src/services/providers/` contains legacy provider stubs — do not route new features through them. Use `unleashService.ts` directly.
+- **Unleash-only**: The app uses Unleashed AI exclusively. Legacy provider implementations (Claude, Gemini, Codex) have been removed; `src/services/providers/` contains only compatibility shims. Do not add features there; route all new AI logic through `unleashService.ts`.
 - **Context building** (`src/services/logContextBuilder.ts`): prioritizes ERROR > WARN > INFO > DEBUG, includes 5 surrounding logs per error, truncates payloads to 200 chars, targets 10k tokens (max 100k).
 - **Prompt templates** (`src/services/promptTemplates.ts`): all prompts live here — never hardcode prompts in components.
 - **Rate limiting**: 15 RPM / 1,500 RPD tracked in `AIContext` for the free Gemini tier.
 - AI features must not block core log viewing; lazy-load AI components and memoize context building.
+- **Error types** (`src/types/ai.ts`): Custom error classes (InvalidApiKeyError, RateLimitError, QuotaExceededError, TokenLimitExceededError, NetworkError) provide user-friendly messages and enable specific error handling in AIContext.
 
 ### Correlation System
 
@@ -72,13 +73,28 @@ Users filter logs by faceted correlations (Call-ID, Report-ID, Operator-ID, Exte
 - Expensive filtering/sorting must use `useMemo`; event handlers use `useCallback`.
 - `vite.config.ts` uses relative asset paths (`./`) for Electron compatibility.
 
+## Type Organization
+
+Types are organized by domain in `src/types/`:
+- **`ai.ts`** — AI service errors (InvalidApiKeyError, RateLimitError, QuotaExceededError, etc.), AI state types
+- **`services.ts`** — External service integrations (Zendesk, Datadog, APEX, Jira, Confluence)
+- **`server.ts`** — Backend API and database types
+- **`prompts.ts`** — Prompt templates, analysis contexts, structured responses
+- **`import.ts`** — File import/upload operations and batch management
+- **`utils.ts`** — Utility function types, transformations, helpers
+- **Core** (`src/types.ts`) — `LogEntry` interface (40+ fields, canonical data contract), `LogState`, `LogLevel`, `LogSourceType`, `ImportedDataset`
+
+Import from `src/types.ts` for core types, from `src/types/*` for domain-specific types. Never use `any` — use `unknown` for dynamic data.
+
 ## Key Files
 
 | File | Role |
 |---|---|
-| `src/types.ts` | Canonical `LogEntry` interface (40+ fields) — the data contract for the whole app |
+| `src/types.ts` | Canonical `LogEntry` interface and core types — the data contract for the whole app |
+| `src/services/apiUtils.ts` | Shared HTTP utilities: environment-aware URL resolution, auth headers, error extraction, config validation |
 | `src/utils/parser.ts` | Multi-format log parser (Datadog CSV, Homer SIP, JSON); streaming chunked read |
 | `src/utils/indexedDB.ts` | IndexedDB manager for large-file lazy-loading |
+| `src/utils/useEscapeKey.ts` | Modal keyboard handlers: `useEscapeKey()`, `useEscapeOrEnterKey()` |
 | `src/services/unleashService.ts` | All Unleashed AI calls (summarize, anomalies, chat, diagnose) |
 | `src/services/logContextBuilder.ts` | Builds tokenized LLM context from filtered logs |
 | `src/services/promptTemplates.ts` | All pre-built AI prompts |
@@ -111,6 +127,24 @@ Phase navigation: forward via workflow actions (file upload, "Next: Submit" butt
 - **anime.js v4** — stagger effects, timeline orchestration, SVG, value tweening. Hooks in `src/utils/anime.ts`: `useAnimeStagger`, `useAnimeTimeline`, `useAnimeValue`
 - **CSS transitions** — hover states, focus rings, room container transitions
 - **CSS keyframes** — skeleton shimmer, toast entrance, phase dot pulse, evidence bounce
+
+### Shared Utilities & Consolidation
+
+To avoid duplication across services, use these shared utilities:
+
+- **`src/services/apiUtils.ts`** — HTTP helpers for all external API calls (Zendesk, Jira, Confluence, Datadog)
+  - `isElectron()`, `isDev()` — environment detection
+  - `resolveApiUrl(devPath, apiPath)` — routes requests through dev proxy, Electron, or production proxy
+  - `basicAuthHeader(user, pass)` — generates Basic auth headers
+  - `extractErrorDetail(error)` — safe error message extraction
+  - `validateSettingsFields(obj, fields)` — config validation
+  - `parseJson(str)` — safe JSON parsing with fallback
+  
+- **`src/utils/useEscapeKey.ts`** — Modal keyboard handlers
+  - `useEscapeKey(callback)` — dismiss on Escape
+  - `useEscapeOrEnterKey(callback)` — dismiss on Escape or Enter
+  
+Do not reimplement these patterns in individual services. If you need a common utility, add it to the appropriate shared module rather than duplicating logic.
 
 ## Coding Conventions
 

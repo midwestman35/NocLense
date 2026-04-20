@@ -1,45 +1,9 @@
 /**
  * AI Button Component
- * 
- * Purpose:
- * Reusable button component for triggering AI actions throughout the application.
- * Provides consistent behavior and styling for AI features.
- * 
- * Architecture Decision:
- * Reusable component ensures consistent behavior and reduces code duplication.
- * This component can be placed in toolbars, panels, and context menus.
- * 
- * Key Features:
- * - Multiple variants (primary, secondary, icon)
- * - Pre-populated queries for common actions
- * - Disabled state when API key not configured
- * - Tooltip explaining why disabled
- * - Loading state during analysis
- * - Opens AIAssistantPanel with pre-populated query
- * 
- * Why Reusable Component Instead of Inline Buttons?
- * - Ensures consistent behavior across the app
- * - Reduces code duplication
- * - Centralizes AI button logic
- * - Easier to maintain and update
- * 
- * Why Pre-populated Queries?
- * - Improves UX by reducing typing
- * - Ensures queries are well-formed
- * - Faster workflow for common actions
- * - Demonstrates AI capabilities
- * 
- * Integration Points:
- * - LogViewer toolbar (analyze filtered logs)
- * - LogDetailsPanel (explain specific log)
- * - CorrelationSidebar (analyze correlation)
- * - Context menu for selected logs
- * 
- * Dependencies:
- * - AIContext: Provides AI state and actions
- * - lucide-react: Icons (Sparkles for AI)
- * - Tailwind CSS: Styling (consistent with existing components)
- * 
+ *
+ * Reusable button for triggering AI actions with pre-populated prompts.
+ * Variants: primary, secondary, icon. Used in toolbars, panels, context menus.
+ *
  * @module components/AIButton
  */
 
@@ -74,9 +38,7 @@ interface AIButtonProps {
 }
 
 /**
- * Get prompt text based on prompt type
- * 
- * Why: Centralizes prompt templates for consistency
+ * Get prompt text based on prompt type for consistency.
  */
 function getPromptText(
   promptType: 'explain' | 'analyze' | 'troubleshoot' | 'custom',
@@ -96,15 +58,6 @@ function getPromptText(
   }
 }
 
-/**
- * AI Button Component
- * 
- * Why this component structure?
- * - Reusable across different contexts
- * - Handles panel state internally
- * - Provides consistent UX
- * - Accessible with proper ARIA labels
- */
 export default function AIButton({
   variant = 'primary',
   logs,
@@ -135,8 +88,8 @@ export default function AIButton({
         const settings = loadAiSettings();
         const reply = await chatWithLogs(settings, promptText, logs ?? [], []);
         setAiReply(reply);
-      } catch (e: any) {
-        setAiError(e.message);
+      } catch (e: unknown) {
+        setAiError(e instanceof Error ? e.message : String(e));
       } finally {
         setAiLoading(false);
       }
@@ -168,17 +121,15 @@ export default function AIButton({
         : [];
       const reply = await chatWithLogs(settings, msg, logs ?? [], history);
       setAiReply(prev => (prev ? `${prev}\n\n---\n\n**Q: ${msg}**\n\n${reply}` : reply));
-    } catch (e: any) {
-      setAiError(e.message);
+    } catch (e: unknown) {
+      setAiError(e instanceof Error ? e.message : String(e));
     } finally {
       setAiLoading(false);
     }
   }
 
-  // Phase 6.2: Disable when no logs - user must load/select logs first
   const hasLogs = logs === undefined || logs.length > 0;
 
-  // Disable when no logs or external disabled (no longer require apiKeyConfigured since Unleash handles it)
   const isDisabled =
     externalDisabled ||
     !apiKeyConfigured ||
@@ -189,11 +140,6 @@ export default function AIButton({
   // Get prompt text
   const promptText = getPromptText(promptType, customPrompt);
 
-  /**
-   * Handle button click
-   * 
-   * Why: Opens AI panel with pre-populated query
-   */
   const handleClick = useCallback(() => {
     if (isDisabled) {
       return;
@@ -231,7 +177,6 @@ export default function AIButton({
     </>
   );
 
-  // Tooltip text - Phase 6.2: Clear, actionable messages per .cursorrules
   const tooltipText =
     tooltip ||
     (!hasLogs ? 'Load logs first to use AI analysis' :
@@ -259,7 +204,6 @@ export default function AIButton({
         {buttonContent}
       </button>
 
-      {/* Inline AI result panel */}
       {isPanelOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={handleClose}>
           <div
@@ -267,7 +211,6 @@ export default function AIButton({
             style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}
             onClick={e => e.stopPropagation()}
           >
-            {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Sparkles size={15} style={{ color: 'var(--success)' }} />
@@ -278,12 +221,10 @@ export default function AIButton({
               </button>
             </div>
 
-            {/* Prompt */}
             <div style={{ padding: '10px 16px', backgroundColor: 'var(--muted)', flexShrink: 0, fontSize: '12px', color: 'var(--muted-foreground)', borderBottom: '1px solid var(--border)' }}>
               {promptText}
             </div>
 
-            {/* Content */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px' }}>
               {aiLoading && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--muted-foreground)', fontSize: '12px' }}>
@@ -304,7 +245,6 @@ export default function AIButton({
               <div ref={bottomRef} />
             </div>
 
-            {/* Follow-up input */}
             {aiReply && (
               <div style={{ padding: '10px 12px', borderTop: '1px solid var(--border)', flexShrink: 0, display: 'flex', gap: '8px' }}>
                 <input

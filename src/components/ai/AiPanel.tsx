@@ -83,8 +83,9 @@ export default function AiPanel({ onClose, pendingTicketId, onTicketHandled, pen
     try {
       const result = await summarizeLogs(settings, activeLogs);
       setSummary({ content: result, error: null, loading: false });
-    } catch (e: any) {
-      setSummary({ content: '', error: e.message, loading: false });
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      setSummary({ content: '', error: errorMessage, loading: false });
     }
   }
 

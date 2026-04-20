@@ -2,7 +2,7 @@
  * AI Context - React Context for LLM integration.
  */
 
-import { createContext, useContext, useState, useMemo, useEffect, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useState, useMemo, useEffect, useCallback, lazy, Suspense, type ReactNode } from 'react';
 import { LogContextBuilder } from '../services/logContextBuilder';
 import { EmbeddingService } from '../services/embeddingService';
 import { buildPromptFromTemplate } from '../services/promptTemplates';
@@ -20,13 +20,15 @@ import {
 } from '../types/ai';
 import type { LogEntry } from '../types';
 import type { SimilarPastTicket } from '../types/diagnosis';
-import ConsentModal from '../components/ConsentModal';
-import QuotaExceededModal from '../components/QuotaExceededModal';
 import {
   loadApiKey as loadStoredApiKey,
   saveApiKey as saveStoredApiKey,
   migrateFromLocalStorage as migrateApiKeysFromLocalStorage,
 } from '../store/apiKeyStorage';
+
+// Lazy-load modals to break circular dependencies with context
+const ConsentModal = lazy(() => import('../components/ConsentModal'));
+const QuotaExceededModal = lazy(() => import('../components/QuotaExceededModal'));
 
 const STORAGE_KEY_MODEL = 'noclense_ai_model';
 const STORAGE_KEY_PROVIDER = 'noclense_ai_provider';
@@ -41,13 +43,9 @@ const DEFAULT_DAILY_LIMIT = GEMINI_FREE_TIER_DAILY_LIMIT;
 const DEFAULT_ENABLED = false;
 
 function loadProvider(): AIProviderId {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY_PROVIDER);
-    if (saved === 'gemini' || saved === 'claude' || saved === 'codex') {
-      return saved;
-    }
-  } catch (e) {
-    console.error('Failed to load provider from localStorage:', e);
+  const saved = localStorage.getItem(STORAGE_KEY_PROVIDER);
+  if (saved === 'gemini' || saved === 'claude' || saved === 'codex') {
+    return saved;
   }
   return DEFAULT_AI_PROVIDER;
 }
@@ -55,34 +53,30 @@ function loadProvider(): AIProviderId {
 function saveProvider(provider: AIProviderId): void {
   try {
     localStorage.setItem(STORAGE_KEY_PROVIDER, provider);
-  } catch (e) {
-    console.error('Failed to save provider to localStorage:', e);
+  } catch {
+    // localStorage quota exceeded or unavailable — silently ignore
   }
 }
 
 function loadModel(provider: AIProviderId): AIConfig['model'] {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY_MODEL);
-    if (saved && AI_MODELS[saved]?.provider === provider) {
-      return saved;
+  const saved = localStorage.getItem(STORAGE_KEY_MODEL);
+  if (saved && AI_MODELS[saved]?.provider === provider) {
+    return saved;
+  }
+  if (provider === 'gemini') {
+    if (saved === 'gemini-3-pro-preview') {
+      saveModel('gemini', 'gemini-3.1-pro-preview');
+      return 'gemini-3.1-pro-preview';
     }
-    if (provider === 'gemini') {
-      if (saved === 'gemini-3-pro-preview') {
-        saveModel('gemini', 'gemini-3.1-pro-preview');
-        return 'gemini-3.1-pro-preview';
-      }
-      if (saved === 'gemini-2.0-flash' || saved === 'gemini-1.5-pro' || saved === 'gemini-1.5-flash') {
-        saveModel('gemini', 'gemini-3.1-flash-lite-preview');
-        return 'gemini-3.1-flash-lite-preview';
-      }
+    if (saved === 'gemini-2.0-flash' || saved === 'gemini-1.5-pro' || saved === 'gemini-1.5-flash') {
+      saveModel('gemini', 'gemini-3.1-flash-lite-preview');
+      return 'gemini-3.1-flash-lite-preview';
     }
-    if (provider === 'claude' && (saved === 'claude-3-5-sonnet-latest' || saved === 'claude-3-5-haiku-latest')) {
-      const next = saved === 'claude-3-5-haiku-latest' ? 'claude-haiku-4-5' : 'claude-sonnet-4-6';
-      saveModel('claude', next);
-      return next;
-    }
-  } catch (e) {
-    console.error('Failed to load model from localStorage:', e);
+  }
+  if (provider === 'claude' && (saved === 'claude-3-5-sonnet-latest' || saved === 'claude-3-5-haiku-latest')) {
+    const next = saved === 'claude-3-5-haiku-latest' ? 'claude-haiku-4-5' : 'claude-sonnet-4-6';
+    saveModel('claude', next);
+    return next;
   }
   return DEFAULT_MODELS_BY_PROVIDER[provider] ?? DEFAULT_MODEL;
 }
@@ -90,83 +84,82 @@ function loadModel(provider: AIProviderId): AIConfig['model'] {
 function saveModel(_provider: AIProviderId, model: AIConfig['model']): void {
   try {
     localStorage.setItem(STORAGE_KEY_MODEL, model);
-  } catch (e) {
-    console.error('Failed to save model to localStorage:', e);
+  } catch {
+    // localStorage quota exceeded or unavailable — silently ignore
   }
 }
 
 function loadEnabled(): boolean {
-  try {
-    return localStorage.getItem(STORAGE_KEY_ENABLED) === 'true';
-  } catch (e) {
-    console.error('Failed to load enabled state from localStorage:', e);
-    return DEFAULT_ENABLED;
-  }
+  return localStorage.getItem(STORAGE_KEY_ENABLED) === 'true';
 }
 
 function saveEnabled(enabled: boolean): void {
   try {
     localStorage.setItem(STORAGE_KEY_ENABLED, String(enabled));
-  } catch (e) {
-    console.error('Failed to save enabled state to localStorage:', e);
+  } catch {
+    // localStorage quota exceeded or unavailable — silently ignore
   }
 }
 
 function loadUsageStats(): AIUsageStats {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY_USAGE_STATS);
-    if (saved) {
-      const stats: AIUsageStats = JSON.parse(saved);
-      const now = Date.now();
-      const lastReset = new Date(stats.lastDailyReset);
-      const today = new Date();
-      today.setUTCHours(0, 0, 0, 0);
-      if (lastReset < today) {
-        const resetStats: AIUsageStats = {
-          requestsToday: 0,
-          requestsThisMinute: 0,
-          totalTokensUsed: stats.totalTokensUsed,
-          lastDailyReset: now,
-          lastMinuteReset: now,
-        };
-        saveUsageStats(resetStats);
-        return resetStats;
-      }
-      return stats;
-    }
-  } catch (e) {
-    console.error('Failed to load usage stats from localStorage:', e);
+  const saved = localStorage.getItem(STORAGE_KEY_USAGE_STATS);
+  if (!saved) {
+    const now = Date.now();
+    return {
+      requestsToday: 0,
+      requestsThisMinute: 0,
+      totalTokensUsed: 0,
+      lastDailyReset: now,
+      lastMinuteReset: now,
+    };
   }
 
-  const now = Date.now();
-  return {
-    requestsToday: 0,
-    requestsThisMinute: 0,
-    totalTokensUsed: 0,
-    lastDailyReset: now,
-    lastMinuteReset: now,
-  };
+  try {
+    const stats: AIUsageStats = JSON.parse(saved);
+    const now = Date.now();
+    const lastReset = new Date(stats.lastDailyReset);
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    if (lastReset < today) {
+      const resetStats: AIUsageStats = {
+        requestsToday: 0,
+        requestsThisMinute: 0,
+        totalTokensUsed: stats.totalTokensUsed,
+        lastDailyReset: now,
+        lastMinuteReset: now,
+      };
+      saveUsageStats(resetStats);
+      return resetStats;
+    }
+    return stats;
+  } catch {
+    // Corrupted data — return default and let next save overwrite
+    const now = Date.now();
+    return {
+      requestsToday: 0,
+      requestsThisMinute: 0,
+      totalTokensUsed: 0,
+      lastDailyReset: now,
+      lastMinuteReset: now,
+    };
+  }
 }
 
 function saveUsageStats(stats: AIUsageStats): void {
   try {
     localStorage.setItem(STORAGE_KEY_USAGE_STATS, JSON.stringify(stats));
-  } catch (e) {
-    console.error('Failed to save usage stats to localStorage:', e);
+  } catch {
+    // localStorage quota exceeded or unavailable — silently ignore
   }
 }
 
 function loadDailyLimit(): number {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY_DAILY_LIMIT);
-    if (saved) {
-      const limit = parseInt(saved, 10);
-      if (limit >= 1 && limit <= GEMINI_FREE_TIER_DAILY_LIMIT) {
-        return limit;
-      }
+  const saved = localStorage.getItem(STORAGE_KEY_DAILY_LIMIT);
+  if (saved) {
+    const limit = parseInt(saved, 10);
+    if (limit >= 1 && limit <= GEMINI_FREE_TIER_DAILY_LIMIT) {
+      return limit;
     }
-  } catch (e) {
-    console.error('Failed to load daily limit from localStorage:', e);
   }
   return DEFAULT_DAILY_LIMIT;
 }
@@ -174,42 +167,32 @@ function loadDailyLimit(): number {
 function saveDailyLimit(limit: number): void {
   try {
     localStorage.setItem(STORAGE_KEY_DAILY_LIMIT, String(limit));
-  } catch (e) {
-    console.error('Failed to save daily limit to localStorage:', e);
+  } catch {
+    // localStorage quota exceeded or unavailable — silently ignore
   }
 }
 
 function loadConsent(): boolean {
-  try {
-    return localStorage.getItem(STORAGE_KEY_CONSENT) === 'true';
-  } catch (e) {
-    console.error('Failed to load consent from localStorage:', e);
-    return false;
-  }
+  return localStorage.getItem(STORAGE_KEY_CONSENT) === 'true';
 }
 
 function saveConsent(consented: boolean): void {
   try {
     localStorage.setItem(STORAGE_KEY_CONSENT, String(consented));
-  } catch (e) {
-    console.error('Failed to save consent to localStorage:', e);
+  } catch {
+    // localStorage quota exceeded or unavailable — silently ignore
   }
 }
 
 function loadOnboardingCompleted(): boolean {
-  try {
-    return localStorage.getItem(STORAGE_KEY_ONBOARDING_COMPLETED) === 'true';
-  } catch (e) {
-    console.error('Failed to load onboarding state from localStorage:', e);
-    return false;
-  }
+  return localStorage.getItem(STORAGE_KEY_ONBOARDING_COMPLETED) === 'true';
 }
 
 function saveOnboardingCompleted(completed: boolean): void {
   try {
     localStorage.setItem(STORAGE_KEY_ONBOARDING_COMPLETED, String(completed));
-  } catch (e) {
-    console.error('Failed to save onboarding state to localStorage:', e);
+  } catch {
+    // localStorage quota exceeded or unavailable — silently ignore
   }
 }
 
@@ -690,8 +673,16 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
   return (
     <AIContext.Provider value={contextValue}>
       {children}
-      {showConsentModal && <ConsentModal onClose={declineConsent} />}
-      {showQuotaExceededModal && <QuotaExceededModal onClose={dismissQuotaExceeded} />}
+      {showConsentModal && (
+        <Suspense fallback={null}>
+          <ConsentModal onClose={declineConsent} />
+        </Suspense>
+      )}
+      {showQuotaExceededModal && (
+        <Suspense fallback={null}>
+          <QuotaExceededModal onClose={dismissQuotaExceeded} />
+        </Suspense>
+      )}
     </AIContext.Provider>
   );
 };

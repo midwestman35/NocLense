@@ -8,29 +8,26 @@
  */
 import type { AiSettings } from '../store/aiSettings';
 import type { JiraTicketDraft } from '../types/diagnosis';
+import {
+  resolveApiUrl,
+  basicAuthHeader,
+  jsonHeaders,
+  extractErrorDetail,
+  validateSettingsFields,
+  parseJson,
+} from './apiUtils';
 
 export interface JiraIssueCreatedResponse {
   key: string;
   url: string;
 }
 
-/** Use Vite dev proxy in development; serverless proxy in production Vercel; direct in Electron */
 function resolveJiraUrl(settings: AiSettings, path: string): string {
-  if (import.meta.env.DEV) {
-    return `/jira-proxy${path}`;
-  }
-  if (typeof window !== 'undefined' && (window as any).electronAPI) {
-    return `https://${settings.jiraSubdomain}${path}`;
-  }
-  return `/api/jira-proxy${path}`;
+  return resolveApiUrl(`/jira-proxy${path}`, `https://${settings.jiraSubdomain}${path}`);
 }
 
 function jiraHeaders(settings: AiSettings): HeadersInit {
-  const credentials = btoa(`${settings.jiraEmail}:${settings.jiraToken}`);
-  return {
-    'Content-Type': 'application/json',
-    Authorization: `Basic ${credentials}`,
-  };
+  return jsonHeaders(basicAuthHeader(settings.jiraEmail, settings.jiraToken));
 }
 
 /**
@@ -82,9 +79,11 @@ export async function createJiraTicket(
   draft: JiraTicketDraft,
   ticketSubject?: string
 ): Promise<JiraIssueCreatedResponse> {
-  if (!settings.jiraSubdomain || !settings.jiraEmail || !settings.jiraToken || !settings.jiraProjectKey) {
-    throw new Error('Jira is not configured. Add your subdomain, email, API token, and project key in AI Settings.');
-  }
+  validateSettingsFields(
+    settings,
+    ['jiraSubdomain', 'jiraEmail', 'jiraToken', 'jiraProjectKey'],
+    'Jira'
+  );
 
   const headers = jiraHeaders(settings);
   const url = resolveJiraUrl(settings, '/rest/api/3/issue');
@@ -107,14 +106,14 @@ export async function createJiraTicket(
   }
 
   if (!res.ok) {
-    const detail = await res.text().catch(() => '');
+    const detail = await extractErrorDetail(res);
     if (res.status === 401) throw new Error('Jira authentication failed. Check your email and API token in settings.');
     if (res.status === 403) throw new Error('Jira permission denied. Ensure your account can create issues in this project.');
     if (res.status === 404) throw new Error(`Jira project "${settings.jiraProjectKey}" not found.`);
     throw new Error(`Jira error (${res.status}): ${detail || res.statusText}`);
   }
 
-  const data = await res.json() as { id: string; key: string; self: string };
+  const data = await parseJson<{ id: string; key: string; self: string }>(res);
   const key = data.key;
   const baseUrl = import.meta.env.DEV
     ? `https://${settings.jiraSubdomain}`

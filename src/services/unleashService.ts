@@ -56,21 +56,37 @@ function resolveUrl(settings: AiSettings): string {
 }
 
 /** Extract text from ChatCompletionResponse message.parts */
-function extractAnswer(data: any): string {
-  // Try message.parts array (official schema)
-  const parts = data?.message?.parts;
-  if (Array.isArray(parts)) {
-    if (parts.length > 0) {
-      return parts
-        .filter((p: any) => p.type === 'Text' || p.text)
-        .map((p: any) => p.text ?? p.content ?? '')
-        .join('');
-    }
-    // Empty parts array — API returned a valid response with no content
-    throw new Error('Unleash AI returned an empty response. Please try again.');
+function extractAnswer(data: unknown): string {
+  if (typeof data !== 'object' || data === null) {
+    throw new Error('Unleash AI returned an unrecognized response format.');
   }
+
+  const dataObj = data as Record<string, unknown>;
+
+  // Try message.parts array (official schema)
+  const messageObj = dataObj.message;
+  if (typeof messageObj === 'object' && messageObj !== null) {
+    const messageRecord = messageObj as Record<string, unknown>;
+    const parts = messageRecord.parts;
+    if (Array.isArray(parts)) {
+      if (parts.length > 0) {
+        const texts = parts
+          .filter((p: unknown): p is Record<string, unknown> => typeof p === 'object' && p !== null)
+          .filter((p: Record<string, unknown>) => p.type === 'Text' || p.text)
+          .map((p: Record<string, unknown>) => {
+            const text = p.text ?? p.content;
+            return typeof text === 'string' ? text : '';
+          })
+          .join('');
+        if (texts.length > 0) return texts;
+      }
+      // Empty parts array — API returned a valid response with no content
+      throw new Error('Unleash AI returned an empty response. Please try again.');
+    }
+  }
+
   // Fallbacks for alternative response shapes
-  const text = data?.message?.text ?? data?.answer ?? data?.text;
+  const text = (typeof messageObj === 'object' && messageObj !== null && 'text' in messageObj ? (messageObj as Record<string, unknown>).text : null) ?? dataObj.answer ?? dataObj.text;
   if (typeof text === 'string' && text.length > 0) return text;
   throw new Error('Unleash AI returned an unrecognized response format.');
 }
@@ -101,8 +117,9 @@ async function post(settings: AiSettings, messages: ChatMessage[], opts?: { skip
   let res: Response;
   try {
     res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
-  } catch (e: any) {
-    throw new Error(`Network error — cannot reach Unleash API. (${e.message})`);
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : String(e);
+    throw new Error(`Network error — cannot reach Unleash API. (${message})`);
   }
 
   if (!res.ok) {

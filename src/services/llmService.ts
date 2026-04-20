@@ -1,31 +1,10 @@
 /**
  * LLM Service - Google Gemini Integration
- * 
- * Purpose:
- * Manages all interactions with Google Gemini API including initialization,
- * request/response handling, rate limiting, and error management.
- * 
- * Architecture Decision:
- * Singleton pattern ensures single API client instance across the app,
- * which is necessary for accurate rate limiting and quota tracking.
- * This prevents multiple concurrent API connections and simplifies state management.
- * 
- * Key Features:
- * - Rate limiting (15 RPM, 1,500 RPD for free tier)
- * - Automatic retry with exponential backoff for transient failures
- * - Token estimation and context optimization
- * - Response streaming for better UX
- * - Comprehensive error handling with user-friendly messages
- * 
- * Dependencies:
- * - @google/generative-ai: Official Google SDK for Gemini API
- * - logContextBuilder: Formats logs for LLM (will be created in Phase 1.4)
- * 
- * Security Notes:
- * - API key is passed at initialization (stored securely by caller)
- * - API key is never logged to console
- * - All API calls use HTTPS
- * 
+ *
+ * Manages Gemini API interactions: initialization, requests, rate limiting (15 RPM / 1,500 RPD),
+ * retry with exponential backoff, token estimation, and error handling.
+ * Singleton pattern ensures accurate quota tracking across the app.
+ *
  * @module services/llmService
  */
 
@@ -42,17 +21,8 @@ import {
 } from '../types/ai';
 
 /**
- * Singleton service for managing Gemini AI interactions
- * 
- * Why Singleton?
- * - Ensures single API client instance across the app
- * - Centralizes rate limiting and usage tracking
- * - Prevents multiple concurrent API connections
- * - Simplifies state management for API quota
- * 
- * Alternative considered: Multiple instances
- * - Rejected because rate limiting would be inaccurate across instances
- * - Would require shared state (localStorage) which adds complexity
+ * Singleton service for managing Gemini AI interactions.
+ * Single instance ensures accurate rate limiting and quota tracking across app.
  */
 export class GeminiService {
   private static instance: GeminiService;
@@ -60,9 +30,7 @@ export class GeminiService {
   private model: GenerativeModel | null = null;
   private currentModelId: string = 'gemini-3.1-flash-lite-preview';
   
-  // Rate limiting state
-  // Why: Free tier has 15 RPM, 1,500 RPD limits - must track to avoid quota errors
-  // Trade-off: In-memory tracking means limits reset on app restart (acceptable for this use case)
+  // Rate limiting state (in-memory; resets on app restart, which is acceptable)
   private requestsThisMinute: number = 0;
   private requestsToday: number = 0;
   private lastMinuteReset: number = Date.now();
@@ -75,10 +43,7 @@ export class GeminiService {
   private dailyRequestLimit: number = GEMINI_FREE_TIER_DAILY_LIMIT;
   
   /**
-   * Get singleton instance
-   * 
-   * Why: Ensures only one service instance exists
-   * Pattern: Standard singleton implementation
+   * Get singleton instance.
    */
   public static getInstance(): GeminiService {
     if (!GeminiService.instance) {
@@ -88,11 +53,8 @@ export class GeminiService {
   }
   
   /**
-   * Initialize the Gemini client with API key
-   * 
-   * Why: Separate initialization allows lazy setup (only when user enables AI)
-   * This prevents unnecessary API client creation if AI features are disabled.
-   * 
+   * Initialize the Gemini client with API key (lazy setup for disabled features).
+   *
    * @param apiKey - Google Gemini API key
    * @param model - Model to use (default: 'gemini-3.1-flash-lite-preview')
    * @throws InvalidApiKeyError - If API key is empty or invalid format
@@ -118,11 +80,8 @@ export class GeminiService {
   }
   
   /**
-   * Validate API key by making a test request
-   * 
-   * Why: Validates API key before saving to prevent user frustration.
-   * Uses minimal token request to keep validation fast and cheap.
-   * 
+   * Validate API key with a minimal test request (fast, cheap validation).
+   *
    * @param apiKey - API key to validate
    * @returns Promise<boolean> - True if valid, false otherwise
    */

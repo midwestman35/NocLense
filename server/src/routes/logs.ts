@@ -85,8 +85,18 @@ logs.get('/:id/logs', (c) => {
   return c.json({ total, offset, limit, logs: converted });
 });
 
+/**
+ * Parse JSON string safely, returning undefined if invalid.
+ * This is called for jsonData which may be null or malformed.
+ */
 function tryParseJson(str: string): unknown {
-  try { return JSON.parse(str); } catch { return undefined; }
+  if (!str) return undefined;
+  try {
+    return JSON.parse(str);
+  } catch {
+    // jsonData field is optional; malformed data is silently ignored
+    return undefined;
+  }
 }
 
 export default logs;

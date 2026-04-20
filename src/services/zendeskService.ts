@@ -1,68 +1,30 @@
 import type { AiSettings } from '../store/aiSettings';
+import type { ZendeskAttachment, ZendeskTicket, ZendeskTicketDraft } from '../types/services';
+import {
+  resolveApiUrl,
+  basicAuthHeaderEmailToken,
+  jsonHeaders,
+  extractErrorDetail,
+  validateSettingsFields,
+  parseJson,
+} from './apiUtils';
 
-export interface ZendeskAttachment {
-  id: number;
-  fileName: string;
-  contentUrl: string;
-  contentType: string;
-  size: number;
-  /** True when the file is an inline image embed rather than a standalone attachment */
-  inline: boolean;
-  /** Whether the comment it came from was public-facing or an internal note */
-  commentType: 'public' | 'internal';
-}
-
-export interface ZendeskTicket {
-  id: number;
-  subject: string;
-  description: string;
-  status: string;
-  priority: string | null;
-  requesterName: string;
-  requesterEmail: string;
-  createdAt: string;
-  tags: string[];
-  comments: string[];
-  requesterTimezone: string | null;
-  orgId: number | null;
-  orgName: string | null;
-  orgTimezone: string | null;
-  attachments: ZendeskAttachment[];
-}
-
-export interface ZendeskTicketDraft {
-  subject: string;
-  description: string;
-  requesterEmail?: string;
-}
+// Re-export types for backward compatibility
+export type { ZendeskAttachment, ZendeskTicket, ZendeskTicketDraft };
 
 function resolveZendeskUrl(settings: AiSettings, path: string): string {
-  if (import.meta.env.DEV) {
-    return `/zendesk-proxy${path}`;
-  }
-  // Production Vercel: use serverless proxy to bypass CORS
-  // Electron: direct URL (no CORS in desktop app)
-  if (typeof window !== 'undefined' && (window as any).electronAPI) {
-    return `https://${settings.zendeskSubdomain}.zendesk.com${path}`;
-  }
-  return `/api/zendesk-proxy${path}`;
+  return resolveApiUrl(`/zendesk-proxy${path}`, `https://${settings.zendeskSubdomain}.zendesk.com${path}`);
 }
 
 function zendeskHeaders(settings: AiSettings): HeadersInit {
-  const credentials = btoa(`${settings.zendeskEmail}/token:${settings.zendeskToken}`);
-  return {
-    'Content-Type': 'application/json',
-    Authorization: `Basic ${credentials}`,
-  };
+  return jsonHeaders(basicAuthHeaderEmailToken(settings.zendeskEmail, settings.zendeskToken));
 }
 
 export async function fetchZendeskTicket(
   settings: AiSettings,
   ticketId: string
 ): Promise<ZendeskTicket> {
-  if (!settings.zendeskSubdomain || !settings.zendeskEmail || !settings.zendeskToken) {
-    throw new Error('Zendesk is not configured. Add your subdomain, email, and API token in AI Settings.');
-  }
+  validateSettingsFields(settings, ['zendeskSubdomain', 'zendeskEmail', 'zendeskToken'], 'Zendesk');
 
   const id = ticketId.trim().replace(/\D/g, '');
   if (!id) throw new Error('Enter a valid ticket number.');
@@ -75,13 +37,13 @@ export async function fetchZendeskTicket(
   ]);
 
   if (!ticketRes.ok) {
-    const detail = await ticketRes.text().catch(() => '');
+    const detail = await extractErrorDetail(ticketRes);
     if (ticketRes.status === 401) throw new Error('Zendesk authentication failed. Check your email and API token in settings.');
     if (ticketRes.status === 404) throw new Error(`Ticket #${id} not found. Confirm it exists and your account has access.`);
     throw new Error(`Zendesk error (${ticketRes.status}): ${detail || ticketRes.statusText}`);
   }
 
-  const ticketData = await ticketRes.json();
+  const ticketData = await parseJson<any>(ticketRes);
   const ticket = ticketData.ticket;
 
   let requesterName = 'Unknown';
@@ -95,7 +57,7 @@ export async function fetchZendeskTicket(
       { headers }
     );
     if (userRes.ok) {
-      const userData = await userRes.json();
+      const userData = await parseJson<any>(userRes);
       requesterName = userData.user?.name ?? 'Unknown';
       requesterEmail = userData.user?.email ?? '';
       requesterTimezone = userData.user?.time_zone ?? null;
@@ -112,7 +74,7 @@ export async function fetchZendeskTicket(
         { headers }
       );
       if (orgRes.ok) {
-        const orgData = await orgRes.json();
+        const orgData = await parseJson<any>(orgRes);
         orgName = orgData.organization?.name ?? null;
         orgTimezone = orgData.organization?.time_zone ?? null;
       }
@@ -122,7 +84,7 @@ export async function fetchZendeskTicket(
   const comments: string[] = [];
   const attachments: ZendeskAttachment[] = [];
   if (commentsRes.ok) {
-    const commentsData = await commentsRes.json();
+    const commentsData = await parseJson<any>(commentsRes);
     for (const c of (commentsData.comments ?? []).slice(0, 10)) {
       if (c.body) comments.push(c.body.slice(0, 500));
       // Collect non-inline attachments from every comment (public + internal notes)
@@ -171,9 +133,7 @@ export async function searchZendeskTickets(
   keywords: string[],
   limit: number = 5
 ): Promise<Array<{ id: number; subject: string; status: string; createdAt: string; tags: string[]; description: string }>> {
-  if (!settings.zendeskSubdomain || !settings.zendeskEmail || !settings.zendeskToken) {
-    throw new Error('Zendesk is not configured.');
-  }
+  validateSettingsFields(settings, ['zendeskSubdomain', 'zendeskEmail', 'zendeskToken'], 'Zendesk');
 
   const cleaned = keywords
     .map(k => k.trim().replace(/['"]/g, ''))
@@ -196,7 +156,7 @@ export async function searchZendeskTickets(
       }
       return [];
     }
-    const data = await res.json();
+    const data = await parseJson<any>(res);
     return (data.results ?? []) as Array<Record<string, unknown>>;
   });
 
@@ -227,9 +187,7 @@ export async function createZendeskTicket(
   settings: AiSettings,
   draft: ZendeskTicketDraft
 ): Promise<ZendeskTicket> {
-  if (!settings.zendeskSubdomain || !settings.zendeskEmail || !settings.zendeskToken) {
-    throw new Error('Zendesk is not configured. Add your subdomain, email, and API token in AI Settings.');
-  }
+  validateSettingsFields(settings, ['zendeskSubdomain', 'zendeskEmail', 'zendeskToken'], 'Zendesk');
 
   const headers = zendeskHeaders(settings);
   const url = resolveZendeskUrl(settings, '/api/v2/tickets.json');
@@ -250,12 +208,12 @@ export async function createZendeskTicket(
   }
 
   if (!res.ok) {
-    const detail = await res.text().catch(() => '');
+    const detail = await extractErrorDetail(res);
     if (res.status === 401) throw new Error('Zendesk authentication failed. Check your credentials in settings.');
     throw new Error(`Zendesk error (${res.status}): ${detail || res.statusText}`);
   }
 
-  const data = await res.json();
+  const data = await parseJson<any>(res);
   const ticket = data.ticket;
 
   return {
@@ -285,24 +243,19 @@ export async function downloadZendeskAttachment(
   settings: AiSettings,
   attachment: ZendeskAttachment
 ): Promise<Blob> {
-  if (!settings.zendeskSubdomain || !settings.zendeskEmail || !settings.zendeskToken) {
-    throw new Error('Zendesk is not configured.');
-  }
+  validateSettingsFields(settings, ['zendeskSubdomain', 'zendeskEmail', 'zendeskToken'], 'Zendesk');
 
   // In DEV: rewrite the CDN/subdomain URL through the local proxy
   let url: string;
-  const isElectron = typeof window !== 'undefined' && !!(window as any).electronAPI;
   if (import.meta.env.DEV) {
     url = attachment.contentUrl.replace(
       new RegExp(`https://${settings.zendeskSubdomain}\\.zendesk\\.com`, 'i'),
       '/zendesk-proxy'
     );
-    // If rewrite didn't match (different subdomain or CDN URL), fall through to direct
     if (url === attachment.contentUrl) {
       url = attachment.contentUrl;
     }
-  } else if (!isElectron) {
-    // Production Vercel: proxy through serverless function
+  } else if (!((window as any).electronAPI)) {
     url = attachment.contentUrl.replace(
       new RegExp(`https://${settings.zendeskSubdomain}\\.zendesk\\.com`, 'i'),
       '/api/zendesk-proxy'
@@ -337,9 +290,7 @@ export async function uploadZendeskAttachment(
   blob: Blob,
   filename: string
 ): Promise<string> {
-  if (!settings.zendeskSubdomain || !settings.zendeskEmail || !settings.zendeskToken) {
-    throw new Error('Zendesk is not configured.');
-  }
+  validateSettingsFields(settings, ['zendeskSubdomain', 'zendeskEmail', 'zendeskToken'], 'Zendesk');
 
   const credentials = btoa(`${settings.zendeskEmail}/token:${settings.zendeskToken}`);
   const url = resolveZendeskUrl(settings, `/api/v2/uploads.json?filename=${encodeURIComponent(filename)}`);
@@ -359,11 +310,11 @@ export async function uploadZendeskAttachment(
   }
 
   if (!res.ok) {
-    const detail = await res.text().catch(() => '');
+    const detail = await extractErrorDetail(res);
     throw new Error(`Zendesk upload error (${res.status}): ${detail || res.statusText}`);
   }
 
-  const data = await res.json() as { upload: { token: string } };
+  const data = await parseJson<{ upload: { token: string } }>(res);
   return data.upload.token;
 }
 
@@ -373,9 +324,7 @@ export async function postZendeskComment(
   body: string,
   uploadToken?: string
 ): Promise<void> {
-  if (!settings.zendeskSubdomain || !settings.zendeskEmail || !settings.zendeskToken) {
-    throw new Error('Zendesk is not configured. Add your subdomain, email, and API token in AI Settings.');
-  }
+  validateSettingsFields(settings, ['zendeskSubdomain', 'zendeskEmail', 'zendeskToken'], 'Zendesk');
 
   const headers = zendeskHeaders(settings);
   const url = resolveZendeskUrl(settings, `/api/v2/tickets/${ticketId}.json`);
@@ -390,7 +339,7 @@ export async function postZendeskComment(
   });
 
   if (!res.ok) {
-    const detail = await res.text().catch(() => '');
+    const detail = await extractErrorDetail(res);
     if (res.status === 401) throw new Error('Zendesk authentication failed. Check your email and API token in settings.');
     if (res.status === 404) throw new Error(`Ticket #${ticketId} not found in Zendesk.`);
     throw new Error(`Zendesk error (${res.status}): ${detail || res.statusText}`);

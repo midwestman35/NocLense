@@ -11,6 +11,13 @@
 import type { AiSettings } from '../store/aiSettings';
 import type { DiagnosisResult } from '../types/diagnosis';
 import type { ZendeskTicket } from './zendeskService';
+import {
+  resolveApiUrl,
+  basicAuthHeader,
+  jsonHeaders,
+  extractErrorDetail,
+  parseJson,
+} from './apiUtils';
 
 export interface SavedInvestigation {
   pageId: string;
@@ -27,19 +34,11 @@ export interface ConfluenceSearchResult {
 }
 
 function confluenceBase(settings: AiSettings): string {
-  if (import.meta.env.DEV) return '/confluence-proxy';
-  if (typeof window !== 'undefined' && (window as any).electronAPI) {
-    return `https://${settings.jiraSubdomain}`;
-  }
-  return '/api/confluence-proxy';
+  return resolveApiUrl('/confluence-proxy', `https://${settings.jiraSubdomain}`);
 }
 
 function confluenceHeaders(settings: AiSettings): Record<string, string> {
-  const credentials = btoa(`${settings.jiraEmail}/token:${settings.jiraToken}`);
-  return {
-    'Content-Type': 'application/json',
-    Authorization: `Basic ${credentials}`,
-  };
+  return jsonHeaders(basicAuthHeader(settings.jiraEmail, settings.jiraToken)) as Record<string, string>;
 }
 
 function hasConfluenceCredentials(settings: AiSettings): boolean {
@@ -172,11 +171,11 @@ export async function saveInvestigationToConfluence(
   });
 
   if (!res.ok) {
-    const text = await res.text().catch(() => res.statusText);
-    throw new Error(`Confluence save failed (${res.status}): ${text.slice(0, 300)}`);
+    const text = await extractErrorDetail(res, 300);
+    throw new Error(`Confluence save failed (${res.status}): ${text || res.statusText}`);
   }
 
-  const data = await res.json();
+  const data = await parseJson<any>(res);
   const pageUrl = data._links?.base
     ? `${data._links.base}${data._links.webui}`
     : `https://${settings.jiraSubdomain}/wiki${data._links?.webui ?? ''}`;
@@ -210,11 +209,12 @@ export async function searchConfluenceInvestigations(
   try {
     const res = await fetch(url, { headers: confluenceHeaders(settings) });
     if (!res.ok) {
-      console.warn(`[Confluence Search] ${res.status} — ${await res.text().catch(() => '')}`);
+      const detail = await extractErrorDetail(res);
+      console.warn(`[Confluence Search] ${res.status} — ${detail}`);
       return [];
     }
 
-    const data = await res.json();
+    const data = await parseJson<any>(res);
     return (data.results ?? []).map((r: Record<string, unknown>) => {
       const links = r._links as Record<string, string> | undefined;
       return {

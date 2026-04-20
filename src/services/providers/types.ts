@@ -1,40 +1,10 @@
-import type { AIProviderId, AIUsageStats } from '../../types/ai';
-
-export interface ProviderAnalyzeOptions {
-  model?: string;
-  temperature?: number;
-  maxTokens?: number;
-}
-
-export interface ProviderAnalyzeResponse {
-  content: string;
-  logReferences: number[];
-  tokensUsed: number;
-  model: string;
-}
-
-export interface ProviderHierarchicalContextChunk {
-  timeWindow: string;
-  context: string;
-}
-
 /**
- * Common contract for pluggable LLM providers.
+ * Re-export provider types from canonical ai.ts location.
+ * This file maintains backward compatibility while all new code should import from types/ai.
  */
-export interface LLMProvider {
-  readonly providerId: AIProviderId;
-  initialize(apiKey: string, model?: string): void;
-  validateApiKey(apiKey: string): Promise<boolean>;
-  setDailyRequestLimit(limit: number): void;
-  getUsageStats(): AIUsageStats;
-  analyzeLog(
-    query: string,
-    context: string,
-    options?: ProviderAnalyzeOptions
-  ): Promise<ProviderAnalyzeResponse>;
-  analyzeHierarchical(
-    query: string,
-    chunks: ProviderHierarchicalContextChunk[],
-    options?: ProviderAnalyzeOptions
-  ): Promise<ProviderAnalyzeResponse>;
-}
+export type {
+  ProviderAnalyzeOptions,
+  ProviderAnalyzeResponse,
+  HierarchicalContextChunk as ProviderHierarchicalContextChunk,
+  LLMProvider,
+} from '../../types/ai';

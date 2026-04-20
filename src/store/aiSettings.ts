@@ -84,9 +84,9 @@ export function loadAiSettings(): AiSettings {
 
   // 1. Check localStorage — merge with env base so new env fields are picked up
   //    even when an older localStorage entry (without those fields) exists.
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if (stored) {
+    try {
       const parsed = JSON.parse(stored);
       if (parsed.token) {
         return {
@@ -107,8 +107,10 @@ export function loadAiSettings(): AiSettings {
           datadogSite: parsed.datadogSite || envDdSite || 'datadoghq.com',
         };
       }
+    } catch {
+      // Corrupted localStorage data — fall through to env vars
     }
-  } catch { /* ignore */ }
+  }
 
   // 2. Fall back entirely to env vars
   if (envToken) return envBase;
@@ -116,6 +118,14 @@ export function loadAiSettings(): AiSettings {
   return { ...DEFAULT_AI_SETTINGS };
 }
 
+/**
+ * Save AI settings to localStorage.
+ * Silently ignores quota exceeded or unavailable errors.
+ */
 export function saveAiSettings(settings: AiSettings): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  } catch {
+    // localStorage quota exceeded or unavailable — silently ignore
+  }
 }

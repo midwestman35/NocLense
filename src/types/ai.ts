@@ -200,10 +200,54 @@ export interface ContextOptions {
 
 /**
  * One hierarchical context chunk for two-pass analysis.
+ * Used by both AI services and provider implementations.
  */
 export interface HierarchicalContextChunk {
   timeWindow: string;
   context: string;
+}
+
+// ─── LLM Provider Types ──────────────────────────────────────────────────────
+
+/**
+ * Options for provider analyze operations.
+ */
+export interface ProviderAnalyzeOptions {
+  model?: string;
+  temperature?: number;
+  maxTokens?: number;
+}
+
+/**
+ * Response structure from provider analyze operations.
+ */
+export interface ProviderAnalyzeResponse {
+  content: string;
+  logReferences: number[];
+  tokensUsed: number;
+  model: string;
+}
+
+/**
+ * Common contract for pluggable LLM providers.
+ * All AI provider implementations (Gemini, Claude, OpenAI, Unleash) must satisfy this interface.
+ */
+export interface LLMProvider {
+  readonly providerId: AIProviderId;
+  initialize(apiKey: string, model?: string): void;
+  validateApiKey(apiKey: string): Promise<boolean>;
+  setDailyRequestLimit(limit: number): void;
+  getUsageStats(): AIUsageStats;
+  analyzeLog(
+    query: string,
+    context: string,
+    options?: ProviderAnalyzeOptions
+  ): Promise<ProviderAnalyzeResponse>;
+  analyzeHierarchical(
+    query: string,
+    chunks: HierarchicalContextChunk[],
+    options?: ProviderAnalyzeOptions
+  ): Promise<ProviderAnalyzeResponse>;
 }
 
 /**

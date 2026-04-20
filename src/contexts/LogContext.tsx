@@ -45,6 +45,21 @@ export interface CorrelationItem {
     excluded?: boolean;
 }
 
+interface FilterSnapshot {
+    activeCorrelations: CorrelationItem[];
+    filterText: string;
+}
+
+interface IndexedDBFilters {
+    component?: string;
+    callId?: string;
+    timestampRange?: { start: number; end: number };
+    limit?: number;
+    isSip?: boolean;
+    level?: string;
+    fileName?: string;
+}
+
 interface LogContextType extends LogState {
     setLogs: (logs: LogEntry[]) => void;
     setLoading: (loading: boolean) => void;
@@ -114,8 +129,8 @@ interface LogContextType extends LogState {
     setHoveredCallId: (id: string | null) => void;
 
     // Navigation (Jump To)
-    jumpState: { active: boolean; previousFilters: any | null };
-    setJumpState: (state: { active: boolean; previousFilters: any | null }) => void;
+    jumpState: { active: boolean; previousFilters: FilterSnapshot | null };
+    setJumpState: (state: { active: boolean; previousFilters: FilterSnapshot | null }) => void;
 
     hoveredCorrelation: CorrelationItem | null;
     setHoveredCorrelation: (item: CorrelationItem | null) => void;
@@ -354,7 +369,7 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
     const [timelineZoomRange, setTimelineZoomRange] = useState<{ start: number; end: number } | null>(null);
     const [timelineEventFilters, setTimelineEventFilters] = useState({ requests: true, success: true, provisional: true, error: true, options: true, keepAlive: true });
     const [hoveredCallId, setHoveredCallId] = useState<string | null>(null);
-    const [jumpState, setJumpState] = useState<{ active: boolean; previousFilters: any | null }>({ active: false, previousFilters: null });
+    const [jumpState, setJumpState] = useState<{ active: boolean; previousFilters: FilterSnapshot | null }>({ active: false, previousFilters: null });
     const [hoveredCorrelation, setHoveredCorrelation] = useState<CorrelationItem | null>(null);
 
     // Correlation State
@@ -494,8 +509,8 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
             setIndexedDBLoading(true);
             try {
                 // Build filters from current state
-                const filters: any = {};
-                
+                const filters: IndexedDBFilters = {};
+
                 // Component filter
                 if (selectedComponentFilter) {
                     filters.component = selectedComponentFilter;
@@ -505,18 +520,18 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
                 if (selectedLevels.size === 1) {
                     filters.level = [...selectedLevels][0];
                 }
-                
+
                 // SIP filter
                 if (isSipFilterEnabled) {
                     filters.isSip = true;
                 }
-                
+
                 // Correlation filters
                 const activeFileFilters = activeCorrelations.filter(c => c.type === 'file' && !c.excluded);
                 if (activeFileFilters.length > 0) {
                     filters.fileName = activeFileFilters[0].value; // For now, use first file filter
                 }
-                
+
                 const callIdFilters = activeCorrelations.filter(c => c.type === 'callId' && !c.excluded);
                 if (callIdFilters.length > 0) {
                     filters.callId = callIdFilters[0].value;

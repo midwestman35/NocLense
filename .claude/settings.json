@@ -5,5 +5,15 @@
   "codeReview": {
     "requireTestsForBehaviorChanges": true,
     "focus": ["regressions", "performance", "security"]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(npm *)",
+      "Bash(npx *)",
+      "Bash(git *)",
+      "Read",
+      "Glob",
+      "Grep"
+    ]
   }
 }

@@ -1,17 +1,8 @@
 /**
  * Prompt Templates Service
  *
- * Purpose:
- * Centralizes prompt engineering for AI log analysis so responses are more
- * consistent, actionable, and aligned with telecom troubleshooting workflows.
- *
- * Architecture Decision:
- * Keep prompt construction separate from UI and API service logic.
- *
- * Why this separation matters:
- * - Prompt quality can evolve without touching components/context plumbing
- * - Testing prompt strategy is simpler in isolation
- * - All AI entry points can share the same response quality baseline
+ * Centralizes prompt engineering for consistent, actionable AI responses.
+ * Separation from UI/API logic allows evolution of prompt quality independently.
  *
  * @module services/promptTemplates
  */
@@ -42,11 +33,7 @@ export type PromptTemplateType =
   | 'GENERAL_QUERY';
 
 /**
- * Builds metadata used by all prompt templates.
- *
- * Why:
- * LLM quality improves when we include scope and structure (log volume, time
- * window, error ratio, related IDs) rather than raw logs alone.
+ * Build analysis metadata from logs to improve LLM response quality via structured context.
  */
 export function buildAnalysisContext(logs: LogEntry[]): AnalysisContext {
   if (logs.length === 0) {
@@ -93,7 +80,7 @@ function commonContextBlock(context: AnalysisContext): string {
     ? `${context.timeRange.start} to ${context.timeRange.end}`
     : 'Not available';
 
-  // Phase 6.2: When no errors, add note so AI focuses on patterns/insights (don't assume problems)
+  // When no errors present, guide AI toward patterns/insights rather than failure analysis
   const noErrorsNote =
     context.errorCount === 0 && context.warningCount === 0 && context.logCount > 0
       ? '\nNOTE: These logs contain no ERROR or WARN entries. Focus on patterns, trends, and operational insights rather than failure analysis.'

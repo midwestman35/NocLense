@@ -24,7 +24,8 @@
  * @module components/ConsentModal
  */
 
-import { useEffect, useCallback } from 'react';
+import { useCallback } from 'react';
+import { useEscapeKey } from '../utils/useEscapeKey';
 import { useAI } from '../contexts/AIContext';
 import { AlertTriangle } from 'lucide-react';
 import { Dialog, Button } from './ui';
@@ -59,17 +60,7 @@ export default function ConsentModal({ onClose }: ConsentModalProps) {
     onClose?.();
   }, [declineConsent, onClose]);
 
-  // Focus first focusable element on mount; handle Escape to decline
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        handleDecline();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleDecline]);
+  useEscapeKey(handleDecline);
 
   return (
     <Dialog

@@ -20,22 +20,26 @@ function hasSecureStorageBridge(): boolean {
   );
 }
 
+/**
+ * Load API key from localStorage (fallback for when secure storage unavailable).
+ * Returns null if not found.
+ */
 function loadApiKeyFromLocalStorage(provider: AIProviderId): string | null {
-  try {
-    const scoped = localStorage.getItem(getProviderStorageKey(provider));
-    if (scoped) {
-      return scoped;
-    }
-    if (provider === 'gemini') {
-      return localStorage.getItem(STORAGE_KEY_API_KEY);
-    }
-    return null;
-  } catch (error) {
-    console.error('Failed to load API key from localStorage:', error);
-    return null;
+  const scoped = localStorage.getItem(getProviderStorageKey(provider));
+  if (scoped) {
+    return scoped;
   }
+  // Legacy fallback for Gemini
+  if (provider === 'gemini') {
+    return localStorage.getItem(STORAGE_KEY_API_KEY);
+  }
+  return null;
 }
 
+/**
+ * Save API key to localStorage (fallback when secure storage unavailable).
+ * Silently ignores quota exceeded or unavailable errors.
+ */
 function saveApiKeyToLocalStorage(provider: AIProviderId, key: string): void {
   try {
     localStorage.setItem(getProviderStorageKey(provider), key);
@@ -43,22 +47,30 @@ function saveApiKeyToLocalStorage(provider: AIProviderId, key: string): void {
     if (provider === 'gemini') {
       localStorage.setItem(STORAGE_KEY_API_KEY, key);
     }
-  } catch (error) {
-    console.error('Failed to save API key to localStorage:', error);
+  } catch {
+    // localStorage quota exceeded or unavailable — silently ignore
   }
 }
 
+/**
+ * Remove API key from localStorage.
+ * Silently ignores errors since this is a cleanup operation.
+ */
 function removeApiKeyFromLocalStorage(provider: AIProviderId): void {
   try {
     localStorage.removeItem(getProviderStorageKey(provider));
     if (provider === 'gemini') {
       localStorage.removeItem(STORAGE_KEY_API_KEY);
     }
-  } catch (error) {
-    console.error('Failed to remove API key from localStorage:', error);
+  } catch {
+    // localStorage unavailable — silently ignore cleanup error
   }
 }
 
+/**
+ * Check if secure storage (Electron secure storage) is available.
+ * Returns false if Electron bridge unavailable or check fails.
+ */
 async function isSecureStorageAvailable(): Promise<boolean> {
   if (!isElectronBridgeAvailable() || !hasSecureStorageBridge()) {
     return false;
@@ -67,8 +79,8 @@ async function isSecureStorageAvailable(): Promise<boolean> {
   try {
     const result = await window.electronAPI?.isSecureStorageAvailable?.();
     return Boolean(result?.ok && result.available);
-  } catch (error) {
-    console.error('Failed checking secure storage availability:', error);
+  } catch {
+    // Electron bridge unavailable or failed — fallback to localStorage
     return false;
   }
 }

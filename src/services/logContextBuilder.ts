@@ -1,45 +1,15 @@
 /**
  * Log Context Builder Service
- * 
- * Purpose:
- * Prepares log data for sending to LLM by formatting, optimizing, and prioritizing logs.
- * This service transforms raw LogEntry arrays into structured markdown context that
- * maximizes AI response quality while respecting token limits.
- * 
- * Architecture Decision:
- * Separate context builder from LLM service to:
- * - Enable reuse across different AI queries
- * - Test context building logic in isolation
- * - Easier to optimize and refine context strategies
- * - Clear separation of concerns (data prep vs API calls)
- * 
- * Key Features:
- * - Prioritizes ERROR and WARN logs (most relevant for troubleshooting)
- * - Includes temporal context (logs before/after errors)
- * - Truncates long payloads intelligently
- * - Removes duplicate messages
- * - Formats for LLM readability (structured markdown)
- * - Token estimation and optimization
- * 
- * Dependencies:
- * - LogEntry type from src/types.ts
- * - ContextOptions from src/types/ai.ts
- * 
+ *
+ * Prepares log data for LLM consumption by formatting, optimizing, and prioritizing.
+ * Separated from LLM service for reusability, testability, and clear separation of concerns.
+ *
  * @module services/logContextBuilder
  */
 
 import type { LogEntry } from '../types';
 import type { ContextOptions } from '../types/ai';
 
-/**
- * Log Context Builder
- * 
- * Why separate context builder?
- * - Separates data preparation from API calls
- * - Reusable across different AI queries
- * - Testable in isolation
- * - Easier to optimize and refine
- */
 export class LogContextBuilder {
   public readonly HIERARCHICAL_THRESHOLD = 5000;
   private static readonly SIP_FAILURE_SIGNALS = new Set([
@@ -85,19 +55,8 @@ export class LogContextBuilder {
   ];
 
   /**
-   * Build optimized context from logs
-   * 
-   * Strategy:
-   * 1. Prioritize errors (most relevant for troubleshooting)
-   * 2. Add surrounding context (understand what led to errors)
-   * 3. Include correlations (related logs across files/components)
-   * 4. Format for LLM (structured, readable markdown)
-   * 
-   * Why this approach?
-   * - Focuses AI attention on actionable issues
-   * - Provides causal context without overwhelming with data
-   * - Respects token limits while maximizing information density
-   * 
+   * Build optimized context from logs, prioritizing errors and respecting token limits.
+   *
    * @param logs - Pre-filtered logs to analyze
    * @param options - Context options (focus log, max tokens, etc.)
    * @returns Formatted markdown context ready for LLM
@@ -124,25 +83,18 @@ export class LogContextBuilder {
     let selectedLogs: LogEntry[];
     
     if (prioritizeErrors) {
-      // Prioritize ERROR and WARN logs, but include some INFO for context
       selectedLogs = this.prioritizeLogs(logs, maxTokens);
     } else {
-      // Use all logs (up to token limit)
       selectedLogs = this.selectLogsByTokenLimit(logs, maxTokens, includePayloads);
     }
-    
-    // Remove duplicates
+
     selectedLogs = this.removeDuplicates(selectedLogs);
-    
-    // Format as markdown
     return this.formatLogsAsMarkdown(selectedLogs, includePayloads);
   }
 
   /**
-   * Build time-window chunks for two-pass hierarchical analysis.
-   *
-   * Why: very large log sets can exceed practical single-shot context limits.
-   * Chunking preserves coverage while keeping each analysis call bounded.
+   * Split logs into time-window chunks for hierarchical multi-pass analysis.
+   * Preserves coverage on large log sets while keeping each call within token limits.
    *
    * @param logs - Full log set
    * @param options - Context construction options
@@ -184,11 +136,8 @@ export class LogContextBuilder {
   }
   
   /**
-   * Build context focused on specific log
-   * 
-   * Why: Users often want to understand a specific error in detail
-   * Including surrounding logs provides temporal context
-   * 
+   * Build context focused on a specific log with temporal context from surrounding logs.
+   *
    * @param logs - All available logs
    * @param focusLogId - ID of log to focus on
    * @param surrounding - Number of logs before/after to include
@@ -204,34 +153,21 @@ export class LogContextBuilder {
     maxTokens: number
   ): string {
     const focusIndex = logs.findIndex(log => log.id === focusLogId);
-    
     if (focusIndex === -1) {
       return `Log #${focusLogId} not found in selected logs.`;
     }
-    
-    // Get surrounding logs
+
     const startIndex = Math.max(0, focusIndex - surrounding);
     const endIndex = Math.min(logs.length, focusIndex + surrounding + 1);
     const contextLogs = logs.slice(startIndex, endIndex);
-    
-    // Select logs within token limit
+
     const selectedLogs = this.selectLogsByTokenLimit(contextLogs, maxTokens, includePayloads);
-    
     return this.formatLogsAsMarkdown(selectedLogs, includePayloads, focusLogId);
   }
   
   /**
-   * Prioritize logs by level (ERROR > WARN > INFO > DEBUG)
-   * 
-   * Why: Errors are most relevant for troubleshooting
-   * Including some INFO logs provides context without overwhelming
-   * 
-   * Strategy:
-   * - Include all ERROR logs
-   * - Include all WARN logs
-   * - Include up to 20% INFO logs (for context)
-   * - Exclude DEBUG logs (too verbose)
-   * 
+   * Prioritize logs by level: ERROR > WARN > INFO (20% of capacity) > DEBUG (excluded).
+   *
    * @param logs - All logs
    * @param maxTokens - Maximum tokens to use
    * @returns Prioritized log subset
@@ -262,27 +198,20 @@ export class LogContextBuilder {
       // Skip DEBUG logs (too verbose for AI analysis)
     }
     
-    // Start with errors, SIP-significant warn/info logs, then warnings
     let selected: LogEntry[] = [...errors, ...sipSignalWarnings, ...warnings];
-    
-    // Add surrounding context for errors
     selected = this.addSurroundingContext(logs, selected, 5);
-    
-    // Add some INFO logs for context (up to 20% of remaining capacity)
+
     const remainingCapacity = maxTokens - this.estimateTokens(selected);
     const infoLimit = Math.floor(remainingCapacity * 0.2);
     const selectedInfo = this.selectLogsByTokenLimit(info, infoLimit, true);
     selected.push(...selectedInfo);
-    
-    // Trim to token limit
+
     return this.selectLogsByTokenLimit(selected, maxTokens, true);
   }
 
   /**
-   * Detect SIP/VoIP failure signals in log text.
-   *
-   * Why: SIP failure logs can be WARN/INFO but are often more diagnostically
-   * important than generic WARN logs.
+   * Detect SIP/VoIP failure signals in log text for prioritization.
+   * SIP-relevant WARN/INFO logs are often more diagnostic than generic warnings.
    *
    * @param log - Log entry to inspect
    * @returns True if the log includes SIP failure indicators
@@ -298,11 +227,8 @@ export class LogContextBuilder {
   }
   
   /**
-   * Add surrounding context for error logs
-   * 
-   * Why: Errors don't exist in isolation - understanding what happened before/after
-   * helps AI identify root causes
-   * 
+   * Expand error logs with N surrounding logs before/after to provide causal context.
+   *
    * @param allLogs - All available logs
    * @param errorLogs - Error logs to add context for
    * @param surrounding - Number of logs before/after each error
@@ -314,39 +240,29 @@ export class LogContextBuilder {
     surrounding: number
   ): LogEntry[] {
     const logMap = new Map<number, LogEntry>();
-    
-    // Add error logs
+
     for (const log of errorLogs) {
       logMap.set(log.id, log);
     }
-    
-    // Add surrounding logs for each error
+
     for (const errorLog of errorLogs) {
       const errorIndex = allLogs.findIndex(log => log.id === errorLog.id);
       if (errorIndex === -1) continue;
-      
+
       const startIndex = Math.max(0, errorIndex - surrounding);
       const endIndex = Math.min(allLogs.length, errorIndex + surrounding + 1);
-      
+
       for (let i = startIndex; i < endIndex; i++) {
         logMap.set(allLogs[i].id, allLogs[i]);
       }
     }
-    
-    // Sort by timestamp to maintain chronological order
+
     return Array.from(logMap.values()).sort((a, b) => a.timestamp - b.timestamp);
   }
   
   /**
-   * Select logs within token limit
-   * 
-   * Why: Must respect API token limits to prevent request failures
-   * 
-   * Strategy:
-   * - Estimate tokens for each log
-   * - Add logs until approaching limit
-   * - Leave 10% buffer for prompt overhead
-   * 
+   * Select logs up to token limit (with 10% buffer for prompt overhead).
+   *
    * @param logs - Logs to select from
    * @param maxTokens - Maximum tokens
    * @param includePayloads - Whether payloads are included (affects token count)
@@ -359,16 +275,12 @@ export class LogContextBuilder {
   ): LogEntry[] {
     const selected: LogEntry[] = [];
     let currentTokens = 0;
-    const buffer = maxTokens * 0.1; // 10% buffer for prompt overhead
+    const buffer = maxTokens * 0.1;
     const targetTokens = maxTokens - buffer;
-    
+
     for (const log of logs) {
       const logTokens = this.estimateLogTokens(log, includePayloads);
-      
-      if (currentTokens + logTokens > targetTokens) {
-        break;
-      }
-      
+      if (currentTokens + logTokens > targetTokens) break;
       selected.push(log);
       currentTokens += logTokens;
     }
@@ -377,13 +289,9 @@ export class LogContextBuilder {
   }
   
   /**
-   * Estimate tokens for a single log entry
-   * 
-   * Why: Need accurate token estimation to stay within limits
-   * 
-   * Estimation: 1 token ≈ 4 characters (rough approximation)
-   * More accurate would require tokenizer, but this is sufficient for our needs
-   * 
+   * Estimate tokens for a single log entry (1 token ≈ 4 characters).
+   * Approximation is sufficient; a full tokenizer would add complexity with minimal gain.
+   *
    * @param log - Log entry
    * @param includePayload - Whether to include payload in count
    * @returns Estimated token count
@@ -400,8 +308,8 @@ export class LogContextBuilder {
   }
   
   /**
-   * Estimate total tokens for log array
-   * 
+   * Estimate total tokens for log array.
+   *
    * @param logs - Log entries
    * @returns Estimated token count
    */
@@ -410,11 +318,8 @@ export class LogContextBuilder {
   }
   
   /**
-   * Remove duplicate log messages
-   * 
-   * Why: Duplicate logs add noise without value
-   * Keep first occurrence and add count
-   * 
+   * Remove duplicate log messages, keeping first occurrence with count.
+   *
    * @param logs - Logs to deduplicate
    * @returns Deduplicated logs with counts
    */
@@ -461,17 +366,8 @@ export class LogContextBuilder {
   }
   
   /**
-   * Format logs as markdown for LLM
-   * 
-   * Why: Markdown formatting improves LLM comprehension
-   * Structured format with clear sections and hierarchy
-   * 
-   * Format:
-   * - Section headers for log groups
-   * - Code blocks for log entries
-   * - Clear timestamps and levels
-   * - Truncated payloads for readability
-   * 
+   * Format logs as markdown with sections grouped by level for LLM consumption.
+   *
    * @param logs - Logs to format
    * @param includePayloads - Whether to include payloads
    * @param focusLogId - Optional log ID to highlight
@@ -522,8 +418,8 @@ export class LogContextBuilder {
   }
   
   /**
-   * Group logs by level
-   * 
+   * Group logs by level for organization in markdown output.
+   *
    * @param logs - Logs to group
    * @returns Grouped logs by level
    */
@@ -543,8 +439,8 @@ export class LogContextBuilder {
   }
   
   /**
-   * Format a group of logs
-   * 
+   * Format a group of logs as markdown with metadata and optional payload.
+   *
    * @param logs - Logs to format
    * @param includePayloads - Whether to include payloads
    * @param focusLogId - Optional log ID to highlight
@@ -591,15 +487,9 @@ export class LogContextBuilder {
   }
   
   /**
-   * Truncate long payloads intelligently
-   * 
-   * Why: Long payloads consume tokens without proportional value
-   * Keep first and last portions to preserve structure
-   * 
-   * Strategy:
-   * - If payload < 400 chars: keep as-is
-   * - Otherwise: keep first 200 chars + "..." + last 200 chars
-   * 
+   * Intelligently truncate payloads: full text if < 400 chars, else head + "..." + tail.
+   * SIP payloads get custom extraction. Long payloads waste tokens without proportional gain.
+   *
    * @param payload - Payload to truncate
    * @returns Truncated payload
    */
@@ -636,10 +526,8 @@ export class LogContextBuilder {
   }
 
   /**
-   * Extract high-signal SIP headers from payload to reduce token usage.
-   *
-   * Why: SIP diagnostics rely on request/status lines and a small set of headers.
-   * Keeping the full SDP tail is expensive and rarely improves root-cause quality.
+   * Extract high-signal SIP headers to reduce token usage.
+   * Full SDP tails are expensive and rarely improve diagnostic quality.
    *
    * @param payload - SIP payload text
    * @returns Compact SIP-focused payload summary
@@ -682,8 +570,8 @@ export class LogContextBuilder {
   }
   
   /**
-   * Format time range for logs
-   * 
+   * Format first and last log timestamps as a human-readable range.
+   *
    * @param logs - Logs to get time range from
    * @returns Formatted time range string
    */
@@ -712,36 +600,24 @@ export class LogContextBuilder {
     if (logs.length === 0) {
       return 'No logs to summarize.';
     }
-    
-    const counts = {
-      ERROR: 0,
-      WARN: 0,
-      INFO: 0,
-      DEBUG: 0,
-    };
-    
+
+    const counts = { ERROR: 0, WARN: 0, INFO: 0, DEBUG: 0 };
     const components = new Set<string>();
     const sipLogs = logs.filter(log => log.isSip).length;
-    
+
     for (const log of logs) {
       counts[log.level]++;
       components.add(log.component);
     }
-    
+
     let summary = `# Log Summary\n\n`;
     summary += `**Total Logs:** ${logs.length}\n`;
     summary += `**Time Range:** ${this.formatTimeRange(logs)}\n`;
     summary += `**Log Levels:** ERROR: ${counts.ERROR}, WARN: ${counts.WARN}, INFO: ${counts.INFO}, DEBUG: ${counts.DEBUG}\n`;
     summary += `**Unique Components:** ${components.size}\n`;
     summary += `**SIP Logs:** ${sipLogs} (${Math.round((sipLogs / logs.length) * 100)}%)\n`;
-    
     return summary;
   }
 }
 
-/**
- * Export singleton instance
- * 
- * Why: Provides convenient access without importing class
- */
 export const logContextBuilder = new LogContextBuilder();

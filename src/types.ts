@@ -26,7 +26,7 @@ export interface LogEntry {
     displayMessage: string;
     payload: string;
     type: 'LOG' | 'JSON';
-    json?: any;
+    json?: Record<string, unknown>;
     isSip: boolean;
     sipMethod?: string | null;
     callId?: string;

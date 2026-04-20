@@ -385,17 +385,16 @@ class IndexedDBManager {
         return new Promise((resolve, reject) => {
             const transaction = db.transaction([STORE_NAME], 'readonly');
             const store = transaction.objectStore(STORE_NAME);
-            
-            let index: IDBIndex;
-            try {
-                index = store.index(indexName);
-            } catch (e) {
+
+            // IndexedDB index() throws if index doesn't exist — verify it exists first
+            if (!store.indexNames.contains(indexName)) {
                 resolve(0);
                 return;
             }
-            
+
+            const index = store.index(indexName);
             const request = index.count(IDBKeyRange.only(value));
-            
+
             request.onsuccess = () => resolve(request.result);
             request.onerror = () => reject(request.error);
         });
@@ -410,18 +409,17 @@ class IndexedDBManager {
         return new Promise((resolve, reject) => {
             const transaction = db.transaction([STORE_NAME], 'readonly');
             const store = transaction.objectStore(STORE_NAME);
-            
-            let index: IDBIndex;
-            try {
-                index = store.index(indexName);
-            } catch (e) {
+
+            // IndexedDB index() throws if index doesn't exist — verify it exists first
+            if (!store.indexNames.contains(indexName)) {
                 resolve(new Map());
                 return;
             }
-            
+
+            const index = store.index(indexName);
             const counts = new Map<string, number>();
             const request = index.openCursor();
-            
+
             request.onsuccess = (event) => {
                 const cursor = (event.target as IDBRequest<IDBCursorWithValue>).result;
                 if (cursor) {
@@ -449,19 +447,16 @@ class IndexedDBManager {
         return new Promise((resolve, reject) => {
             const transaction = db.transaction([STORE_NAME], 'readonly');
             const store = transaction.objectStore(STORE_NAME);
-            
-            // Handle case where index might not exist
-            let index: IDBIndex;
-            try {
-                index = store.index(indexName);
-            } catch (e) {
-                // Index doesn't exist, return empty set
+
+            // IndexedDB index() throws if index doesn't exist — verify it exists first
+            if (!store.indexNames.contains(indexName)) {
                 resolve(new Set());
                 return;
             }
-            
+
+            const index = store.index(indexName);
             const values = new Set<string>();
-            
+
             const request = index.openKeyCursor();
             
             request.onsuccess = (event) => {

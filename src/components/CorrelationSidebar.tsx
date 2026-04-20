@@ -175,7 +175,7 @@ const CorrelationItemList = ({
     );
 };
 
-const SectionHeader = ({ title, icon: Icon, expanded, onToggle }: { title: string, icon: any, expanded: boolean, onToggle: () => void }) => (
+const SectionHeader = ({ title, icon: Icon, expanded, onToggle }: { title: string, icon: React.ComponentType<{ size?: number; className?: string }>, expanded: boolean, onToggle: () => void }) => (
     <button
         onClick={onToggle}
         className="flex items-center w-full px-3 py-1.5 text-[10px] font-semibold text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--muted)] transition-colors uppercase tracking-wider border-b border-[var(--border)]/50 bg-[var(--card)] sticky top-0 z-10"

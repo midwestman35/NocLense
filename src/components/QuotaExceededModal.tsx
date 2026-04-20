@@ -13,7 +13,8 @@
  * @module components/QuotaExceededModal
  */
 
-import { useEffect, useCallback } from 'react';
+import { useCallback } from 'react';
+import { useEscapeOrEnterKey } from '../utils/useEscapeKey';
 import { useAI } from '../contexts/AIContext';
 import { GEMINI_FREE_TIER_DAILY_LIMIT } from '../types/ai';
 import { Calendar, Settings } from 'lucide-react';
@@ -32,16 +33,7 @@ export default function QuotaExceededModal({ onClose }: QuotaExceededModalProps)
     onClose?.();
   }, [dismissQuotaExceeded, onClose]);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' || e.key === 'Enter') {
-        e.preventDefault();
-        handleDismiss();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleDismiss]);
+  useEscapeOrEnterKey(handleDismiss);
 
   return (
     <Dialog

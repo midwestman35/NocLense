@@ -43,23 +43,28 @@ const mockEmbeddingService = {
   indexLogFile: vi.fn(),
 };
 
-// Mock GeminiService
-vi.mock('../../services/llmService', () => {
-  const mockService = {
-    initialize: vi.fn(),
-    validateApiKey: vi.fn(),
-    analyzeLog: vi.fn(),
-    analyzeHierarchical: vi.fn(),
-    setDailyRequestLimit: vi.fn(),
-    getUsageStats: vi.fn(),
-  };
-  
-  return {
-    GeminiService: {
-      getInstance: vi.fn(() => mockService),
-    },
-  };
-});
+// Shared mock service instance for both GeminiService and providerRegistry
+// This allows test modifications to apply to both code paths
+const sharedMockService = {
+  initialize: vi.fn(),
+  validateApiKey: vi.fn(),
+  analyzeLog: vi.fn(),
+  analyzeHierarchical: vi.fn(),
+  setDailyRequestLimit: vi.fn(),
+  getUsageStats: vi.fn(),
+};
+
+vi.mock('../../services/llmService', () => ({
+  GeminiService: {
+    getInstance: vi.fn(() => sharedMockService),
+  },
+}));
+
+vi.mock('../../services/providers/providerRegistry', () => ({
+  providerRegistry: {
+    getProvider: vi.fn(() => sharedMockService),
+  },
+}));
 
 // Mock LogContextBuilder
 vi.mock('../../services/logContextBuilder', () => {

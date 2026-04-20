@@ -45,8 +45,8 @@ export function ZendeskPanel() {
     try {
       const result = await fetchZendeskTicket(settings, q);
       setTicket(result);
-    } catch (e: any) {
-      setFetchError(e.message);
+    } catch (e: unknown) {
+      setFetchError(e instanceof Error ? e.message : String(e));
     } finally {
       setFetching(false);
     }

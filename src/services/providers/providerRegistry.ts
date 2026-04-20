@@ -1,24 +1,26 @@
 import type { AIProviderId } from '../../types/ai';
-import { ClaudeProvider } from './ClaudeProvider';
-import { CodexProvider } from './CodexProvider';
-import { GeminiProvider } from './GeminiProvider';
 import { UnleashProvider } from './UnleashProvider';
 import type { LLMProvider } from './types';
 
 /**
- * Singleton provider registry for runtime provider resolution.
+ * Provider Registry - Simplified
+ *
+ * After removing legacy provider implementations (ClaudeProvider, CodexProvider, GeminiProvider),
+ * this registry now serves as a compatibility shim that maps all provider IDs to UnleashProvider.
+ *
+ * Historical note:
+ * - Removed: ClaudeProvider, CodexProvider, GeminiProvider (legacy implementations)
+ * - These were never actively used; the system defaults to 'unleash'
+ * - Keeping this registry for AIContext compatibility (AIContext.tsx references it)
+ *
+ * Future: Consider refactoring AIContext to call UnleashProvider directly
  */
 export class ProviderRegistry {
   private static instance: ProviderRegistry;
-  private readonly providers: Map<AIProviderId, LLMProvider>;
+  private readonly unleashProvider: LLMProvider;
 
   private constructor() {
-    this.providers = new Map<AIProviderId, LLMProvider>([
-      ['unleash', new UnleashProvider()],
-      ['gemini', new GeminiProvider()],
-      ['claude', new ClaudeProvider()],
-      ['codex', new CodexProvider()],
-    ]);
+    this.unleashProvider = new UnleashProvider();
   }
 
   public static getInstance(): ProviderRegistry {
@@ -28,12 +30,14 @@ export class ProviderRegistry {
     return ProviderRegistry.instance;
   }
 
+  /**
+   * Get provider by ID. All provider IDs now map to UnleashProvider.
+   * Legacy support: 'gemini', 'claude', 'codex' are no longer supported as separate implementations.
+   */
   public getProvider(providerId: AIProviderId): LLMProvider {
-    const provider = this.providers.get(providerId);
-    if (!provider) {
-      throw new Error(`Unsupported AI provider: ${providerId}`);
-    }
-    return provider;
+    // All providers now use Unleash implementation
+    // This maintains backward compatibility with AIContext while removing legacy code
+    return this.unleashProvider;
   }
 }
 
