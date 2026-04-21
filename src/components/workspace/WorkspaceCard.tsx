@@ -42,6 +42,18 @@ const bodyChildStyle: CSSProperties = {
   overflow: 'hidden',
 };
 
+/**
+ * Extra `data-*` attributes forwarded to the card root. Useful for
+ * Phase 05 surface-tier wiring (e.g. Datadog Live card sets
+ * `data-surface="datadog-live"` / `data-tier="live"` to drive tier-
+ * aware CSS). Reserved keys `data-card-id` and `data-focus-target` are
+ * owned by the primitive and CANNOT be overridden via this prop — the
+ * reserved-key filter inside the component enforces this.
+ */
+type CardDataAttributes = Record<`data-${string}`, string | undefined>;
+
+const RESERVED_DATA_KEYS = new Set(['data-card-id', 'data-focus-target']);
+
 interface WorkspaceCardProps {
   id: string;
   title: string;
@@ -53,6 +65,8 @@ interface WorkspaceCardProps {
   /** When false, hides chevron and disables expand/collapse interaction */
   collapsible?: boolean;
   onExpandChange?: (expanded: boolean) => void;
+  /** Arbitrary data-* attributes forwarded to the card root. See type docs above. */
+  dataAttributes?: CardDataAttributes;
   children: ReactNode;
   className?: string;
 }
@@ -67,12 +81,23 @@ export function WorkspaceCard({
   defaultExpanded = true,
   collapsible = true,
   onExpandChange,
+  dataAttributes,
   children,
   className,
 }: WorkspaceCardProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
   const focusCtx = useCardFocus();
   const isFocused = focusCtx?.focusedCardId === id;
+
+  // Strip reserved data-* keys so callers can't clobber the primitive's
+  // own contract (data-card-id, data-focus-target).
+  const forwardedDataAttrs = dataAttributes
+    ? Object.fromEntries(
+        Object.entries(dataAttributes).filter(
+          ([key, value]) => !RESERVED_DATA_KEYS.has(key) && value !== undefined,
+        ),
+      )
+    : undefined;
 
   // Body wrapper inline style composed from the shared base + expand-state.
   // React rerenders this whenever `expanded` changes; the browser transitions
@@ -117,6 +142,7 @@ export function WorkspaceCard({
 
   return (
     <div
+      {...forwardedDataAttrs}
       data-card-id={id}
       data-focus-target={isFocused ? 'true' : 'false'}
       className={clsx(

@@ -107,6 +107,53 @@ describe('WorkspaceCard', () => {
     expect(root.className).toContain('ease-[var(--ease-spring)]');
   });
 
+  // Phase 04.5 Commit 5 — data-* forwarding (prep for Phase 05 Datadog Live)
+  it('forwards dataAttributes to the card root', () => {
+    const { container } = render(
+      <WorkspaceCard
+        id="t1"
+        title="Card"
+        icon={null}
+        accentColor="#000"
+        dataAttributes={{ 'data-surface': 'datadog-live', 'data-tier': 'live' }}
+      >
+        body
+      </WorkspaceCard>
+    );
+    const root = container.querySelector('[data-card-id="t1"]')!;
+    expect(root).toHaveAttribute('data-surface', 'datadog-live');
+    expect(root).toHaveAttribute('data-tier', 'live');
+  });
+
+  it('does not forward reserved data-card-id key (primitive owns it)', () => {
+    const { container } = render(
+      <WorkspaceCard
+        id="actual-id"
+        title="Card"
+        icon={null}
+        accentColor="#000"
+        dataAttributes={{ 'data-card-id': 'malicious-override', 'data-surface': 'ok' }}
+      >
+        body
+      </WorkspaceCard>
+    );
+    const root = container.querySelector('[data-card-id="actual-id"]')!;
+    expect(root).toBeInTheDocument();
+    expect(root).toHaveAttribute('data-surface', 'ok');
+    expect(container.querySelector('[data-card-id="malicious-override"]')).toBeNull();
+  });
+
+  it('handles undefined dataAttributes without breaking pre-Phase-04.5 call sites', () => {
+    const { container } = render(
+      <WorkspaceCard id="t1" title="Card" icon={null} accentColor="#000">
+        body
+      </WorkspaceCard>
+    );
+    const root = container.querySelector('[data-card-id="t1"]')!;
+    expect(root).toBeInTheDocument();
+    expect(root).not.toHaveAttribute('data-surface');
+  });
+
   it('shows chevron-right when collapsed', () => {
     render(
       <WorkspaceCard id="test" title="Card" icon={<span>C</span>} accentColor="#76ce40" defaultExpanded={false}>
