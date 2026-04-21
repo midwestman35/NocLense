@@ -390,7 +390,8 @@ export function WorkspaceImportPanel({ onComplete, onInvestigationReady }: Works
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="flex w-full flex-col items-center justify-center rounded border border-dashed border-[var(--border)] bg-[var(--workspace)] px-4 py-6 text-center hover:border-[var(--ring)] hover:bg-[var(--muted)]"
+            data-testid="import-drop-zone"
+            className="flex w-full flex-col items-center justify-center rounded border border-dashed border-[var(--border)] bg-[var(--workspace)] px-4 py-6 text-center hover:border-[var(--ring)] hover:bg-[var(--muted)] transition-[transform,box-shadow] duration-150 ease-out motion-safe:hover:scale-[1.01] hover:shadow-[var(--shadow-glow-ready,none)]"
           >
             <FileUp size={28} className="mb-2 text-[var(--foreground)]" />
             <div className="text-sm font-medium text-[var(--foreground)]">Choose files to import</div>

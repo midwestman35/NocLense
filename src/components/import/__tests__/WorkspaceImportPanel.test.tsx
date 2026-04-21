@@ -233,4 +233,13 @@ describe('WorkspaceImportPanel .noclense import', () => {
 
     expect(setInvestigationMock).not.toHaveBeenCalled();
   });
+
+  it('drop zone applies motion-safe hover scale and glow classes', () => {
+    render(<WorkspaceImportPanel />);
+
+    const dropZone = screen.getByTestId('import-drop-zone');
+
+    expect(dropZone.className).toMatch(/motion-safe:hover:scale/);
+    expect(dropZone.className).toMatch(/shadow-\[var\(--shadow-glow-ready/);
+  });
 });
