@@ -10,13 +10,21 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   size?: ButtonSize;
 }
 
+// Phase 04.5 Direction C: `.btn-press-bounce` (defined in src/index.css)
+// composes color transitions + an emphasized-bounce transform transition
+// with per-property durations. `active:scale-[0.94]` drives the press feel;
+// `motion-reduce:active:scale-100` honors prefers-reduced-motion at the
+// consumer level (the transition class also strips the transform branch
+// under reduced motion so there's nothing left to animate).
 const base =
-  'inline-flex items-center justify-center font-medium transition-colors ' +
-  'duration-[var(--duration-fast)] ease-[var(--ease-default)] ' +
+  'inline-flex items-center justify-center font-medium ' +
+  'btn-press-bounce ' +
   'rounded-[var(--radius-md)] ' +
+  'active:scale-[0.94] motion-reduce:active:scale-100 ' +
   'focus-visible:outline-none focus-visible:ring-[var(--ring-width)] ' +
   'focus-visible:ring-[var(--ring)] focus-visible:ring-offset-[var(--ring-offset)] ' +
-  'disabled:pointer-events-none disabled:opacity-50';
+  'disabled:pointer-events-none disabled:opacity-50 ' +
+  'disabled:scale-100';
 
 const variants: Record<ButtonVariant, string> = {
   default:

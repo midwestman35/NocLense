@@ -106,6 +106,27 @@ code, pre, kbd, samp { font-variant-numeric: tabular-nums; }
   font-size: var(--text-sm);
 }
 
+/* ── Button press bounce (Phase 04.5 Direction C) ──────────────────────
+   Composite transition with per-property durations: fast linear color
+   changes + slower emphasized-bounce transform. Replaces `transition-colors`
+   on the Button primitive so both channels animate correctly.
+   Spec §4.2 compliance: property-specific, never transition: all. */
+.btn-press-bounce {
+  transition:
+    background-color var(--duration-fast) var(--ease-default),
+    border-color var(--duration-fast) var(--ease-default),
+    color var(--duration-fast) var(--ease-default),
+    transform var(--duration-scale-press-emphasized) var(--ease-emphasized);
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn-press-bounce {
+    transition:
+      background-color var(--duration-fast) var(--ease-default),
+      border-color var(--duration-fast) var(--ease-default),
+      color var(--duration-fast) var(--ease-default);
+  }
+}
+
 /* ── Reduced-motion fallbacks for preexisting animations (Phase 01a) ───
    Spec §4.8 requires every animated surface to honor
    prefers-reduced-motion. loading.css already handles new animations;

@@ -43,4 +43,25 @@ describe('Button', () => {
     render(<Button className="mt-4">Styled</Button>);
     expect(screen.getByRole('button').className).toContain('mt-4');
   });
+
+  // Phase 04.5 Direction C — emphasized bounce on press
+  it('applies btn-press-bounce transition class (Direction C)', () => {
+    render(<Button>Press</Button>);
+    expect(screen.getByRole('button').className).toContain('btn-press-bounce');
+  });
+
+  it('applies active scale-[0.94] for press bounce (Direction C)', () => {
+    render(<Button>Press</Button>);
+    expect(screen.getByRole('button').className).toContain('active:scale-[0.94]');
+  });
+
+  it('disables scale on motion-reduce', () => {
+    render(<Button>Press</Button>);
+    expect(screen.getByRole('button').className).toContain('motion-reduce:active:scale-100');
+  });
+
+  it('does not use transition-all (spec §4.2 compliance)', () => {
+    render(<Button>Press</Button>);
+    expect(screen.getByRole('button').className).not.toMatch(/\btransition-all\b/);
+  });
 });
