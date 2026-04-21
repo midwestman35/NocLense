@@ -2,9 +2,13 @@ import type { ForwardRefExoticComponent, HTMLAttributes, ReactNode, RefAttribute
 import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { usePrefersReducedMotion } from '../../../../hooks/usePrefersReducedMotion';
-import { asBlockId, asCitationId, asInvestigationId } from '../../../../types/canonical';
+import { asBlockId, asInvestigationId } from '../../../../types/canonical';
 import CanonicalBlockRenderer from '../CanonicalBlockRenderer';
-import { makeInvestigation } from './canonicalBlockTestUtils';
+import {
+  buildNoteBlock,
+  buildPriorArtBlock,
+  makeInvestigation,
+} from './canonicalBlockTestUtils';
 vi.mock('../../../../hooks/usePrefersReducedMotion', () => ({
   usePrefersReducedMotion: vi.fn(),
 }));
@@ -48,46 +52,29 @@ describe('CanonicalBlockRenderer', () => {
     vi.mocked(usePrefersReducedMotion).mockReturnValue(false);
   });
 
-  it('renders concrete collection and action blocks while prior-art and note stay on the placeholder path', () => {
-    const investigation = makeInvestigation({ logSuggestions: [{ source: 'Datadog', reason: 'Pull the last hour of PBX events.', query: 'service:pbx' }] });
-    const firstCitationId = Object.keys(investigation.citations)[0];
+  it('renders all seven canonical block kinds without falling back to the unsupported placeholder', () => {
+    const investigation = makeInvestigation({
+      logSuggestions: [{ source: 'Datadog', reason: 'Pull the last hour of PBX events.', query: 'service:pbx' }],
+    });
+    const priorArt = buildPriorArtBlock({ body: { source: 'slack', title: 'Slack precedent' } });
+    const note = buildNoteBlock({ body: { authorRole: 'ai', markdown: 'AI note content' } });
+    investigation.citations = {
+      ...investigation.citations,
+      ...priorArt.citations,
+      ...note.citations,
+    };
+    investigation.blocks.push(priorArt.block, note.block);
 
-    investigation.blocks.push(
-      {
-        id: asBlockId('id-900'),
-        kind: 'prior-art',
-        createdAt: investigation.createdAt,
-        updatedAt: investigation.updatedAt,
-        citations: [],
-        body: {
-          source: 'jira',
-          title: 'REP-18421',
-          summary: 'Similar registration fault.',
-          sourceCitationId: asCitationId(firstCitationId),
-        },
-      },
-      {
-        id: asBlockId('id-901'),
-        kind: 'note',
-        createdAt: investigation.createdAt,
-        updatedAt: investigation.updatedAt,
-        citations: [],
-        body: {
-          markdown: 'Engineer note',
-          authorRole: 'engineer',
-        },
-      },
-    );
+    const { container } = render(<CanonicalBlockRenderer investigation={investigation} />);
 
-    render(<CanonicalBlockRenderer investigation={investigation} />);
-
-    expect(screen.getByText('Acme PSAP')).toBeTruthy();
-    expect(screen.getByRole('heading', { name: 'PBX registration failure' })).toBeTruthy();
-    expect(screen.getByText('Analysis: PBX registration failure')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Acme PSAP' })).toBeTruthy();
+    expect(container.querySelector('[data-source="slack"]')).toBeTruthy();
+    expect(screen.getByLabelText('Hypothesis rank 1')).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Collection Guidance' })).toBeTruthy();
-    expect(screen.getByRole('heading', { name: 'Action' })).toBeTruthy();
-    expect(screen.getByText('Block: prior-art (renderer pending)')).toBeTruthy();
-    expect(screen.getByText('Block: note (renderer pending)')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Analysis: PBX registration failure' })).toBeTruthy();
+    expect(screen.getByLabelText('Action kind: resolve')).toBeTruthy();
+    expect(container.querySelector('[data-author-role="ai"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid^="unsupported-block-"]')).toBeNull();
   });
 
   it('wraps each block in a stable section envelope', () => {

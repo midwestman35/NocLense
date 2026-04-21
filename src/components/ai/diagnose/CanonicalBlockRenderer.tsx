@@ -7,7 +7,8 @@ import AnalysisBlock from './blocks/AnalysisBlock';
 import CollectionBlock from './blocks/CollectionBlock';
 import ContextBlock from './blocks/ContextBlock';
 import HypothesisBlock from './blocks/HypothesisBlock';
-import UnsupportedBlockPlaceholder from './blocks/UnsupportedBlockPlaceholder';
+import NoteBlock from './blocks/NoteBlock';
+import PriorArtBlock from './blocks/PriorArtBlock';
 
 const MAX_STAGGERED_BLOCKS = 12;
 const STAGGER_SECONDS = 0.04;
@@ -65,9 +66,9 @@ export default function CanonicalBlockRenderer({
             case 'action':
               return <ActionBlock block={block} />;
             case 'prior-art':
+              return <PriorArtBlock block={block} investigation={investigation} onCitationClick={onCitationClick} />;
             case 'note':
-              // These block kinds still need their richer interaction model.
-              return <UnsupportedBlockPlaceholder block={block} />;
+              return <NoteBlock block={block} />;
           }
         })();
 

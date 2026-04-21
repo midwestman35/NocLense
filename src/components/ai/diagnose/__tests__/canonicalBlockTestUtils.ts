@@ -4,10 +4,22 @@ import {
 } from '../../../../services/canonicalAdapter';
 import {
   isBlockOfKind,
+  asBlockId,
+  asCitationId,
   type BlockKind,
   type BlockOf,
+  type Citation,
+  type CitationSource,
   type Investigation,
 } from '../../../../types/canonical';
+
+const FIXED_NOW = 1_745_000_000_000;
+let fixtureSequence = 0;
+
+function nextFixtureId(prefix: string): string {
+  fixtureSequence += 1;
+  return `${prefix}-${String(fixtureSequence).padStart(3, '0')}`;
+}
 
 function makeIdFactory(prefix: string): () => string {
   let value = 0;
@@ -43,13 +55,83 @@ export function makeInvestigation(
     ticketUrl: 'https://carbyne.zendesk.com/agent/tickets/45892',
     customer: 'Acme PSAP',
     idFactory: makeIdFactory('id'),
-    now: () => 1_745_000_000_000,
+    now: () => FIXED_NOW,
     resolveLogLocator: () => ({
       fileName: 'pbx.log',
       lineNumber: 42,
       byteOffset: 1024,
     }),
   });
+}
+
+type BuiltTestBlock<K extends BlockKind> = {
+  block: BlockOf<K>;
+  citations: Investigation['citations'];
+};
+
+type PriorArtOverrides = Partial<Omit<BlockOf<'prior-art'>, 'body'>> & {
+  body?: Partial<BlockOf<'prior-art'>['body']>;
+  citation?: Partial<Citation> & { source?: CitationSource };
+};
+
+export function buildPriorArtBlock(
+  overrides: PriorArtOverrides = {},
+): BuiltTestBlock<'prior-art'> {
+  const hasSummaryOverride = Object.prototype.hasOwnProperty.call(overrides.body ?? {}, 'summary');
+  const sourceCitationId =
+    overrides.body?.sourceCitationId ?? asCitationId(nextFixtureId('citation-prior-art'));
+  const citation: Citation = {
+    id: sourceCitationId,
+    displayText: overrides.citation?.displayText ?? 'REP-18421',
+    source: overrides.citation?.source ?? { kind: 'jira', key: 'REP-18421' },
+    createdAt: overrides.citation?.createdAt ?? FIXED_NOW,
+    lastVerifiedAt: overrides.citation?.lastVerifiedAt,
+  };
+
+  return {
+    block: {
+      id: overrides.id ?? asBlockId(nextFixtureId('block-prior-art')),
+      kind: 'prior-art',
+      createdAt: overrides.createdAt ?? FIXED_NOW,
+      updatedAt: overrides.updatedAt ?? FIXED_NOW,
+      citations: overrides.citations ?? [sourceCitationId],
+      body: {
+        source: overrides.body?.source ?? 'jira',
+        title: overrides.body?.title ?? 'REP-18421',
+        summary: hasSummaryOverride ? overrides.body?.summary : 'Similar registration fault.',
+        sourceCitationId,
+      },
+    },
+    citations: {
+      [sourceCitationId]: {
+        ...citation,
+        id: sourceCitationId,
+      },
+    },
+  };
+}
+
+type NoteOverrides = Partial<Omit<BlockOf<'note'>, 'body'>> & {
+  body?: Partial<BlockOf<'note'>['body']>;
+};
+
+export function buildNoteBlock(
+  overrides: NoteOverrides = {},
+): BuiltTestBlock<'note'> {
+  return {
+    block: {
+      id: overrides.id ?? asBlockId(nextFixtureId('block-note')),
+      kind: 'note',
+      createdAt: overrides.createdAt ?? FIXED_NOW,
+      updatedAt: overrides.updatedAt ?? FIXED_NOW,
+      citations: overrides.citations ?? [],
+      body: {
+        markdown: overrides.body?.markdown ?? 'Engineer note',
+        authorRole: overrides.body?.authorRole ?? 'engineer',
+      },
+    },
+    citations: {},
+  };
 }
 
 export function getBlock<K extends BlockKind>(

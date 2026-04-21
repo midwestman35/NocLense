@@ -43,6 +43,17 @@ interface Props {
   addBookmark: (caseId: string, bookmark: { id: string; logId: number; tag: BookmarkTag; note: string; timestamp: number }) => void;
 }
 
+function buildAiDiagnosisBookmark(logId: number) {
+  const timestamp = Date.now();
+  return {
+    id: `bm_${timestamp}_${logId}`,
+    logId,
+    tag: 'evidence' as const,
+    note: 'Added from AI Diagnosis',
+    timestamp,
+  };
+}
+
 export default function DiagnosePhase2({
   diagnosisResult,
   internalNote,
@@ -113,13 +124,7 @@ export default function DiagnosePhase2({
     if (!activeCase) return;
     // Skip if already bookmarked in this session
     if (bookmarkedIds.has(logId)) return;
-    addBookmark(activeCase.id, {
-      id: `bm_${Date.now()}_${logId}`,
-      logId,
-      tag: 'evidence',
-      note: 'Added from AI Diagnosis',
-      timestamp: Date.now(),
-    });
+    addBookmark(activeCase.id, buildAiDiagnosisBookmark(logId));
     setBookmarkedIds(prev => new Set([...prev, logId]));
   }
 
