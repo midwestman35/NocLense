@@ -1,0 +1,25 @@
+/* focus-mode.css; Phase 04 focus-mode toggle
+ *
+ * Activation: the Investigate grid stamps `data-focused="<cardId>"`
+ * when a card is focused. The focused card renders
+ * `data-focus-target="true"`; non-focused siblings render
+ * `data-focus-target="false"`.
+ *
+ * Phase 04 siblings are display: none rather than opacity-hidden so
+ * keyboard + AT cannot reach inert controls. A literal visible rail
+ * is Phase 05 work (see plan §Non-goals).
+ */
+
+/* Focused card fills the grid (spans all columns and rows). */
+[data-layout="investigate"][data-focused]
+  [data-card-id][data-focus-target="true"] {
+  grid-column: 1 / -1;
+  grid-row: 1 / -1;
+  z-index: 2;
+}
+
+/* Non-focused siblings: fully inert. */
+[data-layout="investigate"][data-focused]
+  [data-card-id][data-focus-target="false"] {
+  display: none;
+}

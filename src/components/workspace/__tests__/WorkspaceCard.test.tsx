@@ -1,5 +1,7 @@
+import type { ComponentProps } from 'react';
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { CardFocusProvider } from '../CardFocusContext';
 import { WorkspaceCard } from '../WorkspaceCard';
 
 describe('WorkspaceCard', () => {
@@ -94,5 +96,87 @@ describe('WorkspaceCard', () => {
       </WorkspaceCard>
     );
     expect(document.querySelector('.lucide-chevron-down')).toBeInTheDocument();
+  });
+});
+
+describe('WorkspaceCard focus mode', () => {
+  function renderWithProvider(props?: Partial<ComponentProps<typeof WorkspaceCard>>) {
+    return render(
+      <CardFocusProvider>
+        <WorkspaceCard id="t1" title="Test" icon={null} accentColor="#000" {...props}>
+          body
+        </WorkspaceCard>
+      </CardFocusProvider>
+    );
+  }
+
+  it('renders focus button when expanded inside a provider', () => {
+    renderWithProvider();
+
+    expect(screen.getByRole('button', { name: /focus test/i })).toBeInTheDocument();
+  });
+
+  it('does not render focus button outside a provider', () => {
+    render(
+      <WorkspaceCard id="t1" title="Test" icon={null} accentColor="#000">
+        body
+      </WorkspaceCard>
+    );
+
+    expect(screen.queryByRole('button', { name: /focus test/i })).not.toBeInTheDocument();
+  });
+
+  it('does not render focus button when defaultExpanded=false', () => {
+    render(
+      <CardFocusProvider>
+        <WorkspaceCard id="t1" title="Test" icon={null} accentColor="#000" defaultExpanded={false}>
+          body
+        </WorkspaceCard>
+      </CardFocusProvider>
+    );
+
+    expect(screen.queryByRole('button', { name: /focus test/i })).not.toBeInTheDocument();
+  });
+
+  it('clicking the focus button sets data-focus-target=true', () => {
+    const { container } = renderWithProvider();
+
+    fireEvent.click(screen.getByRole('button', { name: /focus test/i }));
+
+    expect(container.querySelector('[data-card-id="t1"]')).toHaveAttribute('data-focus-target', 'true');
+  });
+
+  it('Esc clears focus', () => {
+    const { container } = renderWithProvider();
+
+    fireEvent.click(screen.getByRole('button', { name: /focus test/i }));
+    fireEvent.keyDown(window, { key: 'Escape' });
+
+    expect(container.querySelector('[data-card-id="t1"]')).toHaveAttribute('data-focus-target', 'false');
+  });
+
+  it('Esc while an input is focused does not clear focus', () => {
+    const { container } = render(
+      <CardFocusProvider>
+        <WorkspaceCard id="t1" title="Test" icon={null} accentColor="#000">
+          <input data-testid="inside-input" />
+        </WorkspaceCard>
+      </CardFocusProvider>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /focus test/i }));
+    screen.getByTestId('inside-input').focus();
+    fireEvent.keyDown(window, { key: 'Escape' });
+
+    expect(container.querySelector('[data-card-id="t1"]')).toHaveAttribute('data-focus-target', 'true');
+  });
+
+  it('focus button click does not fire onExpandChange', () => {
+    const onExpandChange = vi.fn();
+
+    renderWithProvider({ onExpandChange });
+    fireEvent.click(screen.getByRole('button', { name: /focus test/i }));
+
+    expect(onExpandChange).not.toHaveBeenCalled();
   });
 });

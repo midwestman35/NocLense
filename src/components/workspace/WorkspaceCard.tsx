@@ -1,6 +1,8 @@
 import { useState, useCallback, useRef, useEffect, type ReactNode } from 'react';
 import { clsx } from 'clsx';
-import { ChevronRight, ChevronDown } from 'lucide-react';
+import { ChevronRight, ChevronDown, Maximize2, Minimize2 } from 'lucide-react';
+
+import { isInSuppressedContext, useCardFocus } from './CardFocusContext';
 
 interface WorkspaceCardProps {
   id: string;
@@ -34,6 +36,8 @@ export function WorkspaceCard({
   const bodyRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const hasMounted = useRef(false);
+  const focusCtx = useCardFocus();
+  const isFocused = focusCtx?.focusedCardId === id;
 
   // Only animate height on user-initiated expand/collapse, NOT on mount
   useEffect(() => {
@@ -71,6 +75,24 @@ export function WorkspaceCard({
     }
   }, [expanded]);
 
+  useEffect(() => {
+    if (!focusCtx || !isFocused) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (isInSuppressedContext()) return;
+
+      focusCtx.unfocus();
+      event.stopPropagation();
+    };
+
+    window.addEventListener('keydown', handleKeyDown, true);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown, true);
+    };
+  }, [focusCtx, isFocused]);
+
   const handleClick = useCallback(() => {
     if (!expanded) {
       setExpanded(true);
@@ -87,6 +109,7 @@ export function WorkspaceCard({
   return (
     <div
       data-card-id={id}
+      data-focus-target={isFocused ? 'true' : 'false'}
       className={clsx(
         'flex flex-col overflow-hidden',
         'rounded-[var(--card-radius)] border bg-[var(--card)]',
@@ -124,6 +147,29 @@ export function WorkspaceCard({
         </span>
         {badge && <span className="ml-1">{badge}</span>}
         {meta && <span className="ml-auto text-[10px] font-mono text-[var(--muted-foreground)]">{meta}</span>}
+        {focusCtx && expanded && (
+          <button
+            type="button"
+            aria-label={isFocused ? `Exit focus for ${title}` : `Focus ${title}`}
+            aria-pressed={isFocused}
+            onClick={(event) => {
+              event.stopPropagation();
+              focusCtx.toggleFocus(id);
+            }}
+            onDoubleClick={(event) => {
+              event.stopPropagation();
+            }}
+            className={clsx(
+              'inline-flex h-10 w-10 items-center justify-center rounded-md text-[var(--muted-foreground)]',
+              meta ? 'ml-1' : 'ml-auto',
+              'hover:bg-[var(--muted)]/40 hover:text-[var(--foreground)]',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--card-border-hover)]',
+              'transition-colors transition-background-color duration-150',
+            )}
+          >
+            {isFocused ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+          </button>
+        )}
       </div>
 
       {/* Body — CSS handles initial state, JS handles subsequent expand/collapse */}
