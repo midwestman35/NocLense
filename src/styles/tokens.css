@@ -71,6 +71,13 @@
   --shadow-glow-error:
     0 0 12px rgba(220, 38, 38, 0.2),
     0 0 24px rgba(220, 38, 38, 0.1);
+
+  /* Glow-ready COLOR token (Phase 04.5) — distinct from --shadow-glow-ready.
+     Consumed by LogRow.tsx:122 via color-mix for the citation-target row
+     highlight. Was removed in Phase 01a increment 7; restored here because
+     the LogRow reference was never migrated and falls back silently. Keep
+     this in sync with --green-house-400 (#51912b light) / 200 (#76ce40 dark). */
+  --glow-ready: rgba(81, 145, 43, 0.28);
 }
 
 /* Dark — Phase 04.5 Direction C warm base (§B mapping: bg #0d110f→#121311 etc.) */
@@ -119,6 +126,10 @@
   --shadow-glow-error:
     0 0 12px rgba(239, 68, 68, 0.35),
     0 0 24px rgba(239, 68, 68, 0.15);
+
+  /* Glow-ready COLOR token (dark theme). See comment on light-theme token
+     above for rationale. LogRow.tsx:122 consumes via color-mix. */
+  --glow-ready: rgba(118, 206, 64, 0.3);
 }
 
 /*
@@ -207,14 +218,16 @@
   --tracking-display: -0.01em;
 }
 
-/* Phase 01a glow-tier geometry.
-   Canonical tokens: --shadow-glow-ready / --shadow-glow-live /
-   --shadow-glow-error (declared in the light + dark theme blocks
-   above). Consumer: `.glow-surface--{ready,live,alert}` in
-   src/styles/loading.css.
-   The separate --glow-* family that previously lived here was never
-   referenced by any CSS class — removed in increment 7 to keep one
-   source of truth per Codex review. */
+/* Glow-tier geometry (Phase 01a + Phase 04.5 reinstatement).
+   SHADOW tokens: --shadow-glow-ready / --shadow-glow-live /
+   --shadow-glow-error (declared in each theme block above). Consumer:
+   `.glow-surface--{ready,live,alert}` in src/styles/loading.css.
+   COLOR token: --glow-ready — used by LogRow.tsx:122 via color-mix for
+   citation-target highlighting. Removed in Phase 01a inc. 7 on the
+   assumption nothing consumed it; LogRow's reference was missed.
+   Reinstated in Phase 04.5 so the highlight renders with a real color
+   instead of the silent browser fallback. --glow-live and --glow-error
+   color tokens are intentionally NOT reinstated — no consumer exists. */
 
 :root {
   --border-width: 1px;
