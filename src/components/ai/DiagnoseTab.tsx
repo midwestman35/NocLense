@@ -34,6 +34,7 @@ import DiagnosePhase1 from './diagnose/DiagnosePhase1';
 import DiagnosePhase2 from './diagnose/DiagnosePhase2';
 import DiagnosePhase3 from './diagnose/DiagnosePhase3';
 import StageBar from './diagnose/StageBar';
+import CanonicalBlockRenderer from './diagnose/CanonicalBlockRenderer';
 import {
   buildCanonicalInvestigationPreview,
   getDiagnosePipelineProgress,
@@ -598,22 +599,26 @@ function CanonicalInvestigationPreview({
       aria-label="Canonical investigation preview"
     >
       <p className="text-[11px] font-medium text-[var(--foreground)]">
-        Canonical Investigation Preview
+        Canonical Investigation
       </p>
       <p className="mt-0.5 text-[10px] text-[var(--muted-foreground)]">
-        01b.2 proof-of-life for the canonical adapter.
+        01b.3a renderer dispatch for context, hypothesis, and analysis blocks.
       </p>
       {error ? (
         <p className="mt-2 text-[11px] text-[var(--destructive)]" role="alert">
           {error}
         </p>
+      ) : !investigation ? (
+        <p className="mt-2 text-[11px] text-[var(--muted-foreground)]">
+          Canonical investigation unavailable.
+        </p>
       ) : (
-        <pre
-          className="mt-2 max-h-40 overflow-auto rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--muted)] p-2 text-[10px] leading-4 text-[var(--foreground)]"
+        <div
+          className="mt-2 max-h-72 overflow-auto"
           data-testid="canonical-investigation-preview"
         >
-          {investigation ? JSON.stringify(investigation, null, 2) : '{}'}
-        </pre>
+          <CanonicalBlockRenderer investigation={investigation} />
+        </div>
       )}
     </section>
   );
