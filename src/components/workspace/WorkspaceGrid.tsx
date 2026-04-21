@@ -1,6 +1,8 @@
+/* eslint-disable react-refresh/only-export-components */
 import { type ReactNode } from 'react';
 import { clsx } from 'clsx';
 import type { Phase } from './types';
+import { CardFocusProvider, useCardFocus } from './CardFocusContext';
 
 interface WorkspaceGridProps {
   layout: Phase;
@@ -8,28 +10,79 @@ interface WorkspaceGridProps {
   className?: string;
 }
 
-export function WorkspaceGrid({ layout, children, className }: WorkspaceGridProps) {
+interface InvestigateGridInnerProps {
+  children: ReactNode;
+  className?: string;
+}
+
+function InvestigateGridInner({
+  children,
+  className,
+}: InvestigateGridInnerProps) {
+  const focus = useCardFocus();
+  const focusedCardId = focus?.focusedCardId ?? null;
+
   return (
     <div
-      className={clsx(
-        'h-full min-h-0 overflow-hidden transition-all',
-        layout === 'import' && 'flex items-center justify-center',
-        layout === 'investigate' && 'grid gap-2 p-2',
-        layout === 'submit' && 'flex items-start justify-center gap-6 p-10',
-        className,
-      )}
+      data-layout="investigate"
+      data-room="investigate"
+      data-focused={focusedCardId ?? undefined}
+      className={clsx('h-full min-h-0 grid gap-2 p-2 overflow-hidden', className)}
       style={{
-        ...(layout === 'import' && { background: 'var(--room-import-glow)' }),
-        ...(layout === 'investigate' && {
-          gridTemplateColumns: '1fr 1fr 340px',
-          gridTemplateRows: 'auto 1fr auto',
-          background: 'var(--room-investigate-bg)',
-        }),
-        ...(layout === 'submit' && { background: 'var(--room-submit-glow)' }),
+        gridTemplateColumns: '1fr 1fr 340px',
+        gridTemplateRows: 'auto 1fr auto',
+        background: 'var(--room-investigate-bg)',
         transitionDuration: 'var(--room-transition-duration)',
         transitionTimingFunction: 'var(--room-transition-ease)',
       }}
-      data-room={layout}
+    >
+      {children}
+    </div>
+  );
+}
+
+export function WorkspaceGrid({ layout, children, className }: WorkspaceGridProps) {
+  if (layout === 'investigate') {
+    return (
+      <CardFocusProvider>
+        <InvestigateGridInner className={className}>
+          {children}
+        </InvestigateGridInner>
+      </CardFocusProvider>
+    );
+  }
+
+  if (layout === 'import') {
+    return (
+      <div
+        data-room="import"
+        className={clsx(
+          'h-full min-h-0 overflow-hidden transition-[background-color,opacity] duration-[var(--room-transition-duration,200ms)]',
+          'flex items-center justify-center',
+          className,
+        )}
+        style={{
+          background: 'var(--room-import-glow)',
+          transitionTimingFunction: 'var(--room-transition-ease)',
+        }}
+      >
+        {children}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      data-room="submit"
+      className={clsx(
+        'h-full min-h-0 overflow-hidden transition-[background-color,opacity] duration-[var(--room-transition-duration,200ms)]',
+        'flex items-start justify-center gap-6 p-10',
+        className,
+      )}
+      style={{
+        background: 'var(--room-submit-glow)',
+        transitionTimingFunction: 'var(--room-transition-ease)',
+      }}
     >
       {children}
     </div>
