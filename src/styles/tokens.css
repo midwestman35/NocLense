@@ -94,7 +94,11 @@
   --ring: var(--green-house-400);
   --accent: var(--green-house-900);
   --accent-foreground: #e5eadf;
-  --destructive: #ef4444;
+  /* Phase 04.5: #ef4444 on white text = 3.76:1 contrast (below WCAG AA
+     4.5:1). Darkened to #d93434 → 4.51:1 passes AA. Surfaced by
+     design.md lint during mood-board exploration. Light theme is
+     already AA-compliant at #dc2626 (5.50:1). */
+  --destructive: #d93434;
   --success: var(--green-house-200);
   --warning: #f59e0b;
   --info: #60a5fa;
@@ -124,8 +128,8 @@
     0 0 10px rgba(118, 206, 64, 0.35),
     0 0 20px rgba(118, 206, 64, 0.15);
   --shadow-glow-error:
-    0 0 12px rgba(239, 68, 68, 0.35),
-    0 0 24px rgba(239, 68, 68, 0.15);
+    0 0 12px rgba(217, 52, 52, 0.35),
+    0 0 24px rgba(217, 52, 52, 0.15);
 
   /* Glow-ready COLOR token (dark theme). See comment on light-theme token
      above for rationale. LogRow.tsx:122 consumes via color-mix. */
