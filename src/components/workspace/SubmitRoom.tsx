@@ -22,6 +22,7 @@ import { WorkspaceCard } from './WorkspaceCard';
 import Button from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import { useEvidence } from '../../contexts/EvidenceContext';
+import { useCopyFeedback } from '../../hooks/useCopyFeedback';
 import { buildResNote } from '../../services/resNoteBuilder';
 import { buildJiraTemplate } from '../../services/jiraTemplateBuilder';
 import {
@@ -50,13 +51,8 @@ function ClosureNoteCard({
   exportLoading,
   exportError,
 }: ClosureNoteCardProps): JSX.Element {
-  const [copied, setCopied] = useState(false);
-
-  async function handleCopy(): Promise<void> {
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
+  const { copied, copy } = useCopyFeedback();
+  const handleCopy = () => copy(text);
 
   return (
     <WorkspaceCard
@@ -112,7 +108,7 @@ function ClosureNoteCard({
         >
           <Download size={14} />
           <span className="ml-[var(--space-2)]">
-            {exportLoading ? '⣾ exporting…' : 'Export .noclense'}
+            {exportLoading ? 'Exporting...' : 'Export .noclense'}
           </span>
         </Button>
 
@@ -137,13 +133,8 @@ function EvidenceSummaryCard({
   previewItems,
   jiraFormatted,
 }: EvidenceSummaryCardProps): JSX.Element {
-  const [copiedJira, setCopiedJira] = useState(false);
-
-  async function handleCopyJira(): Promise<void> {
-    await navigator.clipboard.writeText(jiraFormatted);
-    setCopiedJira(true);
-    setTimeout(() => setCopiedJira(false), 2000);
-  }
+  const { copied: copiedJira, copy } = useCopyFeedback();
+  const handleCopyJira = () => copy(jiraFormatted);
 
   return (
     <WorkspaceCard
