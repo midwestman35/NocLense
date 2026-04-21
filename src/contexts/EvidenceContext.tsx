@@ -19,6 +19,7 @@ import {
   type EvidenceSet,
   type Investigation,
 } from '../types/canonical';
+import { InvestigationMismatchError } from '../types/errors';
 
 interface EvidenceContextValue {
   investigation: Investigation | null;
@@ -75,6 +76,10 @@ export function EvidenceProvider({ children }: { children: ReactNode }): JSX.Ele
   }, [activeCaseId, commitEvidenceSet, commitInvestigation]);
 
   const restoreEvidenceSet = useCallback((set: EvidenceSet) => {
+    const currentInvestigation = investigationRef.current;
+    if (currentInvestigation && set.investigationId !== currentInvestigation.id) {
+      throw new InvestigationMismatchError(currentInvestigation.id, set.investigationId);
+    }
     commitEvidenceSet(set);
     setLoadGeneration((g) => g + 1);
   }, [commitEvidenceSet]);

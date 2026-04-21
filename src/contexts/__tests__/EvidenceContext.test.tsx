@@ -279,5 +279,51 @@ describe('EvidenceContext', () => {
 
       expect(result.current.loadGeneration).toBe(before);
     });
+
+    it('restoreEvidenceSet throws when investigationId does not match', () => {
+      const investigation = makeInvestigation();
+      const wrapper = createWrapper();
+      const { result } = renderHook(() => useEvidence(), { wrapper });
+      const mismatchedSet = {
+        caseId: asCaseId('case-1'),
+        investigationId: asInvestigationId('different'),
+        items: [],
+      };
+
+      act(() => {
+        result.current.setInvestigation(investigation);
+      });
+
+      expect(() => {
+        act(() => {
+          result.current.restoreEvidenceSet(mismatchedSet);
+        });
+      }).toThrow(/mismatch/i);
+    });
+
+    it('restoreEvidenceSet does not bump loadGeneration when it throws', () => {
+      const investigation = makeInvestigation();
+      const wrapper = createWrapper();
+      const { result } = renderHook(() => useEvidence(), { wrapper });
+
+      act(() => {
+        result.current.setInvestigation(investigation);
+      });
+      const before = result.current.loadGeneration;
+
+      try {
+        act(() => {
+          result.current.restoreEvidenceSet({
+            caseId: asCaseId('case-1'),
+            investigationId: asInvestigationId('different'),
+            items: [],
+          });
+        });
+      } catch {
+        // expected
+      }
+
+      expect(result.current.loadGeneration).toBe(before);
+    });
   });
 });

@@ -134,7 +134,7 @@ describe('buildNoclenseZip', () => {
     };
     await expect(
       buildNoclenseZip(baseInvestigation, mismatched, '2.0.0'),
-    ).rejects.toThrow(/does not match/);
+    ).rejects.toThrow(/mismatch/i);
   });
 
   it('manifest.files contains only investigation + evidence (no self-entry)', async () => {

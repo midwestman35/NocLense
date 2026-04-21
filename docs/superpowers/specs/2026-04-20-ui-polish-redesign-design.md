@@ -462,7 +462,7 @@ Resizable surfaces move to **Phase 6+ roadmap**, bundled with the case library w
 2. If nested-panel: full hierarchy spec, persistence keys, min sizes, keyboard semantics, reset behavior.
 3. If grid: column/row span via user drag of grid-line handles; persistence as `localStorage` grid-template.
 
-**Polish-pass substitute:** card headers gain a `⊞` icon that toggles the card between default size and "focused" (fills the grid, siblings collapse to rail). Focus mode uses existing grid-area classes, no new dependency. Phase 05 ships this.
+**Polish-pass substitute:** card headers gain a `⊞` icon that toggles the card between default size and "focused" (fills the grid, siblings collapse to rail). Focus mode uses existing grid-area classes, no new dependency. Phase 04 ships this.
 
 ---
 
@@ -579,7 +579,7 @@ These are intentionally left for the per-phase implementation rather than the sp
 - Specific micro-copy for cute-label phrase variants per operation (Phase 01a, once hook is wired).
 - How deeply to flatten nested JSON when "expand all" is triggered (Phase 02).
 - Exact drop zone behavior when a partially-parsed file fails mid-stream (Phase 02 error UX).
-- Default focus-mode collapse ratio for the sibling rail in Phase 04 (20% vs 10%).
+- Focus-mode sibling rail deferred to Phase 05 (Phase 04 uses display: none for siblings; no rail).
 - Specific Unleashed prompt adjustments to coerce the AI response into canonical block structure (Phase 00 + 01b iteration).
 
 ---
@@ -597,3 +597,4 @@ The redesign is successful when:
 ---
 
 **End of spec v2. Ready for Phase 00 kickoff once user approves.**
+

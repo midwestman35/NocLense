@@ -28,16 +28,8 @@ import {
   type ManifestFileEntry,
   type NoclenseManifestV1,
 } from '../types/canonical';
-
-export class InvestigationMismatchError extends Error {
-  constructor(investigationId: string, evidenceInvestigationId: string) {
-    super(
-      `EvidenceSet.investigationId (${evidenceInvestigationId}) does not match ` +
-      `Investigation.id (${investigationId}). Refusing to export a mismatched pair.`,
-    );
-    this.name = 'InvestigationMismatchError';
-  }
-}
+import { InvestigationMismatchError } from '../types/errors';
+export { InvestigationMismatchError };
 
 export class CryptoUnavailableError extends Error {
   constructor() {
