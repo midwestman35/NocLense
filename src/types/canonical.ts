@@ -331,7 +331,6 @@ export interface EvidenceSet {
 // ─── Manifest (orthogonal version from Investigation) ────────────────────
 
 export type ManifestFileRole =
-  | 'manifest'
   | 'investigation'
   | 'evidence'
   | 'log'
@@ -371,7 +370,12 @@ export interface NoclenseManifestV1 {
     caseId: CaseId;
     itemCount: number;
   };
-  /** Complete inventory of files in the ZIP. Required for import integrity check. */
+  /**
+   * Inventory of every file in the `.noclense` ZIP EXCEPT the manifest
+   * itself. The manifest's integrity is covered by the ZIP's CRC32
+   * checksum (ZIP local file headers). This avoids the self-referential
+   * hash problem of a manifest that describes its own SHA-256.
+   */
   files: ManifestFileEntry[];
   exportState: ManifestExportState;
   redaction: {
