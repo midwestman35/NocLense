@@ -2,9 +2,11 @@ import { useMemo, useRef, useState } from 'react';
 import { AlertTriangle, FileUp, Files, PencilLine, Stethoscope } from 'lucide-react';
 import { Button, useToast } from '../ui';
 import { useLogContext } from '../../contexts/LogContext';
+import { useEvidence } from '../../contexts/EvidenceContext';
 import { useCase } from '../../store/caseContext';
 import { dbManager } from '../../utils/indexedDB';
 import { appendLogsToIndexedDB, importFiles, importPastedLogs } from '../../services/importService';
+import { importNoclenseFile } from '../../services/noclenseImporter';
 import type { ImportedDataset, LogSourceType } from '../../types';
 import type { Attachment } from '../../types/case';
 
@@ -63,12 +65,14 @@ export function WorkspaceImportPanel({ onComplete, onInvestigationReady }: Works
     setSelectedLogId,
     parsingProgress,
     setParsingProgress,
+    clearAllData,
     enableIndexedDBMode,
     useIndexedDBMode,
     addImportedDatasets,
     serverMode,
     serverUploadAndParse,
   } = useLogContext();
+  const { setInvestigation, restoreEvidenceSet } = useEvidence();
   const { activeCase, updateCase } = useCase();
 
   const hasWorkspaceLogs = logs.length > 0;
@@ -115,9 +119,40 @@ export function WorkspaceImportPanel({ onComplete, onInvestigationReady }: Works
 
     try {
       const files = Array.from(fileList);
+      const firstFile = files[0];
+
+      if (firstFile && firstFile.name.toLowerCase().endsWith('.noclense')) {
+        if (files.length > 1) {
+          const message = 'Drop .noclense files alone. Do not mix with log files.';
+          setError(message);
+          toast('Drop .noclense files alone', { variant: 'error' });
+          return;
+        }
+
+        const result = await importNoclenseFile(firstFile);
+        if (!result.ok) {
+          setError(result.error);
+          toast(result.error, { variant: 'error' });
+          return;
+        }
+
+        if (typeof clearAllData === 'function') {
+          await clearAllData();
+        } else {
+          toast('Logs from the previous session remain loaded.', { variant: 'warning' });
+        }
+
+        setSelectedLogId(null);
+        setInvestigation(result.investigation);
+        restoreEvidenceSet(result.evidenceSet);
+        toast('Investigation imported.', { variant: 'success' });
+        onComplete?.();
+        return;
+      }
 
       // --- Server mode: upload to backend for parsing ---
       // REMOVED-FOR-DEPLOY: server mode UI hidden — re-add when noclense-server is approved
+      // eslint-disable-next-line no-constant-condition, no-constant-binary-expression
       if (false && serverMode) {
         try {
           const result = await serverUploadAndParse(files, setParsingProgress);
@@ -348,7 +383,7 @@ export function WorkspaceImportPanel({ onComplete, onInvestigationReady }: Works
             ref={fileInputRef}
             type="file"
             className="hidden"
-            accept=".log,.txt,.csv"
+            accept=".log,.txt,.csv,.noclense"
             multiple
             onChange={(event) => void handleFiles(event.target.files)}
           />
