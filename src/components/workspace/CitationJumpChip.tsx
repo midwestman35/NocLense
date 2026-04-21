@@ -1,4 +1,4 @@
-import { useEffect, useState, type JSX } from 'react';
+import { useEffect, type JSX } from 'react';
 import { X } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -48,22 +48,19 @@ export function CitationJumpChip({
   onDismiss,
   autoDismissMs = DEFAULT_AUTO_DISMISS_MS,
 }: CitationJumpChipProps): JSX.Element | null {
-  const [visible, setVisible] = useState(source !== null);
-
+  // Auto-dismiss timer. No internal "visible" state — the parent owns
+  // mounting (it conditionally renders the chip based on
+  // highlightedEntryId !== null). Both the × button click and the
+  // auto-dismiss timer call onDismiss, which the parent uses to clear
+  // the highlight and unmount the chip. This avoids the cascading-
+  // rerender anti-pattern flagged by react-hooks/set-state-in-effect.
   useEffect(() => {
-    if (source === null) {
-      setVisible(false);
-      return;
-    }
-    setVisible(true);
-    const timeoutId = window.setTimeout(() => {
-      setVisible(false);
-      onDismiss();
-    }, autoDismissMs);
+    if (source === null) return;
+    const timeoutId = window.setTimeout(onDismiss, autoDismissMs);
     return () => window.clearTimeout(timeoutId);
   }, [source, onDismiss, autoDismissMs]);
 
-  if (!source || !visible) return null;
+  if (!source) return null;
 
   return (
     <div
@@ -86,10 +83,7 @@ export function CitationJumpChip({
       <button
         type="button"
         aria-label="Dismiss citation jump notice"
-        onClick={() => {
-          setVisible(false);
-          onDismiss();
-        }}
+        onClick={onDismiss}
         className="rounded-full p-0.5 text-[var(--muted-foreground)] transition-colors duration-[var(--duration-fast)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
       >
         <X size={12} />

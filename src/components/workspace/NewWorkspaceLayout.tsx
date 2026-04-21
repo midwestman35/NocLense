@@ -336,7 +336,7 @@ export function NewWorkspaceLayout() {
     </>
   ), [filteredLogs.length, selectedLog, fileError, activeCorrelations, filterText,
       pendingSetup, similarPastTickets, setSelectedLogId, setJumpState, setActiveCorrelations,
-      setFilterText, setScrollTargetTimestamp, parseProgress, handleCitationClick, evidenceSet?.items.length]);
+      setFilterText, setScrollTargetTimestamp, parseProgress, handleCitationClick, evidenceSet]);
 
   // ── Submit Room ────────────────────────────────────────────────
   const submitContent = <SubmitRoom />;

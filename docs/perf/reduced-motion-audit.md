@@ -51,13 +51,16 @@ Status legend:
 
 **Fix plan for ⚠️ items:** add an app-level `<MotionConfig reducedMotion="user">` wrapper OR confirm via test harness that each surface's motion transitions collapse under reduced-motion. Not blocker for Phase 05; folded into a follow-up cleanup (Phase 06 scope).
 
-### 2.2 — anime.js surfaces
+### 2.2 — anime.js surfaces (expanded post-Codex review)
 
-| Surface | File | Trigger | Covered by | Status |
+| Surface | File:line | Trigger | Covered by | Status |
 |---|---|---|---|---|
-| LogStreamHeader stagger | `src/utils/anime.ts` via `useAnimeStagger` in `LogStreamHeader` | Mount | Anime.js respects reduced-motion only if consumers wire it | ⚠️ needs verification |
+| LogStreamHeader count stagger | `LogStreamHeader.tsx:127` — `useAnimeStagger(badgesRef, 'span', [filteredLogs.length], …)` | Filter changes | Hook must consult `usePrefersReducedMotion()` | ⚠️ needs verification |
+| LogStreamHeader animated count | `LogStreamHeader.tsx:121` — `useAnimeValue(prevCountRef.current, filteredLogs.length, { duration: 400 })` | Filter changes | Same — `useAnimeValue` tweens a number; under reduced-motion it should snap to target | ⚠️ needs verification |
+| LogViewer stagger | `LogViewer.tsx:317` — `useAnimeStagger(...)` | Citation jump / mount | Same | ⚠️ needs verification |
+| LogTimeline bar stagger | `timeline/LogTimeline.tsx:93` — `useAnimeStagger(containerRef, '.timeline-bar', [buckets.length], …)` | Bucket data change | Same | ⚠️ needs verification |
 
-**Fix plan:** verify `useAnimeStagger` hook checks `usePrefersReducedMotion()` before starting the timeline. If not, add the guard. Estimated 10-line change. Not blocker for Phase 05.
+**Fix plan:** inspect `src/utils/anime.ts` hook implementations. If any of `useAnimeStagger`, `useAnimeValue`, or `useAnimeTimeline` do NOT already consult `usePrefersReducedMotion()` to no-op when motion is reduced, add the guard at the hook level (one fix covers all four consumer sites). Estimated 10–20 lines. Not blocker for Phase 05 since the animations are decorative, not gating; flagged for Phase 06.
 
 ### 2.3 — Inline spin keyframes
 
@@ -71,6 +74,11 @@ Status legend:
 | AiPanel analyzing spinner | `AiPanel.tsx:448` | inline animation | Same | ⚠️ |
 | DiagnosePhase1/2/3 | multiple | Tailwind `animate-spin` | `motion-reduce:animate-none` not set | ⚠️ |
 | ExportModal spinner | `ExportModal.tsx:199` | Tailwind `animate-spin` | Same | ⚠️ |
+| InvestigationSetupModal spinners | `InvestigationSetupModal.tsx:303, 543, 591, 612, 864` (5 sites) | Tailwind `animate-spin` | Same | ⚠️ |
+| ServerSettingsPanel status spinner | `ServerSettingsPanel.tsx:72` | Tailwind `animate-spin` | Same | ⚠️ |
+| ZendeskPanel search spinner | `ZendeskPanel.tsx:101` | inline `style={{ animation: 'spin 1s linear infinite' }}` | None — inline style | ⚠️ |
+| ZendeskPanel analyzing spinner | `ZendeskPanel.tsx:200` | inline `style={{ animation: 'spin 1s linear infinite' }}` | None — inline style | ⚠️ |
+| SimilarTicketsPanel loading spinner | `ai/diagnose/SimilarTicketsPanel.tsx:124` | Tailwind `animate-spin` | Same | ⚠️ |
 
 **Fix plan:** two small follow-up commits worth of work. All fixes are one-liners — either add `motion-reduce:animate-none` to the Tailwind class or wrap the inline animation in a `usePrefersReducedMotion()` conditional. **Not blocker for Phase 05** because spinners are ephemeral indicators users dismiss by waiting; the degraded experience is "spinning icon keeps spinning under reduced motion" which is low-severity. Flagged for Phase 06.
 
@@ -93,6 +101,8 @@ Status legend:
 | `tui-block-cycle` | Block spinner | Same | ✅ |
 | `tui-dots-cycle` | Dots spinner | Same | ✅ |
 | `glow-live-pulse` | Live-tier surfaces | Same | ✅ |
+| `cute-label-reveal` | Per-character reveal on cute-label phrase change (`loading.css:144, 148`) | Same `@media (prefers-reduced-motion: reduce)` guard at end of file | ✅ |
+| `cute-label-breathe` | Per-character breathing loop on idle cute-label (`loading.css:145, 153`) | Same | ✅ |
 
 ### 2.6 — `src/styles/focus-mode.css` (Phase 04 + Phase 04.5)
 
@@ -142,22 +152,21 @@ Run these at the end of Phase 05 Commit 1 and re-verify at phase close-out:
 
 ## Section 4 — Follow-up cleanup items (Phase 06 hand-off)
 
-Flagged during this audit; not blocker for Phase 05 close-out. Small, one-line-per-file cleanups:
+Flagged during this audit; not blocker for Phase 05 close-out. Small cleanups:
 
-1. Add `motion-reduce:animate-none` to every Tailwind `animate-spin` usage (~8 sites: AIButton, AiPanel, DiagnosePhase1/2/3, ExportModal). Mechanical grep-and-edit.
-2. Replace inline `style={{ animation: 'spin 1s linear infinite' }}` with a conditional based on `usePrefersReducedMotion()` (~3 sites). Small refactor.
-3. Wrap app root in `<MotionConfig reducedMotion="user">` OR add explicit tests to each motion/react primitive (Dialog, DropdownMenu, Tooltip, Sidebar, Sheet) asserting reduced-motion behavior. Small refactor or ~5 test additions.
-4. Verify `useAnimeStagger` hook consults `usePrefersReducedMotion()` before starting; add guard if missing.
+1. **Spin indicator sweep.** Add `motion-reduce:animate-none` to every Tailwind `animate-spin` usage — confirmed count is now ~15 sites (AIButton, AiPanel, DiagnosePhase1/2/3, ExportModal, InvestigationSetupModal × 5, ServerSettingsPanel, SimilarTicketsPanel). Mechanical grep-and-edit. Replace the inline `style={{ animation: 'spin 1s linear infinite' }}` (AIButton × 2, AiPanel × 2, ZendeskPanel × 2) with a `usePrefersReducedMotion()`-gated conditional or a reusable `<Spinner />` primitive.
+2. **Anime.js hook-level guard.** Audit `src/utils/anime.ts` — `useAnimeStagger`, `useAnimeValue`, `useAnimeTimeline`. If any of the four consumer sites (LogStreamHeader count stagger + animated count, LogViewer stagger, LogTimeline bar stagger) don't already get reduced-motion coverage via the hook, add the guard at the hook level. One fix covers all four.
+3. **Motion/react primitive verification.** Wrap app root in `<MotionConfig reducedMotion="user">` OR add explicit tests to each motion/react primitive (Dialog, DropdownMenu, Tooltip, Sidebar, Sheet, EvidencePanel, CanonicalBlockRenderer) asserting reduced-motion behavior. The EvidencePanel + CanonicalBlockRenderer already use `usePrefersReducedMotion()` — the remaining 5 need the config or tests.
 
-Estimated effort: 1-2 small commits, ~30 lines total.
+Estimated effort: 2 small commits (~40 lines total), grouped as "spin sweep" + "anime hook guards + MotionConfig".
 
 ---
 
 ## Summary
 
 - **Phase 05 Commit 1 delivers:** ✅ 5 `transition-all` violations fixed; ✅ this audit document established as the reference.
-- **Green surfaces:** 17 out of ~30 animated surfaces fully verified compliant.
-- **Needs-work surfaces:** 13 (mostly inline spin indicators and motion/react primitives that may already respect reduced-motion but haven't been explicitly verified).
-- **No regressions introduced.** Phase 04.5 additions all shipped with motion-safe guards already in place.
+- **Green surfaces (verified compliant):** 19 — all global keyframes, loading.css (including cute-label-*), focus-mode, Phase 04.5 additions.
+- **Needs-work surfaces (⚠️):** 23 — anime.js hook consumer sites (4) that need `usePrefersReducedMotion` guard at the hook level; inline/Tailwind spin indicators (15 sites across AIButton, AiPanel, DiagnosePhase1/2/3, ExportModal, InvestigationSetupModal (5), ServerSettingsPanel, ZendeskPanel (2), SimilarTicketsPanel); motion/react primitive-level verification (5 surfaces).
+- **No regressions introduced by Phase 05.** All new animations in commits 2, 4, 5 shipped with motion-safe guards.
 
-Phase 05 resumption is unblocked from a §4.2 compliance standpoint.
+Phase 05 resumption is unblocked from a §4.2 compliance standpoint. The ⚠️ surfaces are decorative spinners and library-level hooks where a centralized fix (guard in `useAnimeStagger`/`useAnimeValue` + a sweep of spin `motion-reduce:animate-none` prefixes) covers the bulk of the remaining work. Estimated Phase 06 cleanup: 2 small commits.
