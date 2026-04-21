@@ -64,7 +64,12 @@ export function PhaseHeader({
               </span>
             )}
             {statusLabel && (
-              <span className="text-[10px] text-[var(--muted-foreground)]">{statusLabel}</span>
+              <span
+                className="text-[10px] text-[var(--muted-foreground)]"
+                style={{ textWrap: 'pretty' }}
+              >
+                {statusLabel}
+              </span>
             )}
           </div>
         )}

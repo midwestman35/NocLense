@@ -40,4 +40,42 @@ describe('PhaseHeader', () => {
     render(<PhaseHeader phase="import" onPhaseChange={() => {}} />);
     expect(screen.queryByLabelText('Settings')).not.toBeInTheDocument();
   });
+
+  // Phase 05 Commit 3 — text-wrap + token verification
+  it('status label uses text-wrap: pretty (Phase 05 Direction C)', () => {
+    render(
+      <PhaseHeader
+        phase="investigate"
+        onPhaseChange={() => {}}
+        ticketId="ZD-48521"
+        statusLabel="Monitoring"
+      />
+    );
+    const statusEl = screen.getByText('Monitoring');
+    expect(statusEl).toHaveStyle({ textWrap: 'pretty' });
+  });
+
+  it('ticket id span uses tabular-nums class', () => {
+    render(
+      <PhaseHeader
+        phase="investigate"
+        onPhaseChange={() => {}}
+        ticketId="ZD-48521"
+      />
+    );
+    const ticketEl = screen.getByText('#ZD-48521');
+    expect(ticketEl.className).toContain('tabular-nums');
+  });
+
+  it('consumes header background + highlight tokens (no hardcoded colors)', () => {
+    const { container } = render(
+      <PhaseHeader phase="import" onPhaseChange={() => {}} />
+    );
+    const header = container.querySelector('header')!;
+    // The header applies background via inline style using --header-surface.
+    // We assert the token reference is present in inline style so any
+    // future refactor that hardcodes a color surfaces as a test failure.
+    const style = header.getAttribute('style') ?? '';
+    expect(style).toContain('var(--header-surface)');
+  });
 });
