@@ -2,6 +2,7 @@
 @import "./styles/tokens.css";
 @import "./styles/loading.css";
 @import "./styles/focus-mode.css";
+@import "./styles/citation-jump.css";
 
 /* ── Base Reset ── */
 *,

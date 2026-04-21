@@ -7,7 +7,6 @@ import {
   useRef,
   useState,
 } from 'react';
-import { X } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useLogContext } from '../contexts/LogContext';
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
@@ -17,6 +16,12 @@ import LogRow from './LogRow';
 import LogTabs from './LogTabs';
 import ParseOverlay from './ParseOverlay';
 import { LogHeader, TimeWindowStrip } from './LogStreamHeader';
+import { CitationJumpChip, type CitationJumpSource } from './workspace/CitationJumpChip';
+
+// Phase 05 Commit 2 — how long data-citation-just-arrived stays on the
+// viewport element; the CSS pulse animation in src/styles/citation-jump.css
+// runs for 200ms, we clear the attribute shortly after to reset state.
+const CITATION_PULSE_MS = 250;
 
 const HIGHLIGHT_CLEAR_MS = 4000;
 
@@ -96,6 +101,11 @@ const LogViewer = forwardRef<LogViewerHandle, LogViewerProps>(function LogViewer
   const [expandedIds, setExpandedIds] = useState<Set<number>>(() => new Set());
   const [pendingJump, setPendingJump] = useState<PendingJump | null>(null);
   const [highlightedEntryId, setHighlightedEntryId] = useState<number | null>(null);
+  // Phase 05 Commit 2 — source of the most recent citation jump. Drives
+  // the CitationJumpChip label. Today we default to { label: 'Diagnose' }
+  // because the AI citation plumb-through does not yet pass hypothesis
+  // rank; richer source info lands in a follow-up phase.
+  const [citationJumpSource, setCitationJumpSource] = useState<CitationJumpSource | null>(null);
 
   const fileTabs = useMemo(() => {
     const counts = new Map<string, number>();
@@ -172,6 +182,7 @@ const LogViewer = forwardRef<LogViewerHandle, LogViewerProps>(function LogViewer
       highlightTimeoutRef.current = null;
     }
     setHighlightedEntryId(null);
+    setCitationJumpSource(null);
   }, []);
 
   const setHighlightWithTimeout = useCallback((entryId: number) => {
@@ -266,6 +277,21 @@ const LogViewer = forwardRef<LogViewerHandle, LogViewerProps>(function LogViewer
     });
     setSelectedLogId(targetLog.id);
     setHighlightWithTimeout(targetLog.id);
+    // Phase 05 Commit 2 — default source. Future plumbing can pass
+    // a richer source object (with hypothesisRank) through pendingJump.
+    setCitationJumpSource({ label: 'Diagnose' });
+
+    // Phase 05 Commit 2 — fire the container pulse via data attribute.
+    // The CSS animation in src/styles/citation-jump.css runs for 200ms
+    // against [data-citation-just-arrived="true"]; we toggle it off a
+    // bit later (250ms) so repeat jumps can re-trigger it cleanly.
+    const scrollEl = parentRef.current;
+    if (scrollEl && !prefersReducedMotion) {
+      scrollEl.setAttribute('data-citation-just-arrived', 'true');
+      window.setTimeout(() => {
+        scrollEl.removeAttribute('data-citation-just-arrived');
+      }, CITATION_PULSE_MS);
+    }
 
     if (
       targetLog.traceId &&
@@ -319,21 +345,10 @@ const LogViewer = forwardRef<LogViewerHandle, LogViewerProps>(function LogViewer
       <div ref={highlightChipRef} className="shrink-0 bg-[var(--card)]">
         {highlightedEntryId !== null && (
           <div className="px-3 pt-2">
-            <div
-              data-citation-chip
-              className="inline-flex items-center gap-2 rounded-full border border-[var(--ring)]/30 bg-[var(--accent)] px-3 py-1 text-xs text-[var(--foreground)] shadow-[var(--shadow-raised)]"
-              data-testid="citation-jump-chip"
-            >
-              <span>jumped from Diagnose</span>
-              <button
-                type="button"
-                className="rounded-full p-0.5 text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
-                onClick={clearHighlight}
-                aria-label="Dismiss citation jump notice"
-              >
-                <X size={12} />
-              </button>
-            </div>
+            <CitationJumpChip
+              source={citationJumpSource}
+              onDismiss={clearHighlight}
+            />
           </div>
         )}
       </div>
@@ -348,6 +363,7 @@ const LogViewer = forwardRef<LogViewerHandle, LogViewerProps>(function LogViewer
         ref={parentRef}
         data-log-viewer-scroll
         data-log-viewer-rows={viewItems.length}
+        data-surface="log-stream"
         className="relative flex-grow overflow-y-auto"
       >
         {viewItems.length === 0 ? (

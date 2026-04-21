@@ -1,0 +1,37 @@
+/*
+ * citation-jump.css — Phase 05 Commit 2
+ *
+ * Visual polish for the citation-jump choreography per spec §6.2:
+ *   1. Container-level inset pulse on the Log Stream viewport when a
+ *      citation target has just arrived (200ms, fades out).
+ *   2. Row-level highlight is already handled by LogRow's
+ *      transition-colors + color-mix background (covered by
+ *      docs/perf/reduced-motion-audit.md §2.6).
+ *
+ * Activation: LogViewer sets data-citation-just-arrived="true" on the
+ * viewport element for ~200ms after a jump, then clears it. The
+ * animation is short-lived and non-looping.
+ *
+ * Reduced-motion: the animation is stripped entirely so users who
+ * prefer reduced motion see no pulse. The row highlight itself still
+ * renders (static color change only, no transition to respect).
+ */
+
+@keyframes citation-jump-pulse {
+  from {
+    box-shadow: inset 0 0 0 2px var(--glow-ready, rgba(118, 206, 64, 0.3));
+  }
+  to {
+    box-shadow: inset 0 0 0 0 transparent;
+  }
+}
+
+[data-surface="log-stream"][data-citation-just-arrived="true"] {
+  animation: citation-jump-pulse 200ms var(--ease-enter-out, ease-out) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-surface="log-stream"][data-citation-just-arrived="true"] {
+    animation: none;
+  }
+}
