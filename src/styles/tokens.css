@@ -300,3 +300,14 @@
   --room-submit-glow: radial-gradient(ellipse at center, rgba(81,145,43,0.03) 0%, transparent 70%);
 }
 
+/* Evidence bundle-size pulse (Phase 05 Commit 4) — replays on the
+   evidence badge span every time useBundleSizePulse's pulseKey bumps
+   (i.e., every time the serialized set crosses a 100 KB boundary).
+   Scale up slightly + a brief warning-colored ring, then return.
+   motion-safe prefix on the consumer suppresses it under reduced motion. */
+@keyframes bundle-pulse {
+  0%   { transform: scale(1); box-shadow: 0 0 0 0 rgba(var(--warning-rgb, 245, 158, 11), 0); }
+  50%  { transform: scale(1.08); box-shadow: 0 0 0 3px rgba(var(--warning-rgb, 245, 158, 11), 0.3); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(var(--warning-rgb, 245, 158, 11), 0); }
+}
+

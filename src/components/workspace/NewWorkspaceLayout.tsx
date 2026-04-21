@@ -5,13 +5,15 @@
  * Each room has a distinct layout with WorkspaceCard containers.
  */
 
-import { useState, useCallback, useMemo, useRef } from 'react';
+import { useState, useCallback, useMemo, useRef, type JSX } from 'react';
 import { useLogContext } from '../../contexts/LogContext';
 import { useAI } from '../../contexts/AIContext';
 import { RoomRouter } from './RoomRouter';
 import { WorkspaceCard } from './WorkspaceCard';
 import { CARD_GRID_CLASSES } from './WorkspaceGrid';
 import type { Phase } from './types';
+import { useBundleSizePulse } from '../../hooks/useBundleSizePulse';
+import type { EvidenceSet } from '../../types/canonical';
 
 // Existing components — reused as card content
 import FilterBar from '../FilterBar';
@@ -255,11 +257,7 @@ export function NewWorkspaceLayout() {
         title="Evidence"
         icon={<Bookmark size={14} />}
         accentColor="#f59e0b"
-        badge={
-          <span className="rounded-full bg-[var(--warning)]/10 px-2 py-0.5 text-[9px] font-semibold text-[var(--warning)]">
-            {evidenceSet?.items.length ?? 0}
-          </span>
-        }
+        badge={<EvidenceBadge evidenceSet={evidenceSet} />}
         className={CARD_GRID_CLASSES['evidence']}
       >
         <EvidencePanel />
@@ -416,5 +414,26 @@ export function NewWorkspaceLayout() {
 
       <ExportModal isOpen={isExportModalOpen} onClose={() => setIsExportModalOpen(false)} />
     </>
+  );
+}
+
+/**
+ * EvidenceBadge — Evidence card header badge that pulses each time the
+ * serialized evidence set size crosses a 100 KB boundary (spec §5.4).
+ *
+ * Phase 05 Commit 4. Uses useBundleSizePulse's monotonic pulseKey as the
+ * React `key` prop, which remounts the span at each boundary and replays
+ * the `bundle-pulse` keyframe. The animation is behind motion-safe:; under
+ * prefers-reduced-motion the key change still occurs but no animation plays.
+ */
+function EvidenceBadge({ evidenceSet }: { evidenceSet: EvidenceSet | null }): JSX.Element {
+  const { pulseKey } = useBundleSizePulse(evidenceSet);
+  return (
+    <span
+      key={pulseKey}
+      className="rounded-full bg-[var(--warning)]/10 px-2 py-0.5 text-[9px] font-semibold text-[var(--warning)] tabular-nums motion-safe:animate-[bundle-pulse_300ms_var(--ease-enter-out,ease-out)_both]"
+    >
+      {evidenceSet?.items.length ?? 0}
+    </span>
   );
 }
