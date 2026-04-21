@@ -24,6 +24,7 @@ interface EvidenceContextValue {
   investigation: Investigation | null;
   evidenceSet: EvidenceSet | null;
   setInvestigation: (inv: Investigation) => void;
+  restoreEvidenceSet: (set: EvidenceSet) => void;
   pinBlock: (block: Block, pinnedBy: 'user' | 'ai') => void;
   unpinBlock: (blockId: BlockId) => void;
   reorderItems: (orderedIds: BlockId[]) => void;
@@ -69,6 +70,10 @@ export function EvidenceProvider({ children }: { children: ReactNode }): JSX.Ele
     commitInvestigation(inv);
     commitEvidenceSet(buildEvidenceSet(inv, activeCaseId));
   }, [activeCaseId, commitEvidenceSet, commitInvestigation]);
+
+  const restoreEvidenceSet = useCallback((set: EvidenceSet) => {
+    commitEvidenceSet(set);
+  }, [commitEvidenceSet]);
 
   const pinBlock = useCallback((block: Block, pinnedBy: 'user' | 'ai') => {
     const currentInvestigation = investigationRef.current;
@@ -157,11 +162,12 @@ export function EvidenceProvider({ children }: { children: ReactNode }): JSX.Ele
     investigation,
     evidenceSet,
     setInvestigation,
+    restoreEvidenceSet,
     pinBlock,
     unpinBlock,
     reorderItems: reorderEvidenceItems,
     updateItemNote,
-  }), [evidenceSet, investigation, pinBlock, reorderEvidenceItems, setInvestigation, unpinBlock, updateItemNote]);
+  }), [evidenceSet, investigation, pinBlock, reorderEvidenceItems, restoreEvidenceSet, setInvestigation, unpinBlock, updateItemNote]);
 
   return <EvidenceContext.Provider value={value}>{children}</EvidenceContext.Provider>;
 }

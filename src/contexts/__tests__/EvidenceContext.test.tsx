@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeInvestigation } from '../../components/ai/diagnose/__tests__/canonicalBlockTestUtils';
 import { EvidenceProvider, useEvidence } from '../EvidenceContext';
 import { CaseProvider, useCase } from '../../store/caseContext';
-import { asInvestigationId } from '../../types/canonical';
+import { asBlockId, asCaseId, asInvestigationId } from '../../types/canonical';
 
 function createWrapper() {
   return function Wrapper({ children }: { children: ReactNode }) {
@@ -23,7 +23,7 @@ describe('EvidenceContext', () => {
   });
 
   it('pinBlock adds a new item at order 0', () => {
-    let now = 1_000;
+    const now = 1_000;
     vi.spyOn(Date, 'now').mockImplementation(() => now);
     const investigation = makeInvestigation();
     const wrapper = createWrapper();
@@ -195,5 +195,27 @@ describe('EvidenceContext', () => {
 
     expect(result.current.caseState.cases).toHaveLength(1);
     expect(result.current.caseState.activeCaseId).toBe(firstCaseId);
+  });
+
+  it('restoreEvidenceSet replaces the current evidence set after setInvestigation', () => {
+    const investigation = makeInvestigation();
+    const wrapper = createWrapper();
+    const { result } = renderHook(() => ({ evidence: useEvidence() }), { wrapper });
+    const customSet = {
+      caseId: asCaseId('case-restored'),
+      investigationId: investigation.id,
+      items: [
+        { blockId: asBlockId('restored-1'), pinnedAt: 10, pinnedBy: 'user' as const, order: 0 },
+        { blockId: asBlockId('restored-2'), pinnedAt: 20, pinnedBy: 'ai' as const, order: 1, note: 'restored note' },
+      ],
+    };
+
+    act(() => {
+      result.current.evidence.setInvestigation(investigation);
+      result.current.evidence.restoreEvidenceSet(customSet);
+    });
+
+    expect(result.current.evidence.evidenceSet).toEqual(customSet);
+    expect(result.current.evidence.evidenceSet?.items).toHaveLength(2);
   });
 });
