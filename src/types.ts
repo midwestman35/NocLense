@@ -82,6 +82,8 @@ export interface LogEntry {
     byteOffset?: number;
     /** True when the JSON body failed to parse. Entry still renders with muted marker. */
     jsonMalformed?: boolean;
+    /** IANA timezone used to resolve the raw timestamp into `timestamp`. */
+    sourceTimezone?: string;
 }
 
 export interface LogState {

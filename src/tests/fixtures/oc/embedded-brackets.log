@@ -1,0 +1,52 @@
+[INFO] [4/20/2026, 10:20:00 AM,111] [CallProcessor]: Recorded user-facing summary with bracket tags
+{
+  "traceId": "e-trace-001",
+  "callId": "e-call-001",
+  "cpeStation": { "id": "station-301" },
+  "summary": "Agent saw [INFO] transfer completed in prior attempt"
+}
+[DEBUG] [4/20/2026, 10:20:03 AM,126] [SipStack]: Captured SIP ladder annotation
+{
+  "traceId": "e-trace-002",
+  "callId": "e-call-002",
+  "cpeUser": { "cncID": "cnc-302", "operatorId": "2302" },
+  "note": "Escalation note quoted [ERROR] media timeout from upstream edge"
+}
+[WARN] [4/20/2026, 10:20:06 AM,139] [AuthModule]: Cached policy text included a synthetic marker
+{
+  "traceId": "e-trace-003",
+  "callId": "e-call-003",
+  "station": { "id": "station-303" },
+  "message": "Replay buffer preserved literal [WARN] claim in body text"
+}
+[ERROR] [4/20/2026, 10:20:09 AM,154] [PresenceService]: Presence payload stored multiline advisory
+{
+  "trace": { "id": "e-trace-004" },
+  "call": { "id": "e-call-004" },
+  "cpeUser": { "cncID": "cnc-304" },
+  "advisory": "The upstream text contained [INFO] and [ERROR] markers but remained one JSON string"
+}
+[INFO] [4/20/2026, 10:20:12 AM,168] [CallProcessor]: Callback queue checkpoint persisted
+{
+  "traceId": "e-trace-005",
+  "callId": "e-call-005",
+  "cpeStation": { "id": "station-305" }
+}
+[DEBUG] [4/20/2026, 10:20:15 AM,182] [SipStack]: Replayed provisional branch detail
+{
+  "traceId": "e-trace-006",
+  "callId": "e-call-006",
+  "cpeUser": { "cncID": "cnc-306", "extensionId": "7306" }
+}
+[WARN] [4/20/2026, 10:20:18 AM,197] [AuthModule]: Agent profile refresh paused for soft mismatch
+{
+  "traceId": "e-trace-007",
+  "callId": "e-call-007",
+  "stationId": "station-307"
+}
+[ERROR] [4/20/2026, 10:20:21 AM,212] [PresenceService]: Delivery acknowledgement exceeded SLA
+{
+  "traceId": "e-trace-008",
+  "callId": "e-call-008",
+  "cpeUser": { "cncID": "cnc-308", "operatorId": "2308" }
+}

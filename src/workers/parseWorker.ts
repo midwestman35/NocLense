@@ -16,16 +16,17 @@
 import { parseLogFileStreaming } from '../utils/parser';
 
 self.onmessage = async (e: MessageEvent) => {
-  const { file, fileColor, startId } = e.data as {
+  const { file, fileColor, startId, timezone } = e.data as {
     file: File;
     fileColor: string;
     startId: number;
+    timezone?: string;
   };
 
   try {
     const logs = await parseLogFileStreaming(file, fileColor, startId, (progress) => {
       self.postMessage({ type: 'progress', progress });
-    });
+    }, timezone);
 
     self.postMessage({ type: 'done', logs });
   } catch (error) {

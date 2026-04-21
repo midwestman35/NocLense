@@ -1,0 +1,40 @@
+[INFO] [4/20/2026, 8:00:00 AM,101] [CallProcessor]: Accepted inbound call setup for operator 2001
+{"traceId":"trace-001","callId":"call-001","cpeStation":{"id":"station-101"},"operator":{"id":"2001"},"extension":{"id":"7001"}}
+[DEBUG] [4/20/2026, 8:00:02 AM,115] [SipStack]: Built INVITE transaction for carrier leg
+{"trace_id":"trace-002","call_id":"call-002","cpeUser":{"cncID":"cnc-22","operatorId":"2002","extensionId":"7002"}}
+[WARN] [4/20/2026, 8:00:04 AM,128] [AuthModule]: Token refresh exceeded soft threshold
+{"traceId":"trace-003","call":{"id":"call-003"},"station":{"id":"station-103"},"operatorId":"2003"}
+[ERROR] [4/20/2026, 8:00:06 AM,142] [PresenceService]: Presence publish failed after retry budget
+{"trace":{"id":"trace-004"},"callId":"call-004","cpeUser":{"cncID":"cnc-24","extensionId":"7004"}}
+[INFO] [4/20/2026, 8:00:08 AM,157] [CallProcessor]: Applied route policy for emergency callback
+{"traceId":"trace-005","Call-ID":"call-005","cpeStation":{"id":"station-105"},"operator":{"id":"2005"}}
+[DEBUG] [4/20/2026, 8:00:10 AM,171] [SipStack]: Reused cached DNS answer for proxy route
+{"trace_id":"trace-006","call_id":"call-006","cpeUser":{"cncID":"cnc-26","operatorId":"2006"}}
+[WARN] [4/20/2026, 8:00:12 AM,184] [AuthModule]: Agent session nearing idle expiration
+{"trace":{"id":"trace-007"},"call":{"id":"call-007"},"stationId":"station-107","extensionId":"7007"}
+[ERROR] [4/20/2026, 8:00:14 AM,199] [PresenceService]: Subscription publish queue dropped one frame
+{"traceId":"trace-008","callId":"call-008","cpeUser":{"cncID":"cnc-28","operatorId":"2008","extensionId":"7008"}}
+[INFO] [4/20/2026, 8:00:16 AM,213] [CallProcessor]: Linked callback request to active case
+{"traceId":"trace-009","callId":"call-009","cpeStation":{"id":"station-109"},"operator":{"id":"2009"}}
+[DEBUG] [4/20/2026, 8:00:18 AM,226] [SipStack]: ACK forwarded to media edge
+{"trace_id":"trace-010","call_id":"call-010","cpeUser":{"cncID":"cnc-30","extensionId":"7010"}}
+[WARN] [4/20/2026, 8:00:20 AM,241] [AuthModule]: Directory lookup returned stale profile version
+{"trace":{"id":"trace-011"},"callId":"call-011","station":{"id":"station-111"},"operatorId":"2011"}
+[ERROR] [4/20/2026, 8:00:22 AM,255] [PresenceService]: Contact heartbeat missed expected cadence
+{"traceId":"trace-012","call":{"id":"call-012"},"cpeUser":{"cncID":"cnc-32","operatorId":"2012"}}
+[INFO] [4/20/2026, 8:00:24 AM,268] [CallProcessor]: Escalated callback to supervisor queue
+{"traceId":"trace-013","callId":"call-013","cpeStation":{"id":"station-113"},"extension":{"id":"7013"}}
+[DEBUG] [4/20/2026, 8:00:26 AM,284] [SipStack]: Provisional response forwarded upstream
+{"trace_id":"trace-014","call_id":"call-014","cpeUser":{"cncID":"cnc-34","operatorId":"2014","extensionId":"7014"}}
+[WARN] [4/20/2026, 8:00:28 AM,297] [AuthModule]: Refresh token claims missing optional site code
+{"trace":{"id":"trace-015"},"Call-ID":"call-015","station":{"id":"station-115"},"operator":{"id":"2015"}}
+[ERROR] [4/20/2026, 8:00:30 AM,311] [PresenceService]: Sync worker drained backlog with errors pending
+{"traceId":"trace-016","callId":"call-016","cpeUser":{"cncID":"cnc-36","extensionId":"7016"}}
+[INFO] [4/20/2026, 8:00:32 AM,325] [CallProcessor]: Agent accepted transfer leg
+{"traceId":"trace-017","call":{"id":"call-017"},"cpeStation":{"id":"station-117"},"operatorId":"2017"}
+[DEBUG] [4/20/2026, 8:00:34 AM,338] [SipStack]: Session timer refreshed successfully
+{"trace_id":"trace-018","call_id":"call-018","cpeUser":{"cncID":"cnc-38","operatorId":"2018","extensionId":"7018"}}
+[WARN] [4/20/2026, 8:00:36 AM,352] [AuthModule]: Claims cache miss forced cold read
+{"trace":{"id":"trace-019"},"callId":"call-019","stationId":"station-119","extensionId":"7019"}
+[ERROR] [4/20/2026, 8:00:38 AM,367] [PresenceService]: Downstream notifier rejected contact delta
+{"traceId":"trace-020","callId":"call-020","cpeUser":{"cncID":"cnc-40","operatorId":"2020","extensionId":"7020"}}

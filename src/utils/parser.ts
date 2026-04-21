@@ -51,6 +51,448 @@ function normalizeLogLevel(level: string): LogLevel {
     return 'INFO'; // Default fallback
 }
 
+const OPERATOR_CLIENT_HEADER_REGEX = /^\[(ERROR|WARN|INFO|DEBUG)\] \[(\d{1,2}\/\d{1,2}\/\d{4}), (\d{1,2}:\d{2}:\d{2} (?:AM|PM)),(\d{1,3})\] \[([^\]]+)\]: (.*)$/;
+const OPERATOR_CLIENT_HEADER_PREFIX_REGEX = /^\[(ERROR|WARN|INFO|DEBUG)\]/;
+const OPERATOR_CLIENT_SNIFF_BYTES = 64 * 1024;
+const UTF8_ENCODER = new TextEncoder();
+const OPERATOR_CLIENT_TRACE_ID_PATHS = ['traceId', 'trace_id', 'trace.id'] as const;
+const OPERATOR_CLIENT_STATION_ID_PATHS = ['cpeStation.id', 'station.id', 'stationId'] as const;
+const OPERATOR_CLIENT_CNC_ID_PATHS = ['cpeUser.cncID', 'cnc.id', 'cncID'] as const;
+const OPERATOR_CLIENT_CALL_ID_PATHS = ['callId', 'call_id', 'call.id', 'Call-ID'] as const;
+const OPERATOR_CLIENT_OPERATOR_ID_PATHS = ['operator.id', 'operatorId', 'cpeUser.operatorId'] as const;
+const OPERATOR_CLIENT_EXTENSION_ID_PATHS = ['extension.id', 'extensionId', 'cpeUser.extensionId'] as const;
+
+interface OperatorClientLine {
+    text: string;
+    byteOffset: number;
+    lineNumber: number;
+}
+
+interface OperatorClientState {
+    currentLog: LogEntry | null;
+    bodyLines: string[];
+    nextId: number;
+    warnedMalformedHeader: boolean;
+    sourceTimezone: string;
+}
+
+interface OperatorClientBufferedLineState {
+    buffer: string;
+    bufferStartByteOffset: number;
+    nextLineNumber: number;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function getHostTimeZone(): string {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+}
+
+function resolveOperatorClientTimeZone(timezone?: string): string {
+    return timezone?.trim() || getHostTimeZone();
+}
+
+function getTimeZoneOffsetMilliseconds(epochMs: number, timeZone: string): number {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hourCycle: 'h23',
+    });
+    const parts = formatter.formatToParts(new Date(epochMs));
+    const values: Partial<Record<'year' | 'month' | 'day' | 'hour' | 'minute' | 'second', string>> = {};
+
+    for (const part of parts) {
+        if (
+            part.type === 'year' ||
+            part.type === 'month' ||
+            part.type === 'day' ||
+            part.type === 'hour' ||
+            part.type === 'minute' ||
+            part.type === 'second'
+        ) {
+            values[part.type] = part.value;
+        }
+    }
+
+    if (!values.year || !values.month || !values.day || !values.hour || !values.minute || !values.second) {
+        return 0;
+    }
+
+    const zonedAsUtc = Date.UTC(
+        Number(values.year),
+        Number(values.month) - 1,
+        Number(values.day),
+        Number(values.hour),
+        Number(values.minute),
+        Number(values.second),
+    );
+
+    return zonedAsUtc - (epochMs - (epochMs % 1000));
+}
+
+function isValidOperatorClientDate(year: number, month: number, day: number): boolean {
+    const date = new Date(Date.UTC(year, month - 1, day));
+    return (
+        date.getUTCFullYear() === year &&
+        date.getUTCMonth() === month - 1 &&
+        date.getUTCDate() === day
+    );
+}
+
+function parseTimestampInTimeZone(
+    year: number,
+    month: number,
+    day: number,
+    hour: number,
+    minute: number,
+    second: number,
+    millisecond: number,
+    timeZone: string,
+): number {
+    try {
+        const localAsUtc = Date.UTC(year, month - 1, day, hour, minute, second, millisecond);
+        let resolved = localAsUtc;
+
+        for (let i = 0; i < 2; i++) {
+            resolved = localAsUtc - getTimeZoneOffsetMilliseconds(resolved, timeZone);
+        }
+
+        return Number.isFinite(resolved) ? resolved : 0;
+    } catch {
+        return 0;
+    }
+}
+
+function parseOperatorClientTimestamp(rawTimestamp: string, timeZone: string): number {
+    const match = rawTimestamp.match(
+        /^(\d{1,2})\/(\d{1,2})\/(\d{4}), (\d{1,2}):(\d{2}):(\d{2}) (AM|PM),(\d{1,3})$/,
+    );
+    if (!match) {
+        return 0;
+    }
+
+    const [, monthRaw, dayRaw, yearRaw, hourRaw, minuteRaw, secondRaw, ampm, millisRaw] = match;
+    const month = Number(monthRaw);
+    const day = Number(dayRaw);
+    const year = Number(yearRaw);
+    const hour12 = Number(hourRaw);
+    const minute = Number(minuteRaw);
+    const second = Number(secondRaw);
+    const millisecond = Number(millisRaw);
+
+    if (
+        !Number.isInteger(month) ||
+        !Number.isInteger(day) ||
+        !Number.isInteger(year) ||
+        !Number.isInteger(hour12) ||
+        !Number.isInteger(minute) ||
+        !Number.isInteger(second) ||
+        !Number.isInteger(millisecond) ||
+        month < 1 ||
+        month > 12 ||
+        day < 1 ||
+        day > 31 ||
+        hour12 < 1 ||
+        hour12 > 12 ||
+        minute < 0 ||
+        minute > 59 ||
+        second < 0 ||
+        second > 59 ||
+        millisecond < 0 ||
+        millisecond > 999 ||
+        !isValidOperatorClientDate(year, month, day)
+    ) {
+        return 0;
+    }
+
+    let hour = hour12 % 12;
+    if (ampm === 'PM') {
+        hour += 12;
+    }
+
+    return parseTimestampInTimeZone(year, month, day, hour, minute, second, millisecond, timeZone);
+}
+
+export function getOperatorClientValueAtPath(source: unknown, path: string): string | undefined {
+    const value = path.split('.').reduce<unknown>((current, segment) => {
+        if (!isRecord(current)) {
+            return undefined;
+        }
+
+        return current[segment];
+    }, source);
+
+    return typeof value === 'string' || typeof value === 'number' ? String(value) : undefined;
+}
+
+function getFirstOperatorClientValue(
+    source: unknown,
+    paths: readonly string[],
+): string | undefined {
+    for (const path of paths) {
+        const value = getOperatorClientValueAtPath(source, path);
+        if (value !== undefined) {
+            return value;
+        }
+    }
+
+    return undefined;
+}
+
+function isOperatorClientLogText(text: string): boolean {
+    const firstNonEmptyLine = text
+        .split(/\r?\n/)
+        .find((line) => line.trim().length > 0);
+
+    return firstNonEmptyLine !== undefined && OPERATOR_CLIENT_HEADER_REGEX.test(firstNonEmptyLine);
+}
+
+function createOperatorClientState(startId: number, sourceTimezone: string): OperatorClientState {
+    return {
+        currentLog: null,
+        bodyLines: [],
+        nextId: startId,
+        warnedMalformedHeader: false,
+        sourceTimezone,
+    };
+}
+
+function createOperatorClientEntry(
+    level: LogLevel,
+    rawTimestamp: string,
+    component: string,
+    messageHead: string,
+    fileColor: string,
+    fileName: string,
+    lineNumber: number,
+    byteOffset: number,
+    sourceTimezone: string,
+    id: number,
+): LogEntry {
+    const cleaned = cleanupLogEntry(component, messageHead);
+    const timestamp = parseOperatorClientTimestamp(rawTimestamp, sourceTimezone);
+
+    return {
+        id,
+        timestamp,
+        rawTimestamp,
+        displayTimestamp: formatLogTimestamp(timestamp),
+        level,
+        component,
+        displayComponent: cleaned.displayComponent,
+        message: messageHead,
+        displayMessage: cleaned.displayMessage,
+        payload: '',
+        type: 'LOG',
+        isSip: false,
+        fileName,
+        fileColor,
+        sourceType: 'apex',
+        sourceLabel: 'Operator Client',
+        lineNumber,
+        byteOffset,
+        sourceTimezone,
+        _messageLower: messageHead.toLowerCase(),
+        _componentLower: component.toLowerCase(),
+    };
+}
+
+function finalizeOperatorClientEntry(log: LogEntry, bodyLines: string[]): LogEntry {
+    const rawBody = bodyLines.join('\n');
+    const trimmedBody = rawBody.trim();
+
+    log.payload = rawBody;
+    log._payloadLower = rawBody.toLowerCase();
+
+    if (!trimmedBody.startsWith('{') && !trimmedBody.startsWith('[')) {
+        return log;
+    }
+
+    try {
+        const parsed = JSON.parse(trimmedBody) as unknown;
+        log.json = parsed;
+        log.type = 'JSON';
+        log.jsonMalformed = false;
+        log.traceId = getFirstOperatorClientValue(parsed, OPERATOR_CLIENT_TRACE_ID_PATHS);
+        log.stationId = getFirstOperatorClientValue(parsed, OPERATOR_CLIENT_STATION_ID_PATHS);
+        log.cncID = getFirstOperatorClientValue(parsed, OPERATOR_CLIENT_CNC_ID_PATHS);
+        log.callId = getFirstOperatorClientValue(parsed, OPERATOR_CLIENT_CALL_ID_PATHS);
+        log.operatorId = getFirstOperatorClientValue(parsed, OPERATOR_CLIENT_OPERATOR_ID_PATHS);
+        log.extensionId = getFirstOperatorClientValue(parsed, OPERATOR_CLIENT_EXTENSION_ID_PATHS);
+        if (log.callId) {
+            log._callIdLower = log.callId.toLowerCase();
+        }
+    } catch {
+        log.jsonMalformed = true;
+    }
+
+    return log;
+}
+
+function flushOperatorClientState(state: OperatorClientState): LogEntry | null {
+    if (state.currentLog === null) {
+        return null;
+    }
+
+    const finalized = finalizeOperatorClientEntry(state.currentLog, state.bodyLines);
+    state.currentLog = null;
+    state.bodyLines = [];
+    return finalized;
+}
+
+function processOperatorClientLine(
+    state: OperatorClientState,
+    line: OperatorClientLine,
+    fileColor: string,
+    fileName: string,
+): LogEntry | null {
+    const headerMatch = line.text.match(OPERATOR_CLIENT_HEADER_REGEX);
+    if (headerMatch) {
+        const finalized = flushOperatorClientState(state);
+        const [, levelRaw, datePart, timePart, millisPart, component, messageHeadRaw] = headerMatch;
+        const rawTimestamp = `${datePart}, ${timePart},${millisPart}`;
+        const messageHead = messageHeadRaw.trim();
+        state.currentLog = createOperatorClientEntry(
+            normalizeLogLevel(levelRaw),
+            rawTimestamp,
+            component,
+            messageHead,
+            fileColor,
+            fileName,
+            line.lineNumber,
+            line.byteOffset,
+            state.sourceTimezone,
+            state.nextId,
+        );
+        state.nextId += 1;
+        return finalized;
+    }
+
+    if (state.currentLog !== null) {
+        if (!state.warnedMalformedHeader && OPERATOR_CLIENT_HEADER_PREFIX_REGEX.test(line.text)) {
+            console.warn(`Malformed Operator Client header treated as body in ${fileName}`);
+            state.warnedMalformedHeader = true;
+        }
+        state.bodyLines.push(line.text);
+    }
+
+    return null;
+}
+
+function splitTextIntoOperatorClientLines(text: string): OperatorClientLine[] {
+    const lines: OperatorClientLine[] = [];
+    let byteOffset = 0;
+    let lineNumber = 1;
+
+    for (const match of text.matchAll(/([^\r\n]*)(\r\n|\n|$)/g)) {
+        const fullMatch = match[0];
+        if (fullMatch.length === 0) {
+            break;
+        }
+
+        const lineText = match[1];
+        const lineEnding = match[2];
+        lines.push({
+            text: lineText,
+            byteOffset,
+            lineNumber,
+        });
+        byteOffset += UTF8_ENCODER.encode(fullMatch).length;
+        lineNumber += 1;
+
+        if (lineEnding.length === 0) {
+            break;
+        }
+    }
+
+    return lines;
+}
+
+function createOperatorClientBufferedLineState(): OperatorClientBufferedLineState {
+    return {
+        buffer: '',
+        bufferStartByteOffset: 0,
+        nextLineNumber: 1,
+    };
+}
+
+function processBufferedOperatorClientChunk(
+    streamState: OperatorClientBufferedLineState,
+    chunkText: string,
+    isFinalChunk: boolean,
+    onLine: (line: OperatorClientLine) => void,
+): void {
+    const textToProcess = streamState.buffer + chunkText;
+    let lineByteOffset = streamState.bufferStartByteOffset;
+    let retainedBuffer = '';
+    let retainedBufferOffset = lineByteOffset;
+
+    for (const match of textToProcess.matchAll(/([^\r\n]*)(\r\n|\n|$)/g)) {
+        const fullMatch = match[0];
+        if (fullMatch.length === 0) {
+            break;
+        }
+
+        const lineText = match[1];
+        const lineEnding = match[2];
+
+        if (lineEnding.length === 0 && !isFinalChunk) {
+            retainedBuffer = lineText;
+            retainedBufferOffset = lineByteOffset;
+            break;
+        }
+
+        onLine({
+            text: lineText,
+            byteOffset: lineByteOffset,
+            lineNumber: streamState.nextLineNumber,
+        });
+        lineByteOffset += UTF8_ENCODER.encode(fullMatch).length;
+        streamState.nextLineNumber += 1;
+
+        if (lineEnding.length === 0) {
+            retainedBuffer = '';
+            retainedBufferOffset = lineByteOffset;
+            break;
+        }
+    }
+
+    streamState.buffer = retainedBuffer;
+    streamState.bufferStartByteOffset = retainedBuffer ? retainedBufferOffset : lineByteOffset;
+}
+
+export function parseOperatorClientLog(
+    text: string,
+    fileColor: string,
+    startId: number,
+    fileName: string,
+    timezone?: string,
+): LogEntry[] {
+    const logs: LogEntry[] = [];
+    const state = createOperatorClientState(startId, resolveOperatorClientTimeZone(timezone));
+
+    for (const line of splitTextIntoOperatorClientLines(text)) {
+        const finalized = processOperatorClientLine(state, line, fileColor, fileName);
+        if (finalized !== null) {
+            logs.push(finalized);
+        }
+    }
+
+    const finalEntry = flushOperatorClientState(state);
+    if (finalEntry !== null) {
+        logs.push(finalEntry);
+    }
+
+    return logs;
+}
+
 /**
  * Detect log level from SIP response code
  * 4xx = Client errors (WARN), 5xx = Server errors (ERROR), 6xx = Global failures (ERROR)
@@ -252,7 +694,7 @@ const parseDatadogCSV = (text: string, fileColor: string, startId: number): LogE
             const csvMatch = line.match(/^"([^"]+)","([^"]+)","([^"]+)","([\s\S]+)"$/);
             if (!csvMatch) continue;
 
-            const [_, isoDate, host, service, contentJson] = csvMatch;
+            const [, isoDate, host, service, contentJson] = csvMatch;
 
             // Parse the JSON content (need to unescape double quotes)
             const unescapedJson = contentJson.replace(/""/g, '"');
@@ -322,7 +764,7 @@ const parseDatadogCSV = (text: string, fileColor: string, startId: number): LogE
             // Extract correlation IDs from message
             // Fix: Use more permissive regex to match various Call-ID formats and trim whitespace
             // Matches: callId=value, callId:value, Call-ID:value (case insensitive)
-            const callIdMatch = message.match(/callId[=:]\s*([^\s;,\[\]\(\)]+)/i) || message.match(/Call-ID:\s*([^\s]+)/i);
+            const callIdMatch = message.match(/callId[=:]\s*([^\s;,()[\]]+)/i) || message.match(/Call-ID:\s*([^\s]+)/i);
             if (callIdMatch) {
                 const extractedCallId = callIdMatch[1].trim(); // Fix: Trim whitespace for consistent comparison
                 entry.callId = extractedCallId;
@@ -501,12 +943,178 @@ const parseHomerText = (text: string, fileColor: string, startId: number, fileNa
  * Streaming parser that processes file chunks line-by-line without accumulating full text
  * This prevents memory exhaustion on large files (e.g., 740MB+)
  */
+async function parseOperatorClientLogStreaming(
+    file: File,
+    fileColor: string,
+    startId: number,
+    onProgress?: (progress: number) => void,
+    timezone?: string,
+): Promise<LogEntry[]> {
+    const CHUNK_SIZE = 2 * 1024 * 1024;
+    const fileSize = file.size;
+    const logs: LogEntry[] = [];
+    const state = createOperatorClientState(startId, resolveOperatorClientTimeZone(timezone));
+    const lineState = createOperatorClientBufferedLineState();
+    let offset = 0;
+    let chunkCount = 0;
+    const YIELD_INTERVAL = 5;
+
+    while (offset < fileSize) {
+        const chunk = file.slice(offset, Math.min(offset + CHUNK_SIZE, fileSize));
+        const chunkText = await chunk.text();
+        offset += CHUNK_SIZE;
+        chunkCount += 1;
+
+        processBufferedOperatorClientChunk(
+            lineState,
+            chunkText,
+            offset >= fileSize,
+            (line) => {
+                const finalized = processOperatorClientLine(state, line, fileColor, file.name);
+                if (finalized !== null) {
+                    logs.push(finalized);
+                }
+            },
+        );
+
+        if (chunkCount % YIELD_INTERVAL === 0) {
+            await new Promise((resolve) => setTimeout(resolve, 0));
+        }
+
+        if (onProgress) {
+            const progress = 0.1 + (Math.min(offset, fileSize) / fileSize) * 0.85;
+            onProgress(Math.min(progress, 0.95));
+        }
+    }
+
+    const finalEntry = flushOperatorClientState(state);
+    if (finalEntry !== null) {
+        logs.push(finalEntry);
+    }
+
+    if (onProgress) {
+        onProgress(1.0);
+    }
+
+    return logs;
+}
+
+async function parseOperatorClientLogStreamingToIndexedDB(
+    file: File,
+    fileColor: string,
+    startId: number,
+    onProgress?: (progress: number) => void,
+    timezone?: string,
+): Promise<{ totalParsed: number; minTimestamp: number; maxTimestamp: number }> {
+    await dbManager.init();
+
+    const CHUNK_SIZE = 2 * 1024 * 1024;
+    const BATCH_SIZE = 500;
+    const fileSize = file.size;
+    const state = createOperatorClientState(startId, resolveOperatorClientTimeZone(timezone));
+    const lineState = createOperatorClientBufferedLineState();
+    let offset = 0;
+    let chunkCount = 0;
+    let batch: LogEntry[] = [];
+    let totalParsed = 0;
+    let minTimestamp = Infinity;
+    let maxTimestamp = -Infinity;
+    const YIELD_INTERVAL = 5;
+
+    const writeBatch = async (): Promise<void> => {
+        if (batch.length === 0) {
+            return;
+        }
+
+        await dbManager.addLogsBatch(batch);
+        totalParsed += batch.length;
+        batch = [];
+    };
+
+    const enqueueEntry = async (entry: LogEntry): Promise<void> => {
+        batch.push(entry);
+        if (entry.timestamp < minTimestamp) minTimestamp = entry.timestamp;
+        if (entry.timestamp > maxTimestamp) maxTimestamp = entry.timestamp;
+
+        if (batch.length >= BATCH_SIZE) {
+            await writeBatch();
+        }
+    };
+
+    while (offset < fileSize) {
+        const chunk = file.slice(offset, Math.min(offset + CHUNK_SIZE, fileSize));
+        const chunkText = await chunk.text();
+        offset += CHUNK_SIZE;
+        chunkCount += 1;
+
+        const finalizedEntries: LogEntry[] = [];
+        processBufferedOperatorClientChunk(
+            lineState,
+            chunkText,
+            offset >= fileSize,
+            (line) => {
+                const finalized = processOperatorClientLine(state, line, fileColor, file.name);
+                if (finalized !== null) {
+                    finalizedEntries.push(finalized);
+                }
+            },
+        );
+
+        for (const entry of finalizedEntries) {
+            await enqueueEntry(entry);
+        }
+
+        if (chunkCount % YIELD_INTERVAL === 0) {
+            await new Promise((resolve) => setTimeout(resolve, 0));
+        }
+
+        if (onProgress) {
+            const progress = 0.1 + (Math.min(offset, fileSize) / fileSize) * 0.85;
+            onProgress(Math.min(progress, 0.95));
+        }
+    }
+
+    const finalEntry = flushOperatorClientState(state);
+    if (finalEntry !== null) {
+        await enqueueEntry(finalEntry);
+    }
+
+    await writeBatch();
+
+    const existingMetadata = await dbManager.getMetadata();
+    const existingFileNames = existingMetadata?.fileNames || [];
+    if (!existingFileNames.includes(file.name)) {
+        existingFileNames.push(file.name);
+    }
+
+    await dbManager.updateMetadata({
+        totalLogs: (existingMetadata?.totalLogs || 0) + totalParsed,
+        fileNames: existingFileNames,
+        dateRange: {
+            min: Math.min(existingMetadata?.dateRange.min || Infinity, minTimestamp === Infinity ? 0 : minTimestamp),
+            max: Math.max(existingMetadata?.dateRange.max || -Infinity, maxTimestamp === -Infinity ? 0 : maxTimestamp),
+        },
+    });
+
+    if (onProgress) {
+        onProgress(1.0);
+    }
+
+    return { totalParsed, minTimestamp, maxTimestamp };
+}
+
 export const parseLogFileStreaming = async (
     file: File,
     fileColor: string,
     startId: number,
-    onProgress?: (progress: number) => void
+    onProgress?: (progress: number) => void,
+    timezone?: string,
 ): Promise<LogEntry[]> => {
+    const ocSniff = await file.slice(0, Math.min(OPERATOR_CLIENT_SNIFF_BYTES, file.size)).text();
+    if (isOperatorClientLogText(ocSniff)) {
+        return parseOperatorClientLogStreaming(file, fileColor, startId, onProgress, timezone);
+    }
+
     const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB chunks for better performance
     const fileSize = file.size;
     const parsedLogs: LogEntry[] = [];
@@ -574,7 +1182,7 @@ export const parseLogFileStreaming = async (
                     parsedLogs.push(currentLog);
                 }
 
-                const [_, levelRaw, date, time, component, message] = match;
+                const [, levelRaw, date, time, component, message] = match;
                 const level = normalizeLogLevel(levelRaw); // Normalize level (case-insensitive, aliases)
                 let timestampStr: string;
                 let timestamp: number;
@@ -591,7 +1199,7 @@ export const parseLogFileStreaming = async (
                         } else {
                             throw new Error('Invalid timestamp');
                         }
-                    } catch (e) {
+                    } catch {
                         if (dateFormat === 'iso') {
                             timestampStr = `${date} ${time}`;
                             const isoString = `${date}T${time.replace(',', '.')}`;
@@ -627,7 +1235,7 @@ export const parseLogFileStreaming = async (
                     }
                 }
 
-                let cleaned = cleanupLogEntry(component, message.trim());
+                const cleaned = cleanupLogEntry(component, message.trim());
                 if (message.includes('[std-logger]')) {
                     cleaned.displayComponent = 'std-logger';
                 }
@@ -741,8 +1349,14 @@ const parseLogFileStreamingToIndexedDB = async (
     file: File,
     fileColor: string,
     startId: number,
-    onProgress?: (progress: number) => void
+    onProgress?: (progress: number) => void,
+    timezone?: string,
 ): Promise<{ totalParsed: number; minTimestamp: number; maxTimestamp: number }> => {
+    const ocSniff = await file.slice(0, Math.min(OPERATOR_CLIENT_SNIFF_BYTES, file.size)).text();
+    if (isOperatorClientLogText(ocSniff)) {
+        return parseOperatorClientLogStreamingToIndexedDB(file, fileColor, startId, onProgress, timezone);
+    }
+
     // Initialize IndexedDB
     await dbManager.init();
     
@@ -829,7 +1443,7 @@ const parseLogFileStreamingToIndexedDB = async (
                     }
                 }
 
-                const [_, levelRaw, date, time, component, message] = match;
+                const [, levelRaw, date, time, component, message] = match;
                 const level = normalizeLogLevel(levelRaw); // Normalize level (case-insensitive, aliases)
                 let timestampStr: string;
                 let timestamp: number;
@@ -846,7 +1460,7 @@ const parseLogFileStreamingToIndexedDB = async (
                         } else {
                             throw new Error('Invalid timestamp');
                         }
-                    } catch (e) {
+                    } catch {
                         if (dateFormat === 'iso') {
                             timestampStr = `${date} ${time}`;
                             const isoString = `${date}T${time.replace(',', '.')}`;
@@ -882,7 +1496,7 @@ const parseLogFileStreamingToIndexedDB = async (
                     }
                 }
 
-                let cleaned = cleanupLogEntry(component, message.trim());
+                const cleaned = cleanupLogEntry(component, message.trim());
                 if (message.includes('[std-logger]')) {
                     cleaned.displayComponent = 'std-logger';
                 }
@@ -996,7 +1610,6 @@ const parseCSVStreamingToIndexedDB = async (
     let minTimestamp = Infinity;
     let maxTimestamp = -Infinity;
     let csvType: 'calllog' | 'datadog' | null = null;
-    let rowCount = 0;
 
     const writeBatch = async (): Promise<void> => {
         if (batch.length > 0) {
@@ -1014,8 +1627,6 @@ const parseCSVStreamingToIndexedDB = async (
             skipEmptyLines: true,
             step: (results: Papa.ParseStepResult<Record<string, string>>) => {
                 const row = results.data;
-                rowCount++;
-
                 // Detect CSV type from the first row's column names
                 if (csvType === null) {
                     const columns = Object.keys(row).map(k => k.toLowerCase());
@@ -1234,7 +1845,7 @@ function parseDatadogRow(row: Record<string, string>, fileColor: string, id: num
             }
         }
 
-        const callIdMatch = message.match(/callId[=:]\s*([^\s;,\[\]\(\)]+)/i) || message.match(/Call-ID:\s*([^\s]+)/i);
+        const callIdMatch = message.match(/callId[=:]\s*([^\s;,()[\]]+)/i) || message.match(/Call-ID:\s*([^\s]+)/i);
         if (callIdMatch) {
             const extractedCallId = callIdMatch[1].trim();
             entry.callId = extractedCallId;
@@ -1273,7 +1884,8 @@ function parseLogFileViaWorker(
     file: File,
     fileColor: string,
     startId: number,
-    onProgress?: (progress: number) => void
+    onProgress?: (progress: number) => void,
+    timezone?: string,
 ): Promise<LogEntry[]> {
     return new Promise((resolve, reject) => {
         const worker = new Worker(
@@ -1299,7 +1911,7 @@ function parseLogFileViaWorker(
             worker.terminate();
         };
 
-        worker.postMessage({ file, fileColor, startId });
+        worker.postMessage({ file, fileColor, startId, timezone });
     });
 }
 
@@ -1312,7 +1924,14 @@ function canUseWebWorker(): boolean {
     );
 }
 
-export const parseLogFile = async (file: File, fileColor: string = '#3b82f6', startId: number = 1, onProgress?: (progress: number) => void, useIndexedDB: boolean = true): Promise<LogEntry[] | { totalParsed: number; minTimestamp: number; maxTimestamp: number }> => {
+export const parseLogFile = async (
+    file: File,
+    fileColor: string = '#3b82f6',
+    startId: number = 1,
+    onProgress?: (progress: number) => void,
+    useIndexedDB: boolean = true,
+    timezone?: string,
+): Promise<LogEntry[] | { totalParsed: number; minTimestamp: number; maxTimestamp: number }> => {
     // Check if this is a CSV file (CSV files use different parser, typically smaller)
     const isCSV = file.name.toLowerCase().endsWith('.csv');
 
@@ -1326,7 +1945,7 @@ export const parseLogFile = async (file: File, fileColor: string = '#3b82f6', st
         if (isCSV) {
             return parseCSVStreamingToIndexedDB(file, fileColor, startId, onProgress);
         }
-        return parseLogFileStreamingToIndexedDB(file, fileColor, startId, onProgress);
+        return parseLogFileStreamingToIndexedDB(file, fileColor, startId, onProgress, timezone);
     }
     
     // For smaller files or CSV files, use traditional parsing (faster for small files)
@@ -1335,14 +1954,14 @@ export const parseLogFile = async (file: File, fileColor: string = '#3b82f6', st
     
     if (useStreaming) {
         // Use streaming parser for large standard log files (still returns array for backward compatibility)
-        return parseLogFileStreaming(file, fileColor, startId, onProgress);
+        return parseLogFileStreaming(file, fileColor, startId, onProgress, timezone);
     }
     
     // For non-CSV files > 10 MB in the browser, offload parsing to a Web Worker
     // so the main thread stays responsive. Electron uses its own IPC worker path.
     const WORKER_THRESHOLD = 10 * 1024 * 1024; // 10MB
     if (!isCSV && file.size > WORKER_THRESHOLD && canUseWebWorker()) {
-        return parseLogFileViaWorker(file, fileColor, startId, onProgress);
+        return parseLogFileViaWorker(file, fileColor, startId, onProgress, timezone);
     }
 
     // For smaller files or CSV files, use traditional parsing (faster for small files)
@@ -1379,6 +1998,14 @@ export const parseLogFile = async (file: File, fileColor: string = '#3b82f6', st
     }
 
     const lines = text.split(/\r?\n/);
+    const firstNonEmpty = lines.find((line) => line.trim().length > 0) ?? '';
+    if (OPERATOR_CLIENT_HEADER_REGEX.test(firstNonEmpty)) {
+        if (onProgress) onProgress(0.5);
+        const result = parseOperatorClientLog(text, fileColor, startId, file.name, timezone);
+        if (onProgress) onProgress(1.0);
+        return result;
+    }
+
     const parsedLogs: LogEntry[] = [];
     
     // Report progress after splitting lines
@@ -1431,7 +2058,7 @@ export const parseLogFile = async (file: File, fileColor: string = '#3b82f6', st
                 parsedLogs.push(currentLog);
             }
 
-            const [_, levelRaw, date, time, component, message] = match;
+            const [, levelRaw, date, time, component, message] = match;
             const level = normalizeLogLevel(levelRaw); // Normalize level (case-insensitive, aliases)
 
             let timestampStr: string;
@@ -1451,7 +2078,7 @@ export const parseLogFile = async (file: File, fileColor: string = '#3b82f6', st
                     } else {
                         throw new Error('Invalid timestamp from message');
                     }
-                } catch (e) {
+                } catch {
                     // Fall back to header timestamp parsing
                     if (dateFormat === 'iso') {
                         timestampStr = `${date} ${time}`;
@@ -1497,7 +2124,7 @@ export const parseLogFile = async (file: File, fileColor: string = '#3b82f6', st
                 }
             }
 
-            let cleaned = cleanupLogEntry(component, message.trim());
+            const cleaned = cleanupLogEntry(component, message.trim());
 
             // 1. std-logger Filter: promote to component if tagged
             if (message.includes('[std-logger]')) {
@@ -1678,7 +2305,7 @@ function processLogPayload(log: LogEntry) {
                     log.level = 'ERROR';
                 }
             }
-        } catch (e) {
+        } catch {
             // Not valid JSON, ignore
         }
     }
@@ -1748,7 +2375,7 @@ function processLogPayload(log: LogEntry) {
 
         // Extract Agent/Operator ID from Contact or From header
         // "Contact: <sip:...;agentid=414b837f-aa1e-42f4-b149-e78f55989c8f;...>"
-        const agentIdMatch = log.payload.match(/agentid=([a-f0-9\-]+)/i);
+        const agentIdMatch = log.payload.match(/agentid=([a-f0-9-]+)/i);
         if (agentIdMatch && !log.operatorId) {
             log.operatorId = agentIdMatch[1];
         }

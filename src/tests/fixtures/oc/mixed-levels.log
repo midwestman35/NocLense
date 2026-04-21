@@ -1,0 +1,32 @@
+[ERROR] [4/20/2026, 11:30:00 AM,101] [CallProcessor]: Call leg rejected by policy engine
+body=plain-text refusal reason from policy cache
+[WARN] [4/20/2026, 11:30:02 AM,114] [SipStack]: Retransmit interval exceeded threshold
+{"traceId":"x-trace-002","callId":"x-call-002","cpeUser":{"cncID":"cnc-402"}}
+[INFO] [4/20/2026, 11:30:04 AM,127] [AuthModule]: Session claims refreshed successfully
+plain text body with no json markers
+[DEBUG] [4/20/2026, 11:30:06 AM,140] [PresenceService]: Presence worker cycle completed
+{"traceId":"x-trace-004","station":{"id":"station-404"}}
+[ERROR] [4/20/2026, 11:30:08 AM,153] [CallProcessor]: Route selection returned stale cluster id
+{"traceId":"x-trace-005","call":{"id":"x-call-005"}}
+[WARN] [4/20/2026, 11:30:10 AM,166] [SipStack]: Late provisional response arrived after timer pop
+message-only continuation body
+[INFO] [4/20/2026, 11:30:12 AM,179] [AuthModule]: Device scope added to session
+{"traceId":"x-trace-007","operator":{"id":"2407"}}
+[DEBUG] [4/20/2026, 11:30:14 AM,192] [PresenceService]: Deferred sync skipped idle contact
+freeform note body
+[ERROR] [4/20/2026, 11:30:16 AM,205] [CallProcessor]: Retry budget exhausted for callback leg
+{"traceId":"x-trace-009","callId":"x-call-009","cpeStation":{"id":"station-409"}}
+[WARN] [4/20/2026, 11:30:18 AM,218] [SipStack]: TLS session cache miss forced handshake
+plain text diagnostic body
+[INFO] [4/20/2026, 11:30:20 AM,231] [AuthModule]: Agent entitlement cache warmed
+{"traceId":"x-trace-011","cpeUser":{"operatorId":"2411","extensionId":"7411"}}
+[DEBUG] [4/20/2026, 11:30:22 AM,244] [PresenceService]: Presence delta coalesced
+plain text audit trail
+[ERROR] [4/20/2026, 11:30:24 AM,257] [CallProcessor]: Supervisor transfer leg ended with timeout
+{"traceId":"x-trace-013","callId":"x-call-013"}
+[WARN] [4/20/2026, 11:30:26 AM,270] [SipStack]: Branch cleanup deferred until ACK
+plain text branch cleanup note
+[INFO] [4/20/2026, 11:30:28 AM,283] [AuthModule]: Cached capability document reused
+{"traceId":"x-trace-015","stationId":"station-415"}
+[DEBUG] [4/20/2026, 11:30:30 AM,296] [PresenceService]: End-of-cycle metrics flushed
+plain text metrics snapshot

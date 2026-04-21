@@ -1,0 +1,20 @@
+[INFO] [4/20/2026, 9:10:00 AM,101] [CallProcessor]: Rehydrated callback session from cache
+{"traceId":"m-trace-001","callId":"m-call-001","cpeStation":{"id":"station-201"}}
+[DEBUG] [4/20/2026, 9:10:02 AM,114] [SipStack]: Outbound leg selected regional edge
+{"traceId":"m-trace-002","callId":"m-call-002","cpeUser":{"cncID":"cnc-202","operatorId":"2202"}}
+[WARN] [4/20/2026, 9:10:04 AM,127] [AuthModule]: Deferred policy update while directory was stale
+{"traceId":"m-trace-003","callId":"m-call-003","station":{"id":"station-203"}}
+[ERROR] [4/20/2026, 9:10:06 AM,140] [PresenceService]: Presence fanout retried and recovered
+{"traceId":"m-trace-004","callId":"m-call-004","cpeUser":{"cncID":"cnc-204","extensionId":"7204"}}
+[INFO] [4/20/2026, 9:10:08 AM,153] [CallProcessor]: Agent state sync applied
+{"traceId":"m-trace-005","callId":"m-call-005","cpeStation":{"id":"station-205"}}
+[DEBUG] [4/20/2026, 9:10:10 AM,166] [SipStack]: Mid-write flush interrupted dialog snapshot
+{"traceId":"m-trace-006","callId":"m-call-006","cpeUser":{"cncID":"cnc-206"}
+[WARN] [4/20/2026, 9:10:12 AM,179] [AuthModule]: Partial claim refresh body arrived
+{"traceId":"m-trace-007","callId":"m-call-007","station":{"id":"station-207"
+[ERROR] [4/20/2026, 9:10:14 AM,192] [PresenceService]: Event payload closed unexpectedly
+{"traceId":"m-trace-008","call":{"id":"m-call-008"},"cpeUser":{"cncID":"cnc-208"},
+[INFO] [4/20/2026, 9:10:16 AM,205] [CallProcessor]: Snapshot body missing terminator
+{"traceId":"m-trace-009","callId":"m-call-009","cpeStation":{"id":"station-209"
+[DEBUG] [4/20/2026, 9:10:18 AM,218] [SipStack]: Retry envelope cut off during write
+{"traceId":"m-trace-010","callId":"m-call-010","cpeUser":{"cncID":"cnc-210","operatorId":"2210"}
