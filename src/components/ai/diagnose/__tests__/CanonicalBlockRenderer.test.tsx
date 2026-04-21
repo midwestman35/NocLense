@@ -132,6 +132,22 @@ describe('CanonicalBlockRenderer', () => {
     expect(readMotion(getSections(container)[1]).transition.duration).toBe(0);
   });
 
+  it('pins the last hovered block when Ctrl+Shift+P is pressed', () => {
+    const onPinBlock = vi.fn();
+    const investigation = makeInvestigation();
+    const { container } = render(
+      <CanonicalBlockRenderer investigation={investigation} onPinBlock={onPinBlock} />,
+    );
+    const root = container.firstElementChild as HTMLElement;
+    const firstSection = getSections(container)[0];
+
+    fireEvent.mouseEnter(firstSection);
+    root.focus();
+    fireEvent.keyDown(root, { key: 'P', ctrlKey: true, shiftKey: true });
+
+    expect(onPinBlock).toHaveBeenCalledWith(investigation.blocks[0]);
+  });
+
   it('restarts staggered reveal when the investigation id changes', () => {
     const { container, rerender } = render(<CanonicalBlockRenderer investigation={makeInvestigation()} />);
     const root = container.firstElementChild as HTMLElement;

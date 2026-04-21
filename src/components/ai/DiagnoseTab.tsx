@@ -10,10 +10,11 @@
  * This component owns all shared state: ticket, diagnosis result, internal note,
  * and AI highlight IDs. The phase components are purely presentational.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Stethoscope } from 'lucide-react';
 import { useLogContext } from '../../contexts/LogContext';
 import { useAI } from '../../contexts/AIContext';
+import { useEvidence } from '../../contexts/EvidenceContext';
 import { useCase } from '../../store/caseContext';
 import { loadAiSettings } from '../../store/aiSettings';
 import { diagnoseLogs, generateInternalNote, refineInternalNote } from '../../services/unleashService';
@@ -27,7 +28,7 @@ import { buildArchiveFilename } from '../../utils/logArchive';
 import { formatApexEventForAi } from '../../services/apexEventParser';
 import type { DiagnosisResult } from '../../types/diagnosis';
 import type { LogEntry } from '../../types';
-import type { Investigation } from '../../types/canonical';
+import type { Block, Investigation } from '../../types/canonical';
 import type { InvestigationSetup } from '../../types/investigation';
 import { TuiSpinner } from '../loading/TuiSpinner';
 import DiagnosePhase1 from './diagnose/DiagnosePhase1';
@@ -71,6 +72,7 @@ export default function DiagnoseTab({ initialTicketId, onTicketConsumed, pending
   const { filteredLogs, logs, setLogs, setAiHighlightedLogIds, setAiHighlightReasons, clearAiHighlights, addImportedDatasets } = useLogContext();
   const { activeCase, addBookmark } = useCase();
   const { setSimilarPastTickets } = useAI();
+  const { pinBlock, setInvestigation } = useEvidence();
   const activeLogs = filteredLogs.length > 0 ? filteredLogs : logs;
   const settings = loadAiSettings();
 
@@ -90,6 +92,7 @@ export default function DiagnoseTab({ initialTicketId, onTicketConsumed, pending
   const [diagnosisResult, setDiagnosisResult] = useState<DiagnosisResult | null>(null);
   const [internalNote, setInternalNote] = useState('');
   const [refining, setRefining] = useState(false);
+  const syncedDiagnosisRef = useRef<DiagnosisResult | null>(null);
   const pipelineProgress = getDiagnosePipelineProgress(phase, scanning, scanStatus);
   const canonicalPreview = useMemo(() => {
     if (!pipelineUiEnabled || !diagnosisResult) {
@@ -113,6 +116,17 @@ export default function DiagnoseTab({ initialTicketId, onTicketConsumed, pending
       };
     }
   }, [activeLogs, diagnosisResult, pipelineUiEnabled, settings.zendeskSubdomain, ticket]);
+
+  useEffect(() => {
+    if (
+      canonicalPreview.investigation &&
+      diagnosisResult &&
+      syncedDiagnosisRef.current !== diagnosisResult
+    ) {
+      setInvestigation(canonicalPreview.investigation);
+      syncedDiagnosisRef.current = diagnosisResult;
+    }
+  }, [canonicalPreview.investigation, diagnosisResult, setInvestigation]);
 
   // Phase 3 — archive filename built from ticket/org context
   const archiveFilename = buildArchiveFilename({
@@ -488,6 +502,7 @@ export default function DiagnoseTab({ initialTicketId, onTicketConsumed, pending
           <CanonicalInvestigationPreview
             investigation={canonicalPreview.investigation}
             error={canonicalPreview.error}
+            onPinBlock={(block) => pinBlock(block, 'user')}
           />
         )}
         <div className="flex-1 overflow-hidden">
@@ -524,6 +539,7 @@ export default function DiagnoseTab({ initialTicketId, onTicketConsumed, pending
           <CanonicalInvestigationPreview
             investigation={canonicalPreview.investigation}
             error={canonicalPreview.error}
+            onPinBlock={(block) => pinBlock(block, 'user')}
           />
         )}
         <div className="flex-1 overflow-hidden">
@@ -589,9 +605,11 @@ function StepBar({ current }: { current: 1 | 2 | 3 }) {
 function CanonicalInvestigationPreview({
   investigation,
   error,
+  onPinBlock,
 }: {
   investigation: Investigation | null;
   error: string | null;
+  onPinBlock: (block: Block) => void;
 }) {
   return (
     <section
@@ -602,7 +620,7 @@ function CanonicalInvestigationPreview({
         Canonical Investigation
       </p>
       <p className="mt-0.5 text-[10px] text-[var(--muted-foreground)]">
-        01b.3a renderer dispatch for context, hypothesis, and analysis blocks.
+        Canonical investigation preview with block pinning into Evidence.
       </p>
       {error ? (
         <p className="mt-2 text-[11px] text-[var(--destructive)]" role="alert">
@@ -617,7 +635,7 @@ function CanonicalInvestigationPreview({
           className="mt-2 max-h-72 overflow-auto"
           data-testid="canonical-investigation-preview"
         >
-          <CanonicalBlockRenderer investigation={investigation} />
+          <CanonicalBlockRenderer investigation={investigation} onPinBlock={onPinBlock} />
         </div>
       )}
     </section>

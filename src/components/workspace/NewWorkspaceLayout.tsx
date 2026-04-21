@@ -28,12 +28,14 @@ import { Button } from '../ui/Button';
 import InvestigationSetupModal from '../InvestigationSetupModal';
 import { AIOnboardingWizard } from '../onboarding/AIOnboardingWizard';
 import ExportModal from '../export/ExportModal';
+import EvidencePanel from '../evidence/EvidencePanel';
 
 import { CaseStateBridge } from '../case/CaseStateBridge';
 import { Sparkles, FileText, Bookmark, Clock, Search, Database, AlertTriangle, FolderPlus, Download, Trash2, ExternalLink } from 'lucide-react';
 import type { InvestigationSetup } from '../../types/investigation';
 import type { ZendeskTicket } from '../../services/zendeskService';
 import { loadAiSettings } from '../../store/aiSettings';
+import { useEvidence } from '../../contexts/EvidenceContext';
 
 function formatTicketLabel(value: string | null | undefined): string | undefined {
   if (!value) return undefined;
@@ -60,6 +62,7 @@ export function NewWorkspaceLayout() {
     clearAllData,
   } = useLogContext();
   const { similarPastTickets } = useAI();
+  const { evidenceSet } = useEvidence();
 
   const [explicitPhase, setExplicitPhase] = useState<Phase | null>(null);
   const [showOnboardingWizard, setShowOnboardingWizard] = useState(false);
@@ -197,20 +200,14 @@ export function NewWorkspaceLayout() {
         title="Evidence"
         icon={<Bookmark size={14} />}
         accentColor="#f59e0b"
+        badge={
+          <span className="rounded-full bg-[var(--warning)]/10 px-2 py-0.5 text-[9px] font-semibold text-[var(--warning)]">
+            {evidenceSet?.items.length ?? 0}
+          </span>
+        }
         className={CARD_GRID_CLASSES['evidence']}
       >
-        <div className="p-3 flex flex-col gap-3">
-          <p className="text-xs text-[var(--muted-foreground)]">Evidence bookmarks and internal notes will appear here during investigation.</p>
-          <button
-            onClick={() => setIsExportModalOpen(true)}
-            className="w-full h-8 rounded-[var(--radius-md)] bg-[var(--success)] text-white text-xs font-semibold hover:bg-[var(--success)]/90 transition-colors"
-          >
-            Export Evidence Pack
-          </button>
-          <p className="text-[10px] text-[var(--muted-foreground)]">
-            Zendesk and Confluence submission stays in the AI Diagnose flow until the room-level submit handoff is wired.
-          </p>
-        </div>
+        <EvidencePanel />
       </WorkspaceCard>
 
       {/* Bottom row — compact cards */}

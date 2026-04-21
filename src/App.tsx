@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { LogProvider } from './contexts/LogContext';
 import { AIProvider } from './contexts/AIContext';
+import { EvidenceProvider } from './contexts/EvidenceContext';
 import { CaseProvider } from './store/caseContext';
 import { initTheme } from './utils/theme';
 import { ToastProvider } from './components/ui';
@@ -18,9 +19,11 @@ const App = () => (
   <ToastProvider>
     <AIProvider>
       <CaseProvider>
-        <LogProvider>
-          <AppShell />
-        </LogProvider>
+        <EvidenceProvider>
+          <LogProvider>
+            <AppShell />
+          </LogProvider>
+        </EvidenceProvider>
       </CaseProvider>
     </AIProvider>
   </ToastProvider>
