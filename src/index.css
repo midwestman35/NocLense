@@ -139,4 +139,10 @@ code, pre, kbd, samp { font-variant-numeric: tabular-nums; }
   .animate-shimmer {
     animation: none;
   }
+  /* Phase 04.5 Direction C — strip the WorkspaceCard body transform+
+     opacity+grid-rows transition so collapse/expand is instant. Layout
+     still flips; the visual mask just doesn't animate. */
+  [data-card-body] {
+    transition: none !important;
+  }
 }

@@ -1,8 +1,46 @@
-import { useState, useCallback, useRef, useEffect, type ReactNode } from 'react';
+import { useState, useCallback, useEffect, type CSSProperties, type ReactNode } from 'react';
 import { clsx } from 'clsx';
 import { ChevronRight, ChevronDown, Maximize2, Minimize2 } from 'lucide-react';
 
 import { isInSuppressedContext, useCardFocus } from './CardFocusContext';
+
+/**
+ * Phase 04.5 Direction C — WorkspaceCard expand/collapse uses container
+ * transform + the grid-template-rows trick, not the imperative height
+ * animation of Phase 04 and earlier.
+ *
+ * How the animation works:
+ *   - The body wrapper is `display: grid; grid-template-rows: 1fr|0fr`.
+ *   - The body child is `overflow: hidden; min-height: 0` so it collapses
+ *     to zero height when the parent row is 0fr.
+ *   - Three properties transition together with --ease-emphasized and
+ *     --card-expand-duration: grid-template-rows (the height collapse),
+ *     opacity (fade), and transform (scale 0.97→1).
+ *
+ * Browser support: grid-template-rows interpolation requires Chromium 123+,
+ * Firefox 119+. Electron 40 ships Chromium 134, so this is always fine in
+ * the packaged desktop app. The jsdom test environment does not compute
+ * transitions; tests assert on inline style properties and a
+ * data-card-body-state attribute for a stable testing surface.
+ *
+ * Reduced motion: the transition is stripped via the CSS rule in
+ * src/index.css (`@media (prefers-reduced-motion: reduce)` block). The
+ * layout still flips, just instantly.
+ */
+
+const bodyWrapperBaseStyle: CSSProperties = {
+  display: 'grid',
+  transformOrigin: 'top center',
+  transition:
+    'grid-template-rows var(--card-expand-duration) var(--ease-emphasized), ' +
+    'opacity var(--card-expand-duration) var(--ease-emphasized), ' +
+    'transform var(--card-expand-duration) var(--ease-emphasized)',
+};
+
+const bodyChildStyle: CSSProperties = {
+  minHeight: 0,
+  overflow: 'hidden',
+};
 
 interface WorkspaceCardProps {
   id: string;
@@ -33,47 +71,18 @@ export function WorkspaceCard({
   className,
 }: WorkspaceCardProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
-  const bodyRef = useRef<HTMLDivElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
-  const hasMounted = useRef(false);
   const focusCtx = useCardFocus();
   const isFocused = focusCtx?.focusedCardId === id;
 
-  // Only animate height on user-initiated expand/collapse, NOT on mount
-  useEffect(() => {
-    if (!hasMounted.current) {
-      hasMounted.current = true;
-      return; // Skip mount animation — use CSS initial state instead
-    }
-
-    const body = bodyRef.current;
-    if (!body) return;
-
-    if (expanded) {
-      const contentHeight = contentRef.current?.scrollHeight ?? 0;
-      body.style.height = '0px';
-      body.style.opacity = '0';
-      requestAnimationFrame(() => {
-        body.style.transition = 'height var(--card-expand-duration) var(--room-transition-ease), opacity var(--card-expand-duration) var(--room-transition-ease)';
-        body.style.height = `${contentHeight}px`;
-        body.style.opacity = '1';
-        const onEnd = () => {
-          body.style.height = 'auto';
-          body.removeEventListener('transitionend', onEnd);
-        };
-        body.addEventListener('transitionend', onEnd, { once: true });
-      });
-    } else {
-      const currentHeight = body.scrollHeight;
-      body.style.height = `${currentHeight}px`;
-      body.style.transition = 'none';
-      requestAnimationFrame(() => {
-        body.style.transition = 'height var(--card-expand-duration) var(--room-transition-ease), opacity var(--card-expand-duration) var(--room-transition-ease)';
-        body.style.height = '0px';
-        body.style.opacity = '0';
-      });
-    }
-  }, [expanded]);
+  // Body wrapper inline style composed from the shared base + expand-state.
+  // React rerenders this whenever `expanded` changes; the browser transitions
+  // the three properties automatically via the shared transition string.
+  const bodyWrapperStyle: CSSProperties = {
+    ...bodyWrapperBaseStyle,
+    gridTemplateRows: expanded ? '1fr' : '0fr',
+    opacity: expanded ? 1 : 0,
+    transform: expanded ? 'scale(1)' : 'scale(0.97)',
+  };
 
   useEffect(() => {
     if (!focusCtx || !isFocused) return;
@@ -114,7 +123,12 @@ export function WorkspaceCard({
         'flex flex-col overflow-hidden',
         'rounded-[var(--card-radius)] border bg-[var(--card)]',
         'border-[var(--card-border)]',
-        !expanded && 'hover:border-[var(--card-border-hover)]',
+        'hover:border-[var(--card-border-hover)]',
+        // Phase 04.5 Direction C — hover lift via spring curve.
+        // motion-safe: suppresses the translate under prefers-reduced-motion.
+        'transition-[transform,border-color]',
+        'duration-[var(--duration-slow)] ease-[var(--ease-spring)]',
+        'motion-safe:hover:-translate-y-[1px]',
         className,
       )}
     >
@@ -172,17 +186,14 @@ export function WorkspaceCard({
         )}
       </div>
 
-      {/* Body — CSS handles initial state, JS handles subsequent expand/collapse */}
+      {/* Body — grid-template-rows trick. Expanded: 1fr, collapsed: 0fr.
+          Transitioned together with opacity + scale via --ease-emphasized. */}
       <div
-        ref={bodyRef}
         data-card-body
-        className="overflow-hidden"
-        style={{
-          height: defaultExpanded ? 'auto' : '0px',
-          opacity: defaultExpanded ? 1 : 0,
-        }}
+        data-card-body-state={expanded ? 'expanded' : 'collapsed'}
+        style={bodyWrapperStyle}
       >
-        <div ref={contentRef} className="h-full">
+        <div style={bodyChildStyle}>
           {children}
         </div>
       </div>

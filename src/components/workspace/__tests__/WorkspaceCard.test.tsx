@@ -75,9 +75,36 @@ describe('WorkspaceCard', () => {
         <p>Hidden content</p>
       </WorkspaceCard>
     );
-    const body = screen.getByText('Hidden content').closest('[data-card-body]')!;
-    expect(body.style.height).toBe('0px');
+    // Phase 04.5 Direction C: body uses grid-template-rows trick + transform.
+    // Collapsed state: grid-rows 0fr, opacity 0, scale(0.97). Still mounted.
+    const body = screen.getByText('Hidden content').closest('[data-card-body]') as HTMLElement;
+    expect(body).toHaveAttribute('data-card-body-state', 'collapsed');
+    expect(body.style.gridTemplateRows).toBe('0fr');
     expect(body.style.opacity).toBe('0');
+    expect(body.style.transform).toBe('scale(0.97)');
+  });
+
+  it('body uses grid-template-rows 1fr + scale(1) when expanded (Phase 04.5 Direction C)', () => {
+    render(
+      <WorkspaceCard id="test" title="Card" icon={<span>C</span>} accentColor="#76ce40">
+        <p>Visible content</p>
+      </WorkspaceCard>
+    );
+    const body = screen.getByText('Visible content').closest('[data-card-body]') as HTMLElement;
+    expect(body).toHaveAttribute('data-card-body-state', 'expanded');
+    expect(body.style.gridTemplateRows).toBe('1fr');
+    expect(body.style.transform).toBe('scale(1)');
+  });
+
+  it('card root has motion-safe hover lift class (Phase 04.5 Direction C)', () => {
+    const { container } = render(
+      <WorkspaceCard id="test" title="Card" icon={<span>C</span>} accentColor="#76ce40">
+        Content
+      </WorkspaceCard>
+    );
+    const root = container.querySelector('[data-card-id="test"]')!;
+    expect(root.className).toContain('motion-safe:hover:-translate-y-[1px]');
+    expect(root.className).toContain('ease-[var(--ease-spring)]');
   });
 
   it('shows chevron-right when collapsed', () => {
