@@ -327,7 +327,7 @@ export function WorkspaceImportPanel({ onComplete, onInvestigationReady }: Works
             <span>{Math.round(parsingProgress * 100)}%</span>
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-[var(--border)]">
-            <div className="h-full bg-[var(--foreground)] transition-all duration-300" style={{ width: `${parsingProgress * 100}%` }} />
+            <div className="h-full bg-[var(--foreground)] transition-[width] duration-300 motion-reduce:transition-none" style={{ width: `${parsingProgress * 100}%` }} />
           </div>
         </div>
       )}

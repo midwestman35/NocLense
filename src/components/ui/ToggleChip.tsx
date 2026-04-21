@@ -56,7 +56,7 @@ export function ToggleChip({
           }
         }}
         className={clsx(
-          'w-4 h-4 border rounded transition-all duration-200 flex items-center justify-center',
+          'w-4 h-4 border rounded transition-[background-color,border-color,color] duration-200 flex items-center justify-center',
           checked && !disabled ? activeClassName : 'border-[var(--muted-foreground)] bg-transparent'
         )}
       >

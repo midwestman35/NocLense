@@ -23,7 +23,7 @@ const AIAssistantDropdown = ({ onOpenAssistant, onOpenSettings }: AIAssistantDro
     <div className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all text-sm font-semibold border border-white/10 inline-flex items-center gap-2"
+        className="px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-[background-color,border-color,color] duration-150 text-sm font-semibold border border-white/10 inline-flex items-center gap-2"
         title="AI Assistant options"
       >
         AI Assistant

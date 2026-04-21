@@ -34,7 +34,7 @@ export function PhaseDots({ current, onNavigate, className }: PhaseDotsProps) {
                 if (isCompleted) onNavigate(phase);
               }}
               className={clsx(
-                'flex items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-medium transition-all duration-300',
+                'flex items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-medium transition-[background-color,color,transform] duration-300 motion-reduce:transition-none',
                 isActive && 'text-[var(--phase-dot-active)]',
                 isCompleted && 'text-[var(--phase-dot-complete)] cursor-pointer hover:text-[var(--phase-dot-active)]',
                 isFuture && 'text-[var(--phase-dot-inactive)] cursor-default',
@@ -43,7 +43,7 @@ export function PhaseDots({ current, onNavigate, className }: PhaseDotsProps) {
             >
               <span
                 className={clsx(
-                  'block rounded-full transition-all duration-300',
+                  'block rounded-full transition-[background-color,transform,opacity] duration-300 motion-reduce:transition-none',
                   isActive && 'animate-phase-pulse',
                 )}
                 style={{

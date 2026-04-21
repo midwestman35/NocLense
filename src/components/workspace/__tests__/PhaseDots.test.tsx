@@ -45,4 +45,25 @@ describe('PhaseDots', () => {
     fireEvent.click(buttons[1]);
     expect(onNavigate).not.toHaveBeenCalled();
   });
+
+  // Phase 05 Commit 1 — §4.2 transition-all sweep
+  it('does not use transition-all (spec §4.2 compliance)', () => {
+    render(<PhaseDots current="investigate" onNavigate={() => {}} />);
+    const html = document.body.innerHTML;
+    expect(html).not.toMatch(/\btransition-all\b/);
+  });
+
+  it('pill and dot both include motion-reduce:transition-none', () => {
+    render(<PhaseDots current="investigate" onNavigate={() => {}} />);
+    const html = document.body.innerHTML;
+    // The pill button + the inner dot span both need the motion-reduce guard
+    const motionReduceCount = (html.match(/motion-reduce:transition-none/g) ?? []).length;
+    expect(motionReduceCount).toBeGreaterThanOrEqual(6); // 3 phases × 2 surfaces each
+  });
+
+  it('pill transitions specific properties only (background-color, color, transform)', () => {
+    render(<PhaseDots current="investigate" onNavigate={() => {}} />);
+    const buttons = screen.getAllByRole('button');
+    expect(buttons[0].className).toContain('transition-[background-color,color,transform]');
+  });
 });
