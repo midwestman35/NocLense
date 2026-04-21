@@ -73,17 +73,17 @@
     0 0 24px rgba(220, 38, 38, 0.1);
 }
 
-/* Dark */
+/* Dark — Phase 04.5 Direction C warm base (§B mapping: bg #0d110f→#121311 etc.) */
 [data-theme="dark"] {
-  --background: #0d110f;
+  --background: #121311;
   --foreground: #e5eadf;
-  --card: #151a16;
+  --card: #181a15;
   --card-foreground: #e5eadf;
-  --workspace: #101411;
-  --muted: #171d18;
-  --muted-foreground: #8e9789;
-  --border: #263025;
-  --input: #1d251b;
+  --workspace: #141513;
+  --muted: #1a1d17;
+  --muted-foreground: #96988c;
+  --border: #2a2e26;
+  --input: #1f231c;
   --ring: var(--green-house-400);
   --accent: var(--green-house-900);
   --accent-foreground: #e5eadf;
@@ -194,6 +194,17 @@
   --ease-tui-step-10: steps(10, end);
   --ease-enter-out: cubic-bezier(0.2, 0, 0, 1);
   --ease-exit-in: cubic-bezier(0.4, 0, 1, 1);
+
+  /* Phase 04.5 Direction C — emphasized bounce + spring for button press
+     and WorkspaceCard container transform. See
+     docs/design-exploration/2026-04-21-visual-refresh-mood-board/direction-c-refined-tui.html. */
+  --ease-emphasized: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-spring: cubic-bezier(0.16, 1.11, 0.3, 1);
+  --duration-scale-press-emphasized: 220ms;
+
+  /* Type tracking — applied on display and headline per Direction C. */
+  --tracking-tight: -0.005em;
+  --tracking-display: -0.01em;
 }
 
 /* Phase 01a glow-tier geometry.
@@ -247,8 +258,8 @@
   --room-transition-ease: cubic-bezier(0.33, 1, 0.68, 1);
 
   --card-radius: var(--radius-lg); /* composed from primitive scale */
-  --card-border: #263025;
-  --card-border-hover: #3a5030;
+  --card-border: #2a2e26;      /* Phase 04.5 Direction C: warmed 263025 → 2a2e26 */
+  --card-border-hover: #3d4336;/* Phase 04.5 Direction C: warmed 3a5030 → 3d4336 */
   --card-header-height: 40px;
   --card-collapsed-height: 36px;
   --card-expand-duration: 350ms;
@@ -258,7 +269,7 @@
   --room-investigate-bg: var(--workspace);
 
   --phase-dot-size: 8px;
-  --phase-dot-inactive: #263025;
+  --phase-dot-inactive: #2a2e26;  /* Phase 04.5 Direction C: matched to new --border */
   --phase-dot-complete: #51912b;
   --phase-dot-active: #76ce40;
   --phase-dot-glow: 0 0 8px rgba(118,206,64,0.4);

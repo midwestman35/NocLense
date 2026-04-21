@@ -17,7 +17,7 @@ body {
   background-color: var(--background);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  line-height: 1.5;
+  line-height: 1.6;  /* Phase 04.5 Direction C: 1.5 → 1.6 for looser reading */
   margin: 0;
 }
 
