@@ -85,7 +85,7 @@ export default function SearchBar() {
       <input
         ref={inputRef}
         type="text"
-        placeholder="Search logs (Call-ID, message, component)..."
+        placeholder="Search logs (traceId, Call-ID, message, component)..."
         className="w-full bg-transparent border border-[var(--input)] rounded-[var(--radius-md)] pl-10 pr-4 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-[var(--ring-width)] focus:ring-[var(--ring)] placeholder:text-[var(--muted-foreground)] transition-colors"
         value={filterText}
         onChange={(e) => setFilterText(e.target.value)}

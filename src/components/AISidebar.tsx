@@ -1,5 +1,6 @@
 import AiPanel from './ai/AiPanel';
 import type { InvestigationSetup } from '../types/investigation';
+import type { CitationId } from '../types/canonical';
 
 interface AISidebarProps {
   onSetupAI?: () => void;
@@ -11,9 +12,17 @@ interface AISidebarProps {
   pendingSetup?: InvestigationSetup | null;
   /** Called once DiagnoseTab has consumed the setup */
   onSetupConsumed?: () => void;
+  onCitationClick?: (citationId: CitationId) => void;
 }
 
-export function AISidebar({ onSetupAI: _onSetupAI, pendingTicketId, onTicketHandled, pendingSetup, onSetupConsumed }: AISidebarProps) {
+export function AISidebar({
+  onSetupAI: _onSetupAI,
+  pendingTicketId,
+  onTicketHandled,
+  pendingSetup,
+  onSetupConsumed,
+  onCitationClick,
+}: AISidebarProps) {
   return (
     <AiPanel
       onClose={() => {}}
@@ -21,6 +30,7 @@ export function AISidebar({ onSetupAI: _onSetupAI, pendingTicketId, onTicketHand
       onTicketHandled={onTicketHandled}
       pendingSetup={pendingSetup}
       onSetupConsumed={onSetupConsumed}
+      onCitationClick={onCitationClick}
     />
   );
 }

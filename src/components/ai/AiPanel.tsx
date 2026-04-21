@@ -12,6 +12,7 @@ import {
 } from '../../services/unleashService';
 import AiSettingsModal from './AiSettingsModal';
 import DiagnoseTab from './DiagnoseTab';
+import type { CitationId } from '../../types/canonical';
 
 type Tab = 'diagnose' | 'summary' | 'anomalies' | 'chat' | 'tags';
 
@@ -34,9 +35,17 @@ interface Props {
   pendingSetup?: import('../../types/investigation').InvestigationSetup | null;
   /** Call once the setup has been consumed */
   onSetupConsumed?: () => void;
+  onCitationClick?: (citationId: CitationId) => void;
 }
 
-export default function AiPanel({ onClose, pendingTicketId, onTicketHandled, pendingSetup, onSetupConsumed }: Props) {
+export default function AiPanel({
+  onClose,
+  pendingTicketId,
+  onTicketHandled,
+  pendingSetup,
+  onSetupConsumed,
+  onCitationClick,
+}: Props) {
   const { filteredLogs, logs } = useLogContext();
   const activeLogs = filteredLogs.length > 0 ? filteredLogs : logs;
 
@@ -403,6 +412,7 @@ export default function AiPanel({ onClose, pendingTicketId, onTicketHandled, pen
               onTicketConsumed={onTicketHandled}
               pendingSetup={pendingSetup}
               onSetupConsumed={onSetupConsumed}
+              onCitationClick={onCitationClick}
             />
           </div>
         </div>

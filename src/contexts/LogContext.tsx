@@ -40,7 +40,7 @@ const normalizeSipMethod = (method: string): string => {
 };
 
 export interface CorrelationItem {
-    type: 'report' | 'operator' | 'extension' | 'station' | 'callId' | 'file' | 'cncID' | 'messageID';
+    type: 'report' | 'operator' | 'extension' | 'station' | 'callId' | 'file' | 'cncID' | 'messageID' | 'traceId';
     value: string;
     excluded?: boolean;
 }
@@ -135,6 +135,7 @@ interface LogContextType extends LogState {
         fileNames: string[];
         cncIds: string[];
         messageIds: string[];
+        traceIds: string[];
     };
     // Favorites
     favoriteLogIds: Set<number>;
@@ -470,7 +471,19 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
                 if (callIdCorrelation) params.callId = callIdCorrelation.value;
 
                 const result = await getJobLogs(activeJobId, params);
-                setServerLogs(result.logs);
+                let nextServerLogs = result.logs;
+                const traceIdFilters = activeCorrelations.filter(c => c.type === 'traceId' && !c.excluded);
+                const traceIdExclusions = activeCorrelations.filter(c => c.type === 'traceId' && c.excluded);
+                if (traceIdFilters.length > 0 || traceIdExclusions.length > 0) {
+                    const traceSet = new Set(traceIdFilters.map(c => c.value));
+                    const traceExclusionSet = new Set(traceIdExclusions.map(c => c.value));
+                    nextServerLogs = nextServerLogs.filter((log) => {
+                        if (traceExclusionSet.size > 0 && log.traceId && traceExclusionSet.has(log.traceId)) return false;
+                        if (traceSet.size > 0 && (!log.traceId || !traceSet.has(log.traceId))) return false;
+                        return true;
+                    });
+                }
+                setServerLogs(nextServerLogs);
                 _setServerTotal(result.total);
             } catch (err) {
                 console.error('Server filter query failed:', err);
@@ -612,16 +625,22 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
                 const msgIdFilters = activeCorrelations.filter(c => c.type === 'messageID' && !c.excluded);
                 const cncIdExcl = activeCorrelations.filter(c => c.type === 'cncID' && c.excluded);
                 const msgIdExcl = activeCorrelations.filter(c => c.type === 'messageID' && c.excluded);
-                if (cncIdFilters.length > 0 || msgIdFilters.length > 0 || cncIdExcl.length > 0 || msgIdExcl.length > 0) {
+                const traceIdFilters = activeCorrelations.filter(c => c.type === 'traceId' && !c.excluded);
+                const traceIdExcl = activeCorrelations.filter(c => c.type === 'traceId' && c.excluded);
+                if (cncIdFilters.length > 0 || msgIdFilters.length > 0 || cncIdExcl.length > 0 || msgIdExcl.length > 0 || traceIdFilters.length > 0 || traceIdExcl.length > 0) {
                     const cncSet = new Set(cncIdFilters.map(c => c.value));
                     const msgSet = new Set(msgIdFilters.map(c => c.value));
                     const cncExclSet = new Set(cncIdExcl.map(c => c.value));
                     const msgExclSet = new Set(msgIdExcl.map(c => c.value));
+                    const traceSet = new Set(traceIdFilters.map(c => c.value));
+                    const traceExclSet = new Set(traceIdExcl.map(c => c.value));
                     loadedLogs = loadedLogs.filter(log => {
                         if (cncExclSet.size && log.cncID && cncExclSet.has(log.cncID)) return false;
                         if (msgExclSet.size && log.messageID && msgExclSet.has(log.messageID)) return false;
+                        if (traceExclSet.size && log.traceId && traceExclSet.has(log.traceId)) return false;
                         if (cncSet.size && (!log.cncID || !cncSet.has(log.cncID))) return false;
                         if (msgSet.size && (!log.messageID || !msgSet.has(log.messageID))) return false;
+                        if (traceSet.size && (!log.traceId || !traceSet.has(log.traceId))) return false;
                         return true;
                     });
                 }
@@ -745,6 +764,7 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         fileNames: string[];
         cncIds: string[];
         messageIds: string[];
+        traceIds: string[];
     }>({
         reportIds: [],
         operatorIds: [],
@@ -753,7 +773,8 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         callIds: [],
         fileNames: [],
         cncIds: [],
-        messageIds: []
+        messageIds: [],
+        traceIds: []
     });
     const [correlationCountsState, setCorrelationCountsState] = useState<Record<string, number>>({});
 
@@ -786,6 +807,7 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
                 const fileNames = Array.from(fileNamesSet).sort();
                 const cncIds = Array.from(cncIdsSet).sort();
                 const messageIds = Array.from(messageIdsSet).sort();
+                const traceIdsSet = new Set<string>();
 
                 setCorrelationDataState({
                     reportIds,
@@ -795,7 +817,8 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
                     callIds,
                     fileNames,
                     cncIds,
-                    messageIds
+                    messageIds,
+                    traceIds: []
                 });
 
                 // Get ACTUAL counts from IndexedDB for file names
@@ -810,25 +833,33 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
                 
                 // For other correlation types, we can compute from indexedDBLogs
                 // since they're less critical and there are usually fewer unique values
-                if (indexedDBLogs.length > 0) {
-                    indexedDBLogs.forEach(log => {
-                        if (log.reportId) counts[`report:${log.reportId}`] = (counts[`report:${log.reportId}`] || 0) + 1;
-                        if (log.operatorId) counts[`operator:${log.operatorId}`] = (counts[`operator:${log.operatorId}`] || 0) + 1;
-                        if (log.extensionId) counts[`extension:${log.extensionId}`] = (counts[`extension:${log.extensionId}`] || 0) + 1;
-                        if (log.stationId) counts[`station:${log.stationId}`] = (counts[`station:${log.stationId}`] || 0) + 1;
-                        if (log.callId) counts[`callId:${log.callId}`] = (counts[`callId:${log.callId}`] || 0) + 1;
-                        if (log.cncID) counts[`cncID:${log.cncID}`] = (counts[`cncID:${log.cncID}`] || 0) + 1;
-                        if (log.messageID) counts[`messageID:${log.messageID}`] = (counts[`messageID:${log.messageID}`] || 0) + 1;
-                    });
-                }
-                
-                setCorrelationCountsState(counts);
-
-                // Compute available source labels from ALL IDB logs (not just the loaded sample)
-                // This ensures the source filter dropdown is complete for multi-source datasets
                 const sourceSet = new Set<string>();
                 await dbManager.forEachLog(log => {
-                    sourceSet.add(deriveSourceLabel(log as LogEntry));
+                    const entry = log as LogEntry;
+                    sourceSet.add(deriveSourceLabel(entry));
+                    if (entry.reportId) counts[`report:${entry.reportId}`] = (counts[`report:${entry.reportId}`] || 0) + 1;
+                    if (entry.operatorId) counts[`operator:${entry.operatorId}`] = (counts[`operator:${entry.operatorId}`] || 0) + 1;
+                    if (entry.extensionId) counts[`extension:${entry.extensionId}`] = (counts[`extension:${entry.extensionId}`] || 0) + 1;
+                    if (entry.stationId) counts[`station:${entry.stationId}`] = (counts[`station:${entry.stationId}`] || 0) + 1;
+                    if (entry.callId) counts[`callId:${entry.callId}`] = (counts[`callId:${entry.callId}`] || 0) + 1;
+                    if (entry.cncID) counts[`cncID:${entry.cncID}`] = (counts[`cncID:${entry.cncID}`] || 0) + 1;
+                    if (entry.messageID) counts[`messageID:${entry.messageID}`] = (counts[`messageID:${entry.messageID}`] || 0) + 1;
+                    if (entry.traceId) {
+                        traceIdsSet.add(entry.traceId);
+                        counts[`traceId:${entry.traceId}`] = (counts[`traceId:${entry.traceId}`] || 0) + 1;
+                    }
+                });
+                setCorrelationCountsState(counts);
+                setCorrelationDataState({
+                    reportIds,
+                    operatorIds,
+                    extensionIds,
+                    stationIds,
+                    callIds,
+                    fileNames,
+                    cncIds,
+                    messageIds,
+                    traceIds: Array.from(traceIdsSet).sort()
                 });
                 setIdbSourceLabels(Array.from(sourceSet).sort());
             } catch (error) {
@@ -863,6 +894,7 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
         const fileNames = new Set<string>();
         const cncIds = new Set<string>();
         const messageIds = new Set<string>();
+        const traceIds = new Set<string>();
 
         const counts: Record<string, number> = {};
 
@@ -880,6 +912,7 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
             if (log.fileName) { fileNames.add(log.fileName); increment('file', log.fileName); }
             if (log.cncID) { cncIds.add(log.cncID); increment('cncID', log.cncID); }
             if (log.messageID) { messageIds.add(log.messageID); increment('messageID', log.messageID); }
+            if (log.traceId) { traceIds.add(log.traceId); increment('traceId', log.traceId); }
         });
 
         // Re-populate fileNames from ALL logs strictly for the list
@@ -895,7 +928,8 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
                 callIds: Array.from(callIds).sort(),
                 fileNames: Array.from(allFiles).sort(),
                 cncIds: Array.from(cncIds).sort(),
-                messageIds: Array.from(messageIds).sort()
+                messageIds: Array.from(messageIds).sort(),
+                traceIds: Array.from(traceIds).sort()
             },
             correlationCounts: counts
         };
@@ -989,6 +1023,7 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
                         case 'file': match = !!log.fileName && values.has(log.fileName); break;
                         case 'cncID': match = !!log.cncID && values.has(log.cncID); break;
                         case 'messageID': match = !!log.messageID && values.has(log.messageID); break;
+                        case 'traceId': match = !!log.traceId && values.has(log.traceId); break;
                     }
                     if (!match) return false;
                 }
@@ -1006,6 +1041,7 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
                         case 'file': matchExclude = !!log.fileName && values.has(log.fileName); break;
                         case 'cncID': matchExclude = !!log.cncID && values.has(log.cncID); break;
                         case 'messageID': matchExclude = !!log.messageID && values.has(log.messageID); break;
+                        case 'traceId': matchExclude = !!log.traceId && values.has(log.traceId); break;
                     }
                     if (matchExclude) return false; // Fail if any excluded value matches
                 }
@@ -1202,7 +1238,8 @@ export const LogProvider = ({ children }: { children: ReactNode }) => {
             callIds: [],
             fileNames: [],
             cncIds: [],
-            messageIds: []
+            messageIds: [],
+            traceIds: []
         });
         setCorrelationCountsState({});
     }, []);

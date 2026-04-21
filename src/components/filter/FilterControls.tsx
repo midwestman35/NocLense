@@ -5,6 +5,7 @@ import { ToggleChip } from '../ui/ToggleChip';
 import SipFilterDropdown from '../SipFilterDropdown';
 import MessageTypeFilterDropdown from '../MessageTypeFilterDropdown';
 import SourceFilterDropdown from './SourceFilterDropdown';
+import TraceIdFilterDropdown from './TraceIdFilterDropdown';
 
 export default function FilterControls() {
   const {
@@ -32,6 +33,10 @@ export default function FilterControls() {
     selectedSourceFilter,
     setSelectedSourceFilter,
     availableSources,
+    correlationData,
+    activeCorrelations,
+    setActiveCorrelations,
+    toggleCorrelation,
   } = useLogContext();
 
   const hasHomerLogs = useMemo(() => logs.some(log => log.component === 'Homer SIP'), [logs]);
@@ -53,6 +58,13 @@ export default function FilterControls() {
     });
     return Array.from(methods);
   }, [logs, hasHomerLogs]);
+
+  const selectedTraceIds = useMemo(
+    () => activeCorrelations
+      .filter((item) => item.type === 'traceId' && !item.excluded)
+      .map((item) => item.value),
+    [activeCorrelations],
+  );
 
   return (
     <div className="flex items-center gap-4 shrink-0">
@@ -82,6 +94,13 @@ export default function FilterControls() {
           onSelect={setSelectedSourceFilter}
         />
       )}
+
+      <TraceIdFilterDropdown
+        traceIds={correlationData.traceIds}
+        selectedTraceIds={selectedTraceIds}
+        onToggle={(traceId) => toggleCorrelation({ type: 'traceId', value: traceId })}
+        onClear={() => setActiveCorrelations(activeCorrelations.filter((item) => item.type !== 'traceId'))}
+      />
 
       <ToggleChip
         label="Favorites"

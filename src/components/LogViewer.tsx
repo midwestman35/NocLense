@@ -1,189 +1,69 @@
-import { useRef, useEffect, useState, useMemo, useCallback } from 'react';
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { X } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useLogContext } from '../contexts/LogContext';
+import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
+import { useAnimeStagger } from '../utils/anime';
+import type { LogEntry } from '../types';
 import LogRow from './LogRow';
-import { ArrowUp, ArrowDown, Filter, ChevronRight, ChevronDown } from 'lucide-react';
-import serviceMappings from '../../public/service-mappings.json';
-import { useAnimeValue, useAnimeStagger } from '../utils/anime';
+import LogTabs from './LogTabs';
+import ParseOverlay from './ParseOverlay';
+import { LogHeader, TimeWindowStrip } from './LogStreamHeader';
 
-const LogHeader = () => {
-  const { sortConfig, setSortConfig, selectedComponentFilter, setSelectedComponentFilter, logs } = useLogContext();
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [showAllServices, setShowAllServices] = useState(false);
+const HIGHLIGHT_CLEAR_MS = 4000;
 
-  const availableComponents = useMemo(() => {
-    const components = new Set(logs.map((l) => l.displayComponent));
-    if (showAllServices) {
-      Object.values(serviceMappings).forEach((value) => components.add(value));
-    }
-    return Array.from(components).sort();
-  }, [logs, showAllServices]);
-
-  const toggleSort = (field: 'timestamp' | 'level') => {
-    setSortConfig({
-      field,
-      direction: sortConfig.field === field && sortConfig.direction === 'asc' ? 'desc' : 'asc',
-    });
-  };
-
-  return (
-    <div className="log-grid bg-[var(--card)] border-b border-[var(--border)] text-[11px] font-medium text-[var(--muted-foreground)] h-8 px-2 sticky top-0 z-10 items-center">
-      <div className="text-center">#</div>
-      <div className="flex items-center gap-1 cursor-pointer hover:text-[var(--foreground)] transition-colors" onClick={() => toggleSort('timestamp')}>
-        Timestamp
-        {sortConfig.field === 'timestamp' && (sortConfig.direction === 'asc' ? <ArrowUp size={11} /> : <ArrowDown size={11} />)}
-      </div>
-      <div className="flex items-center gap-3 min-w-0">
-        <span>Type</span>
-        <div className="relative">
-          <span className="flex items-center gap-1 cursor-pointer hover:text-[var(--foreground)] transition-colors" onClick={() => setIsFilterOpen(!isFilterOpen)}>
-            Service
-            <Filter size={10} className={selectedComponentFilter ? 'text-[var(--foreground)]' : ''} />
-          </span>
-          {isFilterOpen && (
-            <>
-              <div className="fixed inset-0 z-20" onClick={() => setIsFilterOpen(false)} />
-              <div className="absolute top-full left-0 mt-1 w-48 bg-[var(--card)] border border-[var(--border)] z-30 p-1.5 shadow-[var(--shadow-raised)]">
-                <label className="flex items-center gap-2 text-[11px] text-[var(--foreground)] mb-1.5 pb-1.5 border-b border-[var(--border)] cursor-pointer px-1.5">
-                  <input type="checkbox" checked={showAllServices} onChange={() => setShowAllServices(!showAllServices)} />
-                  Show All
-                </label>
-                <div className="max-h-48 overflow-y-auto space-y-0.5">
-                  <div className={`px-1.5 py-1 cursor-pointer text-[11px] ${!selectedComponentFilter ? 'bg-[var(--muted)] text-[var(--foreground)]' : 'hover:bg-[var(--muted)] text-[var(--muted-foreground)]'}`} onClick={() => { setSelectedComponentFilter(null); setIsFilterOpen(false); }}>
-                    All Services
-                  </div>
-                  {availableComponents.map((comp) => (
-                    <div key={comp} className={`px-1.5 py-1 cursor-pointer text-[11px] ${selectedComponentFilter === comp ? 'bg-[var(--muted)] text-[var(--foreground)]' : 'hover:bg-[var(--muted)] text-[var(--muted-foreground)]'}`} onClick={() => { setSelectedComponentFilter(comp); setIsFilterOpen(false); }}>
-                      {comp}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-        <span className="flex items-center gap-1 cursor-pointer hover:text-[var(--foreground)] transition-colors" onClick={() => toggleSort('level')}>
-          Lvl
-          {sortConfig.field === 'level' && (sortConfig.direction === 'asc' ? <ArrowUp size={11} /> : <ArrowDown size={11} />)}
-        </span>
-        <span>Message</span>
-      </div>
-    </div>
-  );
-};
-
-const LEVEL_BADGE: Record<string, { bg: string; text: string; label: string }> = {
-  ERROR: { bg: 'bg-red-500/15', text: 'text-red-400', label: 'ERR' },
-  WARN:  { bg: 'bg-amber-500/15', text: 'text-amber-400', label: 'WRN' },
-  INFO:  { bg: 'bg-blue-500/15', text: 'text-blue-400', label: 'INF' },
-  DEBUG: { bg: 'bg-[var(--muted)]', text: 'text-[var(--muted-foreground)]', label: 'DBG' },
-};
-
-function TimeWindowStrip() {
-  const {
-    filteredLogs,
-    availableMessageTypes,
-    selectedMessageTypeFilter,
-    setSelectedMessageTypeFilter,
-    setScrollTargetTimestamp,
-  } = useLogContext();
-  const [isOpen, setIsOpen] = useState(false);
-  const badgesRef = useRef<HTMLDivElement>(null);
-  const prevCountRef = useRef(filteredLogs.length);
-
-  const animatedEventCount = useAnimeValue(prevCountRef.current, filteredLogs.length, { duration: 400 });
-
-  useEffect(() => {
-    prevCountRef.current = filteredLogs.length;
-  }, [filteredLogs.length]);
-
-  useAnimeStagger(badgesRef, 'span', [filteredLogs.length], {
-    translateY: [4, 0],
-    opacity: [0, 1],
-    stagger: 50,
-    duration: 200,
-  });
-
-  const typeCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const log of filteredLogs) {
-      if (!log.messageType) continue;
-      counts.set(log.messageType, (counts.get(log.messageType) ?? 0) + 1);
-    }
-    return counts;
-  }, [filteredLogs]);
-
-  // Level breakdown across all filtered logs
-  const levelCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const log of filteredLogs) {
-      counts[log.level] = (counts[log.level] ?? 0) + 1;
-    }
-    return counts;
-  }, [filteredLogs]);
-
-  // Show range from first to last log timestamp (not just visible viewport)
-  const rangeLabel = useMemo(() => {
-    if (filteredLogs.length === 0) return 'No logs';
-    const first = filteredLogs[0].timestamp;
-    const last = filteredLogs[filteredLogs.length - 1].timestamp;
-    if (first === last) return new Date(first).toLocaleTimeString();
-    return `${new Date(first).toLocaleTimeString()} – ${new Date(last).toLocaleTimeString()}`;
-  }, [filteredLogs]);
-
-  return (
-    <div className="border-b border-[var(--border)] bg-[var(--card)] shrink-0">
-      <div className="flex items-center gap-3 h-9 px-3 text-xs">
-        <button type="button" onClick={() => setIsOpen((prev) => !prev)} className="flex items-center gap-1 text-[var(--foreground)]">
-          {isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-          Log window
-        </button>
-        <span className="text-[var(--muted-foreground)] tabular-nums">{animatedEventCount.toLocaleString()} events</span>
-        <span className="text-[var(--muted-foreground)] tabular-nums">{rangeLabel}</span>
-        {/* Level breakdown badges */}
-        <div ref={badgesRef} className="flex items-center gap-1 ml-1">
-          {(['ERROR', 'WARN', 'INFO', 'DEBUG'] as const).map(lvl => {
-            const count = levelCounts[lvl];
-            if (!count) return null;
-            const s = LEVEL_BADGE[lvl];
-            return (
-              <span key={lvl} className={`rounded px-1.5 py-0.5 text-[10px] font-mono font-semibold ${s.bg} ${s.text}`} title={`${lvl}: ${count}`}>
-                {s.label} {count.toLocaleString()}
-              </span>
-            );
-          })}
-        </div>
-      </div>
-      {isOpen && (
-        <div className="px-3 pb-3 pt-1 border-t border-[var(--border)] bg-[var(--workspace)]">
-          <div className="flex flex-wrap items-center gap-2 text-[11px]">
-            <button type="button" className="rounded border border-[var(--border)] px-2 py-1 text-[var(--muted-foreground)] hover:text-[var(--foreground)]" onClick={() => setScrollTargetTimestamp(filteredLogs[0]?.timestamp ?? null)}>
-              Jump to start
-            </button>
-            <button type="button" className="rounded border border-[var(--border)] px-2 py-1 text-[var(--muted-foreground)] hover:text-[var(--foreground)]" onClick={() => setSelectedMessageTypeFilter(null)}>
-              Full dataset
-            </button>
-            {availableMessageTypes.slice(0, 8).map((type) => {
-              const active = selectedMessageTypeFilter === type;
-              return (
-                <button
-                  key={type}
-                  type="button"
-                  onClick={() => setSelectedMessageTypeFilter(active ? null : type)}
-                  className={`rounded border px-2 py-1 ${active ? 'border-[var(--ring)] text-[var(--foreground)] bg-[var(--muted)]' : 'border-[var(--border)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]'}`}
-                >
-                  {type} ({typeCounts.get(type) ?? 0})
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-    </div>
-  );
+interface ViewItem {
+  firstLog: LogEntry;
+  count: number;
+  logs: LogEntry[];
 }
 
-const LogViewer = () => {
+interface LogViewerProps {
+  parseProgress?: number | null;
+}
+
+export interface LogViewerHandle {
+  jumpToCitation: (fileName: string, byteOffset: number) => void;
+}
+
+interface PendingJump {
+  entryId: number;
+  fileName: string;
+}
+
+function buildViewItems(logs: LogEntry[], collapseSimilar: boolean): ViewItem[] {
+  if (!collapseSimilar) {
+    return logs.map((log) => ({ firstLog: log, count: 1, logs: [log] }));
+  }
+
+  const groups: ViewItem[] = [];
+  const keyOf = (log: LogEntry) => `${log.displayComponent}\u0000${log.summaryMessage ?? log.displayMessage}`;
+
+  for (const log of logs) {
+    const current = groups[groups.length - 1];
+    if (current && keyOf(current.firstLog) === keyOf(log)) {
+      current.logs.push(log);
+      current.count = current.logs.length;
+      continue;
+    }
+    groups.push({ firstLog: log, count: 1, logs: [log] });
+  }
+
+  return groups;
+}
+
+const LogViewer = forwardRef<LogViewerHandle, LogViewerProps>(function LogViewer(
+  { parseProgress = null },
+  ref,
+) {
   const {
     logs,
     filteredLogs,
@@ -200,13 +80,55 @@ const LogViewer = () => {
     loadLogsFromIndexedDB,
     visibleRange,
     isCollapseSimilarEnabled,
-    collapsedViewList,
+    activeCorrelations,
+    toggleCorrelation,
+    scrollTargetTimestamp,
+    sortConfig,
   } = useLogContext();
+  const prefersReducedMotion = usePrefersReducedMotion();
   const parentRef = useRef<HTMLDivElement>(null);
+  const highlightChipRef = useRef<HTMLDivElement>(null);
   const visibleRangeTimeoutRef = useRef<number | null>(null);
   const pendingRangeRef = useRef<{ start: number; end: number } | null>(null);
+  const highlightTimeoutRef = useRef<number | null>(null);
 
-  const estimateSize = () => (isTextWrapEnabled ? 60 : 35);
+  const [activeTab, setActiveTab] = useState<string | null>(null);
+  const [expandedIds, setExpandedIds] = useState<Set<number>>(() => new Set());
+  const [pendingJump, setPendingJump] = useState<PendingJump | null>(null);
+  const [highlightedEntryId, setHighlightedEntryId] = useState<number | null>(null);
+
+  const fileTabs = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const log of logs) {
+      if (!log.fileName) continue;
+      counts.set(log.fileName, (counts.get(log.fileName) ?? 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .map(([fileName, count]) => ({ fileName, count }))
+      .sort((left, right) => left.fileName.localeCompare(right.fileName));
+  }, [logs]);
+
+  const tabsVisible = logs.length > 0 && fileTabs.length >= 2;
+  const tabFilteredLogs = useMemo(
+    () => (activeTab ? filteredLogs.filter((entry) => entry.fileName === activeTab) : filteredLogs),
+    [activeTab, filteredLogs],
+  );
+  const viewItems = useMemo(
+    () => buildViewItems(tabFilteredLogs, isCollapseSimilarEnabled),
+    [isCollapseSimilarEnabled, tabFilteredLogs],
+  );
+
+  useEffect(() => {
+    if (!tabsVisible) {
+      setActiveTab(null);
+      return;
+    }
+    if (activeTab && !fileTabs.some((tab) => tab.fileName === activeTab)) {
+      setActiveTab(null);
+    }
+  }, [activeTab, fileTabs, tabsVisible]);
+
+  const estimateSize = useCallback(() => (isTextWrapEnabled ? 72 : 48), [isTextWrapEnabled]);
 
   const updateVisibleRange = useCallback((start: number, end: number) => {
     pendingRangeRef.current = { start, end };
@@ -221,6 +143,72 @@ const LogViewer = () => {
       visibleRangeTimeoutRef.current = null;
     }, 100);
   }, [setVisibleRange]);
+
+  // TanStack Virtual returns imperative methods that the React Compiler cannot memoize safely.
+  // eslint-disable-next-line react-hooks/incompatible-library
+  const rowVirtualizer = useVirtualizer({
+    count: viewItems.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize,
+    overscan: 5,
+    measureElement: (element) => element?.getBoundingClientRect().height || estimateSize(),
+    onChange: (instance) => {
+      if (!instance.range) return;
+      const { startIndex, endIndex } = instance.range;
+      const startLog = viewItems[startIndex]?.firstLog;
+      const endLog = viewItems[endIndex]?.firstLog;
+      if (startLog && endLog) {
+        updateVisibleRange(
+          Math.min(startLog.timestamp, endLog.timestamp),
+          Math.max(startLog.timestamp, endLog.timestamp),
+        );
+      }
+    },
+  });
+
+  const clearHighlight = useCallback(() => {
+    if (highlightTimeoutRef.current !== null) {
+      window.clearTimeout(highlightTimeoutRef.current);
+      highlightTimeoutRef.current = null;
+    }
+    setHighlightedEntryId(null);
+  }, []);
+
+  const setHighlightWithTimeout = useCallback((entryId: number) => {
+    if (highlightTimeoutRef.current !== null) {
+      window.clearTimeout(highlightTimeoutRef.current);
+    }
+    setHighlightedEntryId(entryId);
+    highlightTimeoutRef.current = window.setTimeout(() => {
+      setHighlightedEntryId(null);
+      highlightTimeoutRef.current = null;
+    }, HIGHLIGHT_CLEAR_MS);
+  }, []);
+
+  useImperativeHandle(ref, () => ({
+    jumpToCitation(fileName: string, byteOffset: number): void {
+      const targetEntry = logs.find((entry) => entry.fileName === fileName && entry.byteOffset === byteOffset);
+      if (!targetEntry) return;
+
+      if (tabsVisible && activeTab !== fileName) {
+        setActiveTab(fileName);
+      }
+      setPendingJump({ entryId: targetEntry.id, fileName });
+    },
+  }), [activeTab, logs, tabsVisible]);
+
+  useEffect(() => () => {
+    if (visibleRangeTimeoutRef.current !== null) {
+      window.clearTimeout(visibleRangeTimeoutRef.current);
+    }
+    if (highlightTimeoutRef.current !== null) {
+      window.clearTimeout(highlightTimeoutRef.current);
+    }
+  }, []);
+
+  useEffect(() => {
+    rowVirtualizer.measure();
+  }, [activeTab, expandedIds, rowVirtualizer, viewItems.length]);
 
   useEffect(() => {
     if (!useIndexedDBMode || !visibleRange || (visibleRange.start === 0 && visibleRange.end === 1)) return;
@@ -241,106 +229,172 @@ const LogViewer = () => {
     }
   }, [loadLogsFromIndexedDB, useIndexedDBMode, visibleRange]);
 
-
-  const viewItems = useMemo(() => {
-    if (collapsedViewList && collapsedViewList.length > 0) {
-      return collapsedViewList;
-    }
-    return filteredLogs.map((log) => ({ firstLog: log, count: 1 }));
-  }, [collapsedViewList, filteredLogs]);
-
-  const rowVirtualizer = useVirtualizer({
-    count: viewItems.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize,
-    overscan: 5,
-    measureElement: (element) => element?.getBoundingClientRect().height || estimateSize(),
-    onChange: (instance) => {
-      if (!instance.range) return;
-      const { startIndex, endIndex } = instance.range;
-      const startLog = viewItems[startIndex]?.firstLog;
-      const endLog = viewItems[endIndex]?.firstLog;
-      if (startLog && endLog) {
-        requestAnimationFrame(() => {
-          updateVisibleRange(Math.min(startLog.timestamp, endLog.timestamp), Math.max(startLog.timestamp, endLog.timestamp));
-        });
-      }
-    },
-  });
-
-  useEffect(() => () => {
-    if (visibleRangeTimeoutRef.current !== null) {
-      window.clearTimeout(visibleRangeTimeoutRef.current);
-    }
-  }, []);
-
   useEffect(() => {
-    if (selectedLogId && parentRef.current) {
-      const index = viewItems.findIndex((item) => item.firstLog.id === selectedLogId);
-      if (index !== -1) {
-        rowVirtualizer.scrollToIndex(index, { align: 'center' });
-      }
+    if (!selectedLogId || !parentRef.current) return;
+    const index = viewItems.findIndex((item) => item.logs.some((log) => log.id === selectedLogId));
+    if (index !== -1) {
+      rowVirtualizer.scrollToIndex(index, { align: 'center' });
     }
   }, [selectedLogId, viewItems, rowVirtualizer]);
 
-  const { scrollTargetTimestamp, sortConfig } = useLogContext();
   useEffect(() => {
-    if (scrollTargetTimestamp !== null && viewItems.length > 0) {
-      const target = scrollTargetTimestamp;
-      const index = sortConfig.direction === 'asc'
-        ? viewItems.findIndex((item) => item.firstLog.timestamp >= target)
-        : viewItems.findIndex((item) => item.firstLog.timestamp <= target);
-      if (index !== -1) {
-        rowVirtualizer.scrollToIndex(index, { align: 'start' });
-      } else {
-        rowVirtualizer.scrollToIndex(viewItems.length - 1, { align: 'end' });
-      }
+    if (scrollTargetTimestamp === null || viewItems.length === 0) return;
+    const index = sortConfig.direction === 'asc'
+      ? viewItems.findIndex((item) => item.firstLog.timestamp >= scrollTargetTimestamp)
+      : viewItems.findIndex((item) => item.firstLog.timestamp <= scrollTargetTimestamp);
+    if (index !== -1) {
+      rowVirtualizer.scrollToIndex(index, { align: 'start' });
+      return;
     }
+    rowVirtualizer.scrollToIndex(viewItems.length - 1, { align: 'end' });
   }, [rowVirtualizer, scrollTargetTimestamp, sortConfig.direction, viewItems]);
 
+  useEffect(() => {
+    if (!pendingJump) return;
+    if (tabsVisible && activeTab !== pendingJump.fileName) return;
+
+    const index = viewItems.findIndex((item) => item.logs.some((log) => log.id === pendingJump.entryId));
+    if (index === -1) {
+      setPendingJump(null);
+      return;
+    }
+
+    const targetLog = viewItems[index].logs.find((log) => log.id === pendingJump.entryId) ?? viewItems[index].firstLog;
+    rowVirtualizer.scrollToIndex(index, {
+      align: 'center',
+      behavior: prefersReducedMotion ? 'auto' : 'smooth',
+    });
+    setSelectedLogId(targetLog.id);
+    setHighlightWithTimeout(targetLog.id);
+
+    if (
+      targetLog.traceId &&
+      !activeCorrelations.some((item) => item.type === 'traceId' && !item.excluded && item.value === targetLog.traceId)
+    ) {
+      toggleCorrelation({ type: 'traceId', value: targetLog.traceId });
+    }
+
+    setPendingJump(null);
+  }, [
+    activeCorrelations,
+    activeTab,
+    pendingJump,
+    prefersReducedMotion,
+    rowVirtualizer,
+    setHighlightWithTimeout,
+    setSelectedLogId,
+    tabsVisible,
+    toggleCorrelation,
+    viewItems,
+  ]);
+
+  useAnimeStagger(
+    highlightChipRef,
+    '[data-citation-chip]',
+    prefersReducedMotion ? [] : [highlightedEntryId],
+    {
+      translateY: [-4, 0],
+      opacity: [0, 1],
+      stagger: 40,
+      duration: 250,
+    },
+  );
+
+  const toggleExpanded = useCallback((logId: number) => {
+    setExpandedIds((previous) => {
+      const next = new Set(previous);
+      if (next.has(logId)) {
+        next.delete(logId);
+      } else {
+        next.add(logId);
+      }
+      return next;
+    });
+  }, []);
+
   return (
-    <div className="flex-grow flex flex-col h-full w-full bg-[var(--workspace)] overflow-hidden">
+    <div className="flex h-full w-full flex-grow flex-col overflow-hidden bg-[var(--workspace)]">
       <TimeWindowStrip />
       <LogHeader />
+      <div ref={highlightChipRef} className="shrink-0 bg-[var(--card)]">
+        {highlightedEntryId !== null && (
+          <div className="px-3 pt-2">
+            <div
+              data-citation-chip
+              className="inline-flex items-center gap-2 rounded-full border border-[var(--ring)]/30 bg-[var(--accent)] px-3 py-1 text-xs text-[var(--foreground)] shadow-[var(--shadow-raised)]"
+              data-testid="citation-jump-chip"
+            >
+              <span>jumped from Diagnose</span>
+              <button
+                type="button"
+                className="rounded-full p-0.5 text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+                onClick={clearHighlight}
+                aria-label="Dismiss citation jump notice"
+              >
+                <X size={12} />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+      <ParseOverlay progress={parseProgress} />
+      <LogTabs
+        items={fileTabs}
+        activeTab={activeTab}
+        allCount={filteredLogs.length}
+        onSelect={setActiveTab}
+      />
       <div
         ref={parentRef}
         data-log-viewer-scroll
         data-log-viewer-rows={viewItems.length}
-        className="flex-grow w-full overflow-y-auto relative"
+        className="relative flex-grow overflow-y-auto"
       >
         {viewItems.length === 0 ? (
-          <div className="absolute inset-0 flex items-center justify-center text-[var(--muted-foreground)] text-sm">
+          <div className="absolute inset-0 flex items-center justify-center text-sm text-[var(--muted-foreground)]">
             No logs to display
           </div>
         ) : (
-          <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
+          <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative', width: '100%' }}>
             {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-              const { firstLog: log, count } = viewItems[virtualRow.index];
+              const item = viewItems[virtualRow.index];
+              const log = item.firstLog;
               return (
                 <LogRow
-                  key={isCollapseSimilarEnabled && count > 1 ? `group-${log.id}-${virtualRow.index}` : log.id}
+                  key={item.count > 1 ? `group-${log.id}-${virtualRow.index}` : log.id}
                   log={log}
-                  active={log.id === selectedLogId}
-                  collapseCount={count > 1 ? count : undefined}
+                  active={item.logs.some((entry) => entry.id === selectedLogId)}
+                  collapseCount={item.count > 1 ? item.count : undefined}
+                  isExpanded={expandedIds.has(log.id)}
+                  isCitationTarget={item.logs.some((entry) => entry.id === highlightedEntryId)}
                   isHighlighted={
-                    hoveredCorrelation?.type === 'file' ? log.fileName === hoveredCorrelation.value :
-                    hoveredCorrelation?.type === 'callId' ? log.callId === hoveredCorrelation.value :
-                    hoveredCorrelation?.type === 'report' ? log.reportId === hoveredCorrelation.value :
-                    hoveredCorrelation?.type === 'operator' ? log.operatorId === hoveredCorrelation.value :
-                    hoveredCorrelation?.type === 'extension' ? log.extensionId === hoveredCorrelation.value :
-                    hoveredCorrelation?.type === 'station' ? log.stationId === hoveredCorrelation.value :
-                    hoveredCorrelation?.type === 'cncID' ? log.cncID === hoveredCorrelation.value :
-                    hoveredCorrelation?.type === 'messageID' ? log.messageID === hoveredCorrelation.value : false
+                    hoveredCorrelation?.type === 'file' ? log.fileName === hoveredCorrelation.value
+                    : hoveredCorrelation?.type === 'callId' ? log.callId === hoveredCorrelation.value
+                    : hoveredCorrelation?.type === 'report' ? log.reportId === hoveredCorrelation.value
+                    : hoveredCorrelation?.type === 'operator' ? log.operatorId === hoveredCorrelation.value
+                    : hoveredCorrelation?.type === 'extension' ? log.extensionId === hoveredCorrelation.value
+                    : hoveredCorrelation?.type === 'station' ? log.stationId === hoveredCorrelation.value
+                    : hoveredCorrelation?.type === 'cncID' ? log.cncID === hoveredCorrelation.value
+                    : hoveredCorrelation?.type === 'messageID' ? log.messageID === hoveredCorrelation.value
+                    : hoveredCorrelation?.type === 'traceId' ? log.traceId === hoveredCorrelation.value
+                    : false
                   }
-                  onClick={(l) => setSelectedLogId(l.id === selectedLogId ? null : l.id)}
+                  onClick={(entry) => setSelectedLogId(entry.id === selectedLogId ? null : entry.id)}
+                  onToggleExpanded={toggleExpanded}
                   measureRef={rowVirtualizer.measureElement}
                   index={virtualRow.index}
                   isTextWrap={isTextWrapEnabled}
-                  filterText={filteredLogs !== logs ? filterText : ''}
+                  filterText={filterText}
                   isFavorite={favoriteLogIds.has(log.id)}
                   onToggleFavorite={() => toggleFavorite(log.id)}
                   isAiHighlighted={aiHighlightedLogIds.has(log.id)}
-                  style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${virtualRow.start}px)` }}
+                  style={{
+                    left: 0,
+                    position: 'absolute',
+                    top: 0,
+                    transform: `translateY(${virtualRow.start}px)`,
+                    width: '100%',
+                  }}
                 />
               );
             })}
@@ -349,7 +403,6 @@ const LogViewer = () => {
       </div>
     </div>
   );
-};
+});
 
 export default LogViewer;
-

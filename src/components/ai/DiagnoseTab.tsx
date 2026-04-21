@@ -28,7 +28,7 @@ import { buildArchiveFilename } from '../../utils/logArchive';
 import { formatApexEventForAi } from '../../services/apexEventParser';
 import type { DiagnosisResult } from '../../types/diagnosis';
 import type { LogEntry } from '../../types';
-import type { Block, Investigation } from '../../types/canonical';
+import type { Block, CitationId, Investigation } from '../../types/canonical';
 import type { InvestigationSetup } from '../../types/investigation';
 import { TuiSpinner } from '../loading/TuiSpinner';
 import DiagnosePhase1 from './diagnose/DiagnosePhase1';
@@ -57,6 +57,7 @@ interface Props {
   pendingSetup?: InvestigationSetup | null;
   /** Called once the pendingSetup has been consumed so parent can clear it */
   onSetupConsumed?: () => void;
+  onCitationClick?: (citationId: CitationId) => void;
 }
 
 // Detect the browser/system timezone label for the NOC agent
@@ -68,7 +69,13 @@ function getNocTimezone(): string {
   }
 }
 
-export default function DiagnoseTab({ initialTicketId, onTicketConsumed, pendingSetup, onSetupConsumed }: Props) {
+export default function DiagnoseTab({
+  initialTicketId,
+  onTicketConsumed,
+  pendingSetup,
+  onSetupConsumed,
+  onCitationClick,
+}: Props) {
   const { filteredLogs, logs, setLogs, setAiHighlightedLogIds, setAiHighlightReasons, clearAiHighlights, addImportedDatasets } = useLogContext();
   const { activeCase, addBookmark } = useCase();
   const { setSimilarPastTickets } = useAI();
@@ -503,6 +510,7 @@ export default function DiagnoseTab({ initialTicketId, onTicketConsumed, pending
             investigation={canonicalPreview.investigation}
             error={canonicalPreview.error}
             onPinBlock={(block) => pinBlock(block, 'user')}
+            onCitationClick={onCitationClick}
           />
         )}
         <div className="flex-1 overflow-hidden">
@@ -540,6 +548,7 @@ export default function DiagnoseTab({ initialTicketId, onTicketConsumed, pending
             investigation={canonicalPreview.investigation}
             error={canonicalPreview.error}
             onPinBlock={(block) => pinBlock(block, 'user')}
+            onCitationClick={onCitationClick}
           />
         )}
         <div className="flex-1 overflow-hidden">
@@ -606,10 +615,12 @@ function CanonicalInvestigationPreview({
   investigation,
   error,
   onPinBlock,
+  onCitationClick,
 }: {
   investigation: Investigation | null;
   error: string | null;
   onPinBlock: (block: Block) => void;
+  onCitationClick?: (citationId: CitationId) => void;
 }) {
   return (
     <section
@@ -635,7 +646,11 @@ function CanonicalInvestigationPreview({
           className="mt-2 max-h-72 overflow-auto"
           data-testid="canonical-investigation-preview"
         >
-          <CanonicalBlockRenderer investigation={investigation} onPinBlock={onPinBlock} />
+          <CanonicalBlockRenderer
+            investigation={investigation}
+            onPinBlock={onPinBlock}
+            onCitationClick={onCitationClick}
+          />
         </div>
       )}
     </section>

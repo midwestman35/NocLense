@@ -1,7 +1,5 @@
-import { useRef } from 'react';
 import { useLogContext } from '../../contexts/LogContext';
 import { X } from 'lucide-react';
-import { useAnimeStagger } from '../../utils/anime';
 
 export default function FilterChips() {
   const {
@@ -14,15 +12,7 @@ export default function FilterChips() {
     setActiveCorrelations,
     setFilterText,
   } = useLogContext();
-  const containerRef = useRef<HTMLDivElement>(null);
   const hasJumpRestore = jumpState.active && jumpState.previousFilters != null;
-
-  useAnimeStagger(containerRef, '.filter-chip', [activeCorrelations.length], {
-    translateY: [6, 0],
-    opacity: [0, 1],
-    stagger: 30,
-    duration: 200,
-  });
 
   if (!hasActiveFilters && !hasJumpRestore) return null;
 
@@ -37,12 +27,12 @@ export default function FilterChips() {
 
   return (
     <div className="flex items-center gap-2 flex-1 min-w-0">
-      <div ref={containerRef} className="flex items-center gap-2 overflow-x-auto no-scrollbar mask-gradient min-w-0 flex-1">
+      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar mask-gradient min-w-0 flex-1">
         {hasJumpRestore && (
           <button
             type="button"
             onClick={handleRestoreFilters}
-            className="filter-chip flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-medium whitespace-nowrap text-amber-300 shadow-[var(--shadow-flat)] shrink-0 hover:bg-amber-500/15"
+            className="flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-medium whitespace-nowrap text-amber-300 shadow-[var(--shadow-flat)] shrink-0 hover:bg-amber-500/15"
             title="Restore the filters cleared by Jump To"
           >
             Restore jump filters
@@ -51,7 +41,7 @@ export default function FilterChips() {
         {activeCorrelations.map((filter) => (
           <div
             key={`${filter.type}-${filter.value}`}
-            className="filter-chip flex items-center gap-1 bg-[var(--foreground)]/10 text-[var(--foreground)] border border-[var(--foreground)]/20 px-2.5 py-1 rounded-full text-xs whitespace-nowrap shadow-[var(--shadow-flat)] shrink-0"
+            className="flex items-center gap-1 rounded-full border border-[var(--foreground)]/20 bg-[var(--foreground)]/10 px-2.5 py-1 text-xs whitespace-nowrap text-[var(--foreground)] shadow-[var(--shadow-flat)] shrink-0"
           >
             <span className="font-bold uppercase opacity-75 text-[10px] tracking-wider">{filter.type}:</span>
             <span className="font-mono font-medium">{filter.value}</span>

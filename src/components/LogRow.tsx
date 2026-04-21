@@ -1,7 +1,7 @@
-import { useState, memo } from 'react';
-import { stc, getSipColorClasses } from '../utils/colorUtils';
-import { ChevronRight, ChevronDown, Star } from 'lucide-react';
+import { memo } from 'react';
+import { ChevronDown, ChevronRight, Hash, Star } from 'lucide-react';
 import clsx from 'clsx';
+import { stc, getSipColorClasses } from '../utils/colorUtils';
 import type { LogEntry } from '../types';
 import { highlightText } from '../utils/highlightUtils.tsx';
 import { getLogDisplayTimestamp } from '../utils/logTimestamp';
@@ -17,23 +17,6 @@ const EVENT_TYPE_STYLES: Record<string, string> = {
   transcript: 'bg-cyan-500/10 text-cyan-300 border-cyan-500/15',
 };
 
-function getEventTypePill(log: LogEntry): { label: string; style: string } | null {
-  if (log.isSip && log.sipMethod) {
-    return { label: log.sipMethod, style: getSipColorClasses(log.sipMethod) };
-  }
-  const mt = log.messageType?.toLowerCase() ?? '';
-  if (!mt) return null;
-  for (const [key, style] of Object.entries(EVENT_TYPE_STYLES)) {
-    if (mt.includes(key)) {
-      return { label: mt.toUpperCase(), style };
-    }
-  }
-  return {
-    label: mt.length > 18 ? `${mt.slice(0, 17)}...`.toUpperCase() : mt.toUpperCase(),
-    style: 'bg-[var(--muted)] text-[var(--muted-foreground)] border-[var(--border)]',
-  };
-}
-
 const LEVEL_DOT: Record<string, string> = {
   ERROR: 'bg-red-500',
   WARN: 'bg-amber-500',
@@ -41,11 +24,42 @@ const LEVEL_DOT: Record<string, string> = {
   DEBUG: 'bg-[var(--muted-foreground)]',
 };
 
+function getEventTypePill(log: LogEntry): { label: string; style: string } | null {
+  if (log.isSip && log.sipMethod) {
+    return { label: log.sipMethod, style: getSipColorClasses(log.sipMethod) };
+  }
+
+  const messageType = log.messageType?.toLowerCase() ?? '';
+  if (!messageType) return null;
+
+  for (const [key, style] of Object.entries(EVENT_TYPE_STYLES)) {
+    if (messageType.includes(key)) {
+      return { label: messageType.toUpperCase(), style };
+    }
+  }
+
+  return {
+    label: messageType.length > 18 ? `${messageType.slice(0, 17)}...`.toUpperCase() : messageType.toUpperCase(),
+    style: 'bg-[var(--muted)] text-[var(--muted-foreground)] border-[var(--border)]',
+  };
+}
+
+function buildPayloadPreview(log: LogEntry): string {
+  const previewSource = typeof log.json?.msg === 'string' && log.json.msg.trim().length > 0
+    ? log.json.msg
+    : log.payload;
+  if (!previewSource) return '';
+  return previewSource.length > 80 ? `${previewSource.slice(0, 80)}...` : previewSource;
+}
+
 interface LogRowProps {
   log: LogEntry;
   style?: React.CSSProperties;
   onClick: (log: LogEntry) => void;
+  onToggleExpanded: (logId: number) => void;
   active: boolean;
+  isExpanded: boolean;
+  isCitationTarget?: boolean;
   measureRef?: (node: HTMLElement | null) => void;
   index?: number;
   isTextWrap?: boolean;
@@ -57,11 +71,14 @@ interface LogRowProps {
   collapseCount?: number;
 }
 
-const LogRow: React.FC<LogRowProps> = ({
+function LogRow({
   log,
   style,
   onClick,
+  onToggleExpanded,
   active,
+  isExpanded,
+  isCitationTarget = false,
   measureRef,
   index,
   isTextWrap,
@@ -71,103 +88,154 @@ const LogRow: React.FC<LogRowProps> = ({
   isHighlighted = false,
   isAiHighlighted = false,
   collapseCount,
-}) => {
-  const [expanded, setExpanded] = useState(false);
+}: LogRowProps) {
   const { toggleCorrelation } = useLogContext();
-
   const hasPayload = log.payload && log.payload.length > 0;
   const eventPill = getEventTypePill(log);
+  const fullMessage = log.summaryMessage ?? log.displayMessage;
+  const payloadPreview = buildPayloadPreview(log);
+  const visibleMessage = !fullMessage
+    ? `[Empty entry; ${log.sourceLabel ?? log.component ?? 'unknown source'}]`
+    : fullMessage.length > 180
+      ? `${fullMessage.slice(0, 180)}...`
+      : fullMessage;
+
+  const handleRowClick = (): void => {
+    if (hasPayload) {
+      onToggleExpanded(log.id);
+    }
+    onClick(log);
+  };
 
   return (
     <div
       ref={measureRef}
       data-index={index}
+      data-citation-target={isCitationTarget ? 'true' : 'false'}
+      title={log.jsonMalformed ? 'Malformed JSON body' : undefined}
       style={style}
       className={clsx(
-        'flex flex-col border-b border-[var(--border)] cursor-pointer font-mono transition-colors duration-[var(--duration-fast)]',
+        'flex cursor-pointer flex-col border-b border-[var(--border)] font-mono transition-colors duration-[var(--duration-fast)]',
         active ? 'bg-[var(--muted)]' : 'hover:bg-[var(--muted)]/70',
         isHighlighted && 'bg-[var(--warning)]/8 ring-1 ring-inset ring-[var(--warning)]/25',
-        isAiHighlighted && 'bg-violet-500/10 ring-1 ring-inset ring-violet-500/30'
+        isAiHighlighted && 'bg-violet-500/10 ring-1 ring-inset ring-violet-500/30',
+        isCitationTarget && 'bg-[color:color-mix(in_srgb,var(--glow-ready)_20%,transparent)]',
+        log.jsonMalformed && 'border-l-2 border-l-amber-500/60',
       )}
-      onClick={() => onClick(log)}
+      onClick={handleRowClick}
     >
       <div className={clsx('log-grid w-full px-2', isTextWrap ? 'items-start py-1.5' : 'items-center h-[var(--log-row-height)]')}>
         <div className="flex justify-center">
           {hasPayload ? (
-            <button onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }} className="p-0.5 text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
-              {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onToggleExpanded(log.id);
+              }}
+              className="p-0.5 text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+              aria-label={isExpanded ? 'Collapse payload' : 'Expand payload'}
+            >
+              {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
             </button>
           ) : null}
         </div>
 
-        <div className="text-[var(--muted-foreground)] text-[11px] truncate tabular-nums">
+        <div className="truncate text-[11px] tabular-nums text-[var(--muted-foreground)]">
           {getLogDisplayTimestamp(log)}
         </div>
 
         <div className={clsx('min-w-0 flex items-center gap-1.5', isTextWrap ? 'flex-wrap' : 'overflow-hidden')}>
           {eventPill && (
-            <span className={clsx('px-1 py-0 rounded border text-[9px] font-semibold leading-[16px] shrink-0 uppercase', eventPill.style)}>
+            <span className={clsx('shrink-0 rounded border px-1 py-0 text-[9px] font-semibold uppercase leading-[16px]', eventPill.style)}>
               {eventPill.label}
             </span>
           )}
-          <span className="px-1 py-0 rounded text-[9px] font-medium leading-[16px] bg-[var(--accent)] text-[var(--muted-foreground)] border border-[var(--border)] shrink-0 truncate max-w-[160px]" title={log.component}>
+          <span
+            className="max-w-[160px] shrink-0 truncate rounded border border-[var(--border)] bg-[var(--accent)] px-1 py-0 text-[9px] font-medium leading-[16px] text-[var(--muted-foreground)]"
+            title={log.component}
+          >
             {log.displayComponent}
           </span>
-          <span className={clsx('w-1.5 h-1.5 rounded-full shrink-0', LEVEL_DOT[log.level] ?? LEVEL_DOT.INFO)} title={log.level} />
-          <span className={clsx('min-w-0 text-[11px]', isTextWrap ? 'break-all' : 'truncate', !(log.summaryMessage ?? log.displayMessage) ? 'text-[var(--muted-foreground)] italic' : 'text-[var(--foreground)]')}>
-            {(() => {
-              const fullMessage = log.summaryMessage ?? log.displayMessage;
-              if (!fullMessage) return `[Empty entry — ${log.sourceLabel ?? log.component ?? 'unknown source'}]`;
-              const maxLength = 180;
-              const truncatedMessage = fullMessage.length > maxLength ? `${fullMessage.slice(0, maxLength)}...` : fullMessage;
-              return highlightText(truncatedMessage, filterText || '');
-            })()}
+          <span className={clsx('h-1.5 w-1.5 shrink-0 rounded-full', LEVEL_DOT[log.level] ?? LEVEL_DOT.INFO)} title={log.level} />
+          <span className={clsx('min-w-0 text-[11px]', isTextWrap ? 'break-all' : 'truncate', !fullMessage ? 'italic text-[var(--muted-foreground)]' : 'text-[var(--foreground)]')}>
+            {highlightText(visibleMessage, filterText || '')}
             {collapseCount != null && collapseCount > 1 && (
-              <span className="ml-1 px-1 py-0 rounded bg-[var(--accent)] text-[9px] text-[var(--muted-foreground)] font-mono" title={`${collapseCount} similar rows`}>
+              <span className="ml-1 rounded bg-[var(--accent)] px-1 py-0 text-[9px] font-mono text-[var(--muted-foreground)]" title={`${collapseCount} similar rows`}>
                 x{collapseCount}
               </span>
             )}
           </span>
-          <div className="flex items-center gap-1 ml-auto shrink-0">
+          <div className="ml-auto flex items-center gap-1 shrink-0">
+            {log.traceId && (
+              <button
+                type="button"
+                className="flex items-center gap-0.5 rounded px-1 text-[9px] font-mono text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-[var(--foreground)]"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  toggleCorrelation({ type: 'traceId', value: log.traceId! });
+                }}
+                title={`traceId: ${log.traceId}`}
+              >
+                <Hash size={10} />
+                <span>{log.traceId.slice(0, 10)}</span>
+              </button>
+            )}
             {log.callId && (
-              <div
-                className="flex items-center gap-0.5 px-1 rounded cursor-pointer hover:bg-[var(--accent)] shrink-0"
-                onClick={(e) => {
-                  e.stopPropagation();
+              <button
+                type="button"
+                className="flex items-center gap-0.5 rounded px-1 hover:bg-[var(--accent)] shrink-0"
+                onClick={(event) => {
+                  event.stopPropagation();
                   toggleCorrelation({ type: 'callId', value: log.callId! });
                 }}
                 title={`Call-ID: ${log.callId}`}
               >
-                <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: stc(log.callId) }} />
-                <span className="text-[9px] text-[var(--muted-foreground)] font-mono">{log.callId.slice(0, 8)}</span>
-              </div>
+                <div className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: stc(log.callId) }} />
+                <span className="text-[9px] font-mono text-[var(--muted-foreground)]">{log.callId.slice(0, 8)}</span>
+              </button>
             )}
             {log.reportId && (
-              <span
-                className="text-[9px] text-[var(--muted-foreground)] font-mono cursor-pointer hover:text-[var(--foreground)]"
-                onClick={(e) => {
-                  e.stopPropagation();
+              <button
+                type="button"
+                className="text-[9px] font-mono text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                onClick={(event) => {
+                  event.stopPropagation();
                   toggleCorrelation({ type: 'report', value: log.reportId! });
                 }}
                 title={`Report ${log.reportId}`}
               >
                 #{log.reportId}
-              </span>
+              </button>
             )}
-            <button onClick={(e) => { e.stopPropagation(); onToggleFavorite?.(); }} className="p-0.5 text-[var(--muted-foreground)] hover:text-[var(--warning)] shrink-0" title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onToggleFavorite?.();
+              }}
+              className="p-0.5 text-[var(--muted-foreground)] hover:text-[var(--warning)] shrink-0"
+              title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+            >
               <Star size={12} className={clsx(isFavorite && 'fill-[var(--warning)] text-[var(--warning)]')} />
             </button>
           </div>
         </div>
       </div>
 
-      {expanded && hasPayload && (
-        <div className="pl-[calc(20px+140px+12px)] pr-4 pb-2 text-[11px] text-[var(--muted-foreground)] whitespace-pre-wrap break-all overflow-auto bg-[var(--accent)] max-h-[300px]">
-          {log.type === 'JSON' ? <pre className="mt-1">{JSON.stringify(log.json, null, 2)}</pre> : <div className="font-mono mt-1">{log.payload}</div>}
+      {!isExpanded && hasPayload && payloadPreview && (
+        <div className="px-2 pb-2 pl-[calc(20px+140px+12px)] text-[11px] text-[var(--muted-foreground)]">
+          <span className="block truncate font-mono">{payloadPreview}</span>
+        </div>
+      )}
+
+      {isExpanded && hasPayload && (
+        <div className="max-h-[300px] overflow-auto bg-[var(--accent)] pb-2 pl-[calc(20px+140px+12px)] pr-4 text-[11px] text-[var(--muted-foreground)]">
+          <pre className="mt-1 whitespace-pre-wrap break-all">{log.payload}</pre>
         </div>
       )}
     </div>
   );
-};
+}
 
 export default memo(LogRow);

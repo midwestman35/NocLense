@@ -5,7 +5,7 @@
  * Each room has a distinct layout with WorkspaceCard containers.
  */
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import { useLogContext } from '../../contexts/LogContext';
 import { useAI } from '../../contexts/AIContext';
 import { RoomRouter } from './RoomRouter';
@@ -15,7 +15,7 @@ import type { Phase } from './types';
 
 // Existing components — reused as card content
 import FilterBar from '../FilterBar';
-import LogViewer from '../LogViewer';
+import LogViewer, { type LogViewerHandle } from '../LogViewer';
 import LogTimeline from '../timeline/LogTimeline';
 import { AISidebar } from '../AISidebar';
 import { WorkspaceImportPanel } from '../import/WorkspaceImportPanel';
@@ -36,6 +36,7 @@ import type { InvestigationSetup } from '../../types/investigation';
 import type { ZendeskTicket } from '../../services/zendeskService';
 import { loadAiSettings } from '../../store/aiSettings';
 import { useEvidence } from '../../contexts/EvidenceContext';
+import type { Citation, CitationId } from '../../types/canonical';
 
 function formatTicketLabel(value: string | null | undefined): string | undefined {
   if (!value) return undefined;
@@ -45,6 +46,40 @@ function formatTicketLabel(value: string | null | undefined): string | undefined
     .filter(Boolean)
     .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1).toLowerCase())
     .join(' ');
+}
+
+function buildCitationUrl(citation: Citation): string | null {
+  const settings = loadAiSettings();
+
+  switch (citation.source.kind) {
+    case 'jira':
+      return settings.jiraSubdomain
+        ? `https://${settings.jiraSubdomain}/browse/${citation.source.key}`
+        : null;
+    case 'zendesk':
+      return settings.zendeskSubdomain
+        ? `https://${settings.zendeskSubdomain}.zendesk.com/agent/tickets/${citation.source.ticketId}`
+        : null;
+    case 'confluence':
+      return settings.jiraSubdomain
+        ? `https://${settings.jiraSubdomain}/wiki/spaces/${citation.source.spaceKey}/pages/${citation.source.pageId}`
+        : null;
+    case 'slack':
+      return citation.source.messageTs
+        ? `https://${citation.source.workspace}.slack.com/archives/${citation.source.channelId}/p${citation.source.messageTs.replace('.', '')}`
+        : `https://${citation.source.workspace}.slack.com/archives/${citation.source.channelId}`;
+    case 'datadog': {
+      const params = new URLSearchParams({
+        query: citation.source.query,
+        from_ts: String(citation.source.startMs),
+        to_ts: String(citation.source.endMs),
+        live: 'false',
+      });
+      return `https://app.${settings.datadogSite}/logs?${params.toString()}`;
+    }
+    default:
+      return null;
+  }
 }
 
 export function NewWorkspaceLayout() {
@@ -60,9 +95,11 @@ export function NewWorkspaceLayout() {
     setScrollTargetTimestamp,
     filterText,
     clearAllData,
+    parsingProgress,
   } = useLogContext();
   const { similarPastTickets } = useAI();
-  const { evidenceSet } = useEvidence();
+  const { evidenceSet, investigation } = useEvidence();
+  const logViewerRef = useRef<LogViewerHandle>(null);
 
   const [explicitPhase, setExplicitPhase] = useState<Phase | null>(null);
   const [showOnboardingWizard, setShowOnboardingWizard] = useState(false);
@@ -78,6 +115,22 @@ export function NewWorkspaceLayout() {
   const selectedLog = selectedLogId
     ? filteredLogs.find((e) => e.id === selectedLogId) || logs.find((e) => e.id === selectedLogId)
     : null;
+  const parseProgress = parsingProgress > 0 && parsingProgress < 1 ? parsingProgress * 100 : null;
+
+  const handleCitationClick = useCallback((citationId: CitationId) => {
+    const citation = investigation?.citations[citationId];
+    if (!citation) return;
+
+    if (citation.source.kind === 'log') {
+      logViewerRef.current?.jumpToCitation(citation.source.fileName, citation.source.byteOffset);
+      return;
+    }
+
+    const url = buildCitationUrl(citation);
+    if (url) {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  }, [investigation]);
 
   // Phase dot navigation — user clicks a completed phase dot
   const handlePhaseChange = useCallback((next: Phase) => {
@@ -152,7 +205,7 @@ export function NewWorkspaceLayout() {
           </div>
           <LogTimeline />
           <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-            <LogViewer />
+            <LogViewer ref={logViewerRef} parseProgress={parseProgress} />
           </div>
           {selectedLog && (
             <div className="shrink-0 border-t border-[var(--border)] bg-[var(--card)] overflow-hidden" style={{ height: 300 }}>
@@ -190,6 +243,7 @@ export function NewWorkspaceLayout() {
             onSetupAI={() => setShowOnboardingWizard(true)}
             pendingSetup={pendingSetup}
             onSetupConsumed={() => setPendingSetup(null)}
+            onCitationClick={handleCitationClick}
           />
         </div>
       </WorkspaceCard>
@@ -290,9 +344,9 @@ export function NewWorkspaceLayout() {
         </div>
       </WorkspaceCard>
     </>
-  ), [filteredLogs.length, selectedLog, selectedLogId, fileError, activeCorrelations, filterText,
+  ), [filteredLogs.length, selectedLog, fileError, activeCorrelations, filterText,
       pendingSetup, similarPastTickets, setSelectedLogId, setJumpState, setActiveCorrelations,
-      setFilterText, setScrollTargetTimestamp]);
+      setFilterText, setScrollTargetTimestamp, parseProgress, handleCitationClick, evidenceSet?.items.length]);
 
   // ── Submit Room ────────────────────────────────────────────────
   const submitContent = useMemo(() => (
