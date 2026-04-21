@@ -25,31 +25,10 @@ import type { DatadogEnrichmentOptions } from '../../../services/datadogService'
 import { useLogContext } from '../../../contexts/LogContext';
 import { importFiles, appendLogsToIndexedDB } from '../../../services/importService';
 import { isZipFile, extractLogFilesFromZip } from '../../../utils/zipExtractor';
+import InvestigateUrlEntry from './InvestigateUrlEntry';
+import { TIMEZONE_OPTIONS } from './timezoneOptions';
 
 // Common timezones: display label → value sent to AI prompt
-export const TIMEZONE_OPTIONS: { label: string; value: string }[] = [
-  { label: 'UTC', value: 'UTC' },
-  { label: 'Eastern (US & Canada)', value: 'Eastern Time (US & Canada)' },
-  { label: 'Central (US & Canada)', value: 'Central Time (US & Canada)' },
-  { label: 'Mountain (US & Canada)', value: 'Mountain Time (US & Canada)' },
-  { label: 'Pacific (US & Canada)', value: 'Pacific Time (US & Canada)' },
-  { label: 'Arizona (no DST)', value: 'Arizona' },
-  { label: 'Alaska', value: 'Alaska' },
-  { label: 'Hawaii', value: 'Hawaii' },
-  { label: 'Atlantic (Canada)', value: 'Atlantic Time (Canada)' },
-  { label: 'Newfoundland', value: 'Newfoundland' },
-  { label: 'London (UK)', value: 'London' },
-  { label: 'Paris / Berlin / CET', value: 'Central European Time' },
-  { label: 'Moscow', value: 'Moscow' },
-  { label: 'Dubai', value: 'Abu Dhabi' },
-  { label: 'India (IST)', value: 'Mumbai' },
-  { label: 'Singapore / HK', value: 'Singapore' },
-  { label: 'Tokyo / Japan', value: 'Tokyo' },
-  { label: 'Sydney (AEDT)', value: 'Sydney' },
-  { label: 'Melbourne', value: 'Melbourne' },
-  { label: 'Perth (AWST)', value: 'Perth' },
-  { label: 'Auckland', value: 'Auckland' },
-];
 
 type TicketMode = 'existing' | 'create' | 'skip';
 
@@ -63,12 +42,21 @@ interface Props {
   /** Called once the initialTicketId has been consumed so parent can clear it */
   onTicketConsumed?: () => void;
   onScanReady: (ticket: ZendeskTicket | null, customerTimezone: string, ddOpts: DatadogEnrichmentOptions) => void;
+  useInvestigateUrlEntry?: boolean;
 }
 
 const INPUT = 'w-full rounded border border-[var(--border)] bg-[var(--input)] px-2 py-1.5 text-[12px] text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]';
 const LABEL = 'block text-[11px] font-medium text-[var(--muted-foreground)] mb-1';
 
-export default function DiagnosePhase1({ settings, logCount, logTimeRange, initialTicketId, onTicketConsumed, onScanReady }: Props) {
+export default function DiagnosePhase1({
+  settings,
+  logCount,
+  logTimeRange,
+  initialTicketId,
+  onTicketConsumed,
+  onScanReady,
+  useInvestigateUrlEntry = false,
+}: Props) {
   const { logs, setLogs, setLoading, setParsingProgress, useIndexedDBMode, enableIndexedDBMode, addImportedDatasets } = useLogContext();
 
   const [mode, setMode] = useState<TicketMode>('existing');
@@ -149,9 +137,10 @@ export default function DiagnosePhase1({ settings, logCount, logTimeRange, initi
     if (tz) setTimezone(tz);
   }
 
-  async function doFetchTicket() {
-    const id = ticketIdInput.trim().replace(/\D/g, '');
+  async function doFetchTicket(nextTicketId?: string) {
+    const id = (nextTicketId ?? ticketIdInput).trim().replace(/\D/g, '');
     if (!id) return;
+    setTicketIdInput(id);
     setZdFetching(true);
     setZdError(null);
     setFetchedTicket(null);
@@ -400,6 +389,22 @@ export default function DiagnosePhase1({ settings, logCount, logTimeRange, initi
             )}
             </>
           ) : (
+            useInvestigateUrlEntry ? (
+              <div className="flex flex-col gap-2">
+                <InvestigateUrlEntry
+                  value={ticketIdInput}
+                  onChange={setTicketIdInput}
+                  onSubmit={(ticketId) => void doFetchTicket(ticketId)}
+                  loading={zdFetching}
+                  error={zdError}
+                />
+                {!settings.zendeskToken && (
+                  <p className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
+                    Configure Zendesk credentials in settings to enable auto-fetch.
+                  </p>
+                )}
+              </div>
+            ) : (
             <div>
               <label className={LABEL}>Zendesk Ticket # or URL</label>
               <div className="flex gap-2">
@@ -413,7 +418,9 @@ export default function DiagnosePhase1({ settings, logCount, logTimeRange, initi
                 />
                 <button
                   type="button"
-                  onClick={doFetchTicket}
+                  onClick={() => {
+                    void doFetchTicket();
+                  }}
                   disabled={zdFetching || !ticketIdInput.trim()}
                   className="flex items-center gap-1.5 rounded border px-3 py-1.5 text-[11px] transition-colors disabled:opacity-50"
                   style={{ borderColor: 'var(--border)', backgroundColor: 'var(--muted)', color: 'var(--foreground)' }}
@@ -425,10 +432,11 @@ export default function DiagnosePhase1({ settings, logCount, logTimeRange, initi
               {zdError && <p className="mt-1.5 text-[11px] text-red-400">{zdError}</p>}
               {!settings.zendeskToken && (
                 <p className="mt-1 text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
-                  Configure Zendesk credentials in settings (⚙) to enable auto-fetch.
+                  Configure Zendesk credentials in settings to enable auto-fetch.
                 </p>
               )}
             </div>
+            )
           )}
         </div>
       )}

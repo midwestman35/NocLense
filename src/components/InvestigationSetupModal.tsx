@@ -38,7 +38,7 @@ import {
 } from '../services/apexEventParser';
 import { extractTextFromPdf } from '../utils/pdfExtractor';
 import { isZipFile } from '../utils/zipExtractor';
-import { TIMEZONE_OPTIONS } from './ai/diagnose/DiagnosePhase1';
+import { TIMEZONE_OPTIONS } from './ai/diagnose/timezoneOptions';
 
 // Attachments that can carry log data or useful context
 function isImportableAttachment(att: ZendeskAttachment): boolean {

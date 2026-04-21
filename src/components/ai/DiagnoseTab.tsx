@@ -10,8 +10,8 @@
  * This component owns all shared state: ticket, diagnosis result, internal note,
  * and AI highlight IDs. The phase components are purely presentational.
  */
-import { useState, useEffect } from 'react';
-import { Loader2, Stethoscope } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Stethoscope } from 'lucide-react';
 import { useLogContext } from '../../contexts/LogContext';
 import { useAI } from '../../contexts/AIContext';
 import { useCase } from '../../store/caseContext';
@@ -27,10 +27,18 @@ import { buildArchiveFilename } from '../../utils/logArchive';
 import { formatApexEventForAi } from '../../services/apexEventParser';
 import type { DiagnosisResult } from '../../types/diagnosis';
 import type { LogEntry } from '../../types';
+import type { Investigation } from '../../types/canonical';
 import type { InvestigationSetup } from '../../types/investigation';
+import { TuiSpinner } from '../loading/TuiSpinner';
 import DiagnosePhase1 from './diagnose/DiagnosePhase1';
 import DiagnosePhase2 from './diagnose/DiagnosePhase2';
 import DiagnosePhase3 from './diagnose/DiagnosePhase3';
+import StageBar from './diagnose/StageBar';
+import {
+  buildCanonicalInvestigationPreview,
+  getDiagnosePipelineProgress,
+  readDiagnosePipelineFlag,
+} from './diagnose/pipelineUi';
 
 type Phase = 1 | 2 | 3;
 
@@ -66,6 +74,7 @@ export default function DiagnoseTab({ initialTicketId, onTicketConsumed, pending
   const settings = loadAiSettings();
 
   const [phase, setPhase] = useState<Phase>(1);
+  const [pipelineUiEnabled] = useState<boolean>(() => readDiagnosePipelineFlag());
 
   // Phase 1 outputs
   const [ticket, setTicket] = useState<ZendeskTicket | null>(null);
@@ -80,6 +89,29 @@ export default function DiagnoseTab({ initialTicketId, onTicketConsumed, pending
   const [diagnosisResult, setDiagnosisResult] = useState<DiagnosisResult | null>(null);
   const [internalNote, setInternalNote] = useState('');
   const [refining, setRefining] = useState(false);
+  const pipelineProgress = getDiagnosePipelineProgress(phase, scanning, scanStatus);
+  const canonicalPreview = useMemo(() => {
+    if (!pipelineUiEnabled || !diagnosisResult) {
+      return { investigation: null as Investigation | null, error: null as string | null };
+    }
+
+    try {
+      return {
+        investigation: buildCanonicalInvestigationPreview({
+          diagnosisResult,
+          logs: activeLogs,
+          ticket,
+          zendeskSubdomain: settings.zendeskSubdomain,
+        }),
+        error: null,
+      };
+    } catch (error: unknown) {
+      return {
+        investigation: null,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }, [activeLogs, diagnosisResult, pipelineUiEnabled, settings.zendeskSubdomain, ticket]);
 
   // Phase 3 — archive filename built from ticket/org context
   const archiveFilename = buildArchiveFilename({
@@ -375,18 +407,26 @@ export default function DiagnoseTab({ initialTicketId, onTicketConsumed, pending
   // ── Scanning spinner ────────────────────────────────────────────────────────
   if (scanning) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
-        <Loader2 size={28} className="animate-spin text-violet-400" />
-        <p className="text-[13px] font-semibold" style={{ color: 'var(--foreground)' }}>
-          {scanStatus}
-        </p>
-        <p className="text-[11px]" style={{ color: 'var(--muted-foreground)' }}>
-          Correlating {activeLogs.length.toLocaleString()} events
-          {ticket ? ` with ticket #${ticket.id}` : ''}
-          {customerTimezone !== 'UTC' ? ` · Customer TZ: ${customerTimezone}` : ''}
-          <br />
-          This may take 15–30 seconds.
-        </p>
+      <div className="flex h-full flex-col">
+        {pipelineUiEnabled && (
+          <StageBar
+            activeStage={pipelineProgress.activeStage}
+            completedStages={pipelineProgress.completedStages}
+          />
+        )}
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
+          <TuiSpinner kind="braille" label={scanStatus} className="text-[var(--foreground)]" />
+          <p className="text-[13px] font-semibold" style={{ color: 'var(--foreground)' }}>
+            {scanStatus}
+          </p>
+          <p className="text-[11px]" style={{ color: 'var(--muted-foreground)' }}>
+            Correlating {activeLogs.length.toLocaleString()} events
+            {ticket ? ` with ticket #${ticket.id}` : ''}
+            {customerTimezone !== 'UTC' ? ` · Customer TZ: ${customerTimezone}` : ''}
+            <br />
+            This may take 15–30 seconds.
+          </p>
+        </div>
       </div>
     );
   }
@@ -396,7 +436,14 @@ export default function DiagnoseTab({ initialTicketId, onTicketConsumed, pending
     return (
       <div className="flex h-full flex-col overflow-y-auto">
         {/* Step indicator */}
-        <StepBar current={1} />
+        {pipelineUiEnabled ? (
+          <StageBar
+            activeStage={pipelineProgress.activeStage}
+            completedStages={pipelineProgress.completedStages}
+          />
+        ) : (
+          <StepBar current={1} />
+        )}
         {scanError && (
           <div className="mx-3 mt-2 rounded border border-red-500/30 bg-red-500/10 px-3 py-2 text-[11px] text-red-400">
             {scanError}
@@ -409,6 +456,7 @@ export default function DiagnoseTab({ initialTicketId, onTicketConsumed, pending
           initialTicketId={initialTicketId}
           onTicketConsumed={onTicketConsumed}
           onScanReady={handleScanReady}
+          useInvestigateUrlEntry={pipelineUiEnabled}
         />
         {/* Stethoscope watermark when no logs */}
         {activeLogs.length === 0 && (
@@ -427,7 +475,20 @@ export default function DiagnoseTab({ initialTicketId, onTicketConsumed, pending
   if (phase === 2 && diagnosisResult) {
     return (
       <div className="flex h-full flex-col">
-        <StepBar current={2} />
+        {pipelineUiEnabled ? (
+          <StageBar
+            activeStage={pipelineProgress.activeStage}
+            completedStages={pipelineProgress.completedStages}
+          />
+        ) : (
+          <StepBar current={2} />
+        )}
+        {pipelineUiEnabled && (
+          <CanonicalInvestigationPreview
+            investigation={canonicalPreview.investigation}
+            error={canonicalPreview.error}
+          />
+        )}
         <div className="flex-1 overflow-hidden">
           <DiagnosePhase2
             diagnosisResult={diagnosisResult}
@@ -450,7 +511,20 @@ export default function DiagnoseTab({ initialTicketId, onTicketConsumed, pending
   if (phase === 3) {
     return (
       <div className="flex h-full flex-col">
-        <StepBar current={3} />
+        {pipelineUiEnabled ? (
+          <StageBar
+            activeStage={pipelineProgress.activeStage}
+            completedStages={pipelineProgress.completedStages}
+          />
+        ) : (
+          <StepBar current={3} />
+        )}
+        {pipelineUiEnabled && (
+          <CanonicalInvestigationPreview
+            investigation={canonicalPreview.investigation}
+            error={canonicalPreview.error}
+          />
+        )}
         <div className="flex-1 overflow-hidden">
           <DiagnosePhase3
             settings={settings}
@@ -508,5 +582,39 @@ function StepBar({ current }: { current: 1 | 2 | 3 }) {
         </div>
       ))}
     </div>
+  );
+}
+
+function CanonicalInvestigationPreview({
+  investigation,
+  error,
+}: {
+  investigation: Investigation | null;
+  error: string | null;
+}) {
+  return (
+    <section
+      className="shrink-0 border-b border-[var(--border)] bg-[var(--background)] px-3 py-2"
+      aria-label="Canonical investigation preview"
+    >
+      <p className="text-[11px] font-medium text-[var(--foreground)]">
+        Canonical Investigation Preview
+      </p>
+      <p className="mt-0.5 text-[10px] text-[var(--muted-foreground)]">
+        01b.2 proof-of-life for the canonical adapter.
+      </p>
+      {error ? (
+        <p className="mt-2 text-[11px] text-[var(--destructive)]" role="alert">
+          {error}
+        </p>
+      ) : (
+        <pre
+          className="mt-2 max-h-40 overflow-auto rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--muted)] p-2 text-[10px] leading-4 text-[var(--foreground)]"
+          data-testid="canonical-investigation-preview"
+        >
+          {investigation ? JSON.stringify(investigation, null, 2) : '{}'}
+        </pre>
+      )}
+    </section>
   );
 }
