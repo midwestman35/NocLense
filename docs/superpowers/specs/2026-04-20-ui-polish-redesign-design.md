@@ -472,7 +472,7 @@ Resizable surfaces move to **Phase 6+ roadmap**, bundled with the case library w
 
 - **Import Room** — single centered drop zone; fills on hover with subtle scale + `glow-ready`; cute label during parse; URL paste kicks off investigate flow. (`/` prefix command palette is deferred — see §7.)
 - **Submit Room** — canonical fields matching `Res-note.txt`; pre-filled from Evidence; one-click Copy-to-Zendesk, Create-REP, Export-.noclense.
-- **Correlation Graph card** — moved to Phase 06A (see §6.5 and v3 Phase 05 plan). Net-new feature work (graph layout algorithm, edge co-occurrence, interactive node selection, traceId integration) rather than polish. Existing stub text in `NewWorkspaceLayout.tsx` remains until the card is implemented.
+- **Correlation Graph card** — moved to Phase 06B (see §6.5 and v3 Phase 05 plan). Net-new feature work (graph layout algorithm, edge co-occurrence, interactive node selection, traceId integration) rather than polish. Existing stub text in `NewWorkspaceLayout.tsx` remains until the card is implemented.
 - **Datadog Live card** — `glow-live` while streaming; decays to `ready` per arbitration rules.
 - **Similar Tickets card** — compact list from local folder + Zendesk history (future: case library).
 - **PhaseHeader + PhaseDots** — apply new tokens, tabular-nums on ticket ID, text-wrap on customer names.
@@ -536,8 +536,9 @@ Each phase completes when its validation bars are clear AND Codex has reviewed.
 | **03** | **Evidence exports.** Res-note / Jira / `.noclense` templates. Manifest versioning. Import shim for v0 case packs. | Codex |
 | **04** | **Focus-mode cards + Import Room + Submit Room.** Card focus toggle (substitute for resizable surfaces). Not resize panels. | Codex |
 | **05** | **Broad pass + citation-jump polish + reduced-motion audit** + spec cleanup. | Codex |
-| **06** | *(future)* Case library learning loop — separate spec after 05 ships. |
-| **06A** | *(future)* **Correlation Graph card.** One node per extracted correlation ID (`traceId`, `callId`, `stationId`, etc.); edges for co-occurrence; layout algorithm; interactive selection. Categorically feature work rather than polish — moved out of Phase 05 §6.1 broad pass scope. | Codex |
+| **06A** | **Direction C broad application + reduced-motion cleanup.** Carries Phase 04.5 Direction C tokens/curves to the remaining primitives (Dialog, DropdownMenu, Sheet, Tooltip, Toast), unifies spinners behind a reduced-motion-aware `<Spinner />` primitive, adds hook-level reduced-motion guards in `src/utils/anime.ts`, wraps the app in `<MotionConfig reducedMotion="user">`, and applies Direction C to Submit/Import Room surfaces + `useRoomTransition`. Closes the ⚠️ rows in `docs/perf/reduced-motion-audit.md` §2.1–§2.3. | Codex |
+| **06B** | *(future)* **Correlation Graph card.** One node per extracted correlation ID (`traceId`, `callId`, `stationId`, etc.); edges for co-occurrence; layout algorithm; interactive selection. Categorically feature work rather than polish — moved out of Phase 05 §6.1 broad pass scope. | Codex |
+| **06C** | *(future)* Case library learning loop — separate spec after 05 ships. |
 | **07** | *(future)* Standalone app packaging (Tauri evaluation memo) — separate spec. |
 
 Phase 00 is non-optional. Phases 01a–01c can be landed as separate PRs but all three belong to "Phase 01" conceptually.
