@@ -14,6 +14,8 @@ import { CARD_GRID_CLASSES } from './WorkspaceGrid';
 import type { Phase } from './types';
 import { useBundleSizePulse } from '../../hooks/useBundleSizePulse';
 import type { EvidenceSet } from '../../types/canonical';
+import { useLiveSurface, useSurfaceTier } from '../../contexts/RoomLiveStateContext';
+import type { GlowTier } from '../../contexts/roomLiveStateStore';
 
 // Existing components — reused as card content
 import FilterBar from '../FilterBar';
@@ -330,18 +332,7 @@ export function NewWorkspaceLayout() {
         </div>
       </WorkspaceCard>
 
-      <WorkspaceCard
-        id="datadog-live"
-        title="Datadog Live"
-        icon={<Database size={14} />}
-        accentColor="#a855f7"
-        defaultExpanded={false}
-        className={CARD_GRID_CLASSES['datadog-live']}
-      >
-        <div className="p-3 text-xs text-[var(--muted-foreground)]">
-          <p>Streaming production errors from Datadog API.</p>
-        </div>
-      </WorkspaceCard>
+      <DatadogLiveCard />
     </>
   ), [filteredLogs.length, selectedLog, fileError, activeCorrelations, filterText,
       pendingSetup, similarPastTickets, setSelectedLogId, setJumpState, setActiveCorrelations,
@@ -435,5 +426,57 @@ function EvidenceBadge({ evidenceSet }: { evidenceSet: EvidenceSet | null }): JS
     >
       {evidenceSet?.items.length ?? 0}
     </span>
+  );
+}
+
+/**
+ * DatadogLiveCard — Investigate-room card wired to the RoomLiveStateProvider
+ * arbitration model (spec §3.3) via Phase 01a's useLiveSurface hook.
+ *
+ * Phase 05 Commit 5. The card registers as a datadog-stream surface on
+ * mount, consumes useSurfaceTier to read its arbitrated tier, and stamps
+ * `data-surface` + `data-tier` on the card root via the dataAttributes
+ * prop added in Phase 04.5 Commit 5. Tier-driven CSS lives in
+ * src/styles/live-state.css.
+ *
+ * No actual streaming in this commit — that is future feature work.
+ * During development the tier can be exercised via store.notify() from
+ * a console or a test harness.
+ */
+function tierToAccent(tier: GlowTier): string {
+  switch (tier) {
+    case 'alert':
+      return 'var(--destructive)';
+    case 'live':
+    case 'ready':
+      return '#a855f7'; // original purple accent preserved for the live/ready path
+    case 'idle':
+    default:
+      return 'var(--muted-foreground)';
+  }
+}
+
+export function DatadogLiveCard(): JSX.Element {
+  useLiveSurface('datadog-live', 'datadog-stream');
+  const tier = useSurfaceTier('datadog-live');
+
+  return (
+    <WorkspaceCard
+      id="datadog-live"
+      title="Datadog Live"
+      icon={<Database size={14} />}
+      accentColor={tierToAccent(tier)}
+      defaultExpanded={false}
+      className={CARD_GRID_CLASSES['datadog-live']}
+      dataAttributes={{
+        'data-surface': 'datadog-live',
+        'data-tier': tier,
+      }}
+    >
+      <div className="p-3 text-xs text-[var(--muted-foreground)]">
+        <p>Streaming production errors from Datadog API.</p>
+        <p className="mt-2 text-[9px] uppercase tracking-wider">Tier: {tier}</p>
+      </div>
+    </WorkspaceCard>
   );
 }

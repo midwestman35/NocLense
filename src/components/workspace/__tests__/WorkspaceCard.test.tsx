@@ -154,6 +154,35 @@ describe('WorkspaceCard', () => {
     expect(root).not.toHaveAttribute('data-surface');
   });
 
+  // Phase 05 Commit 5 — explicit clobber test for data-focus-target
+  // (folded in per Phase 04.5 Codex review hand-off). The primitive
+  // owns data-focus-target just like data-card-id; callers cannot
+  // override it via the dataAttributes prop.
+  it('does not forward reserved data-focus-target key via dataAttributes', () => {
+    const { container } = render(
+      <CardFocusProvider>
+        <WorkspaceCard
+          id="t1"
+          title="Card"
+          icon={null}
+          accentColor="#000"
+          dataAttributes={{
+            'data-focus-target': 'true', // attempt to force "focused" from outside
+            'data-surface': 'ok',
+          }}
+        >
+          body
+        </WorkspaceCard>
+      </CardFocusProvider>
+    );
+    const root = container.querySelector('[data-card-id="t1"]')!;
+    // The primitive's own value wins: no card is focused, so the
+    // attribute is 'false' regardless of what dataAttributes said.
+    expect(root).toHaveAttribute('data-focus-target', 'false');
+    // Non-reserved keys still forward normally:
+    expect(root).toHaveAttribute('data-surface', 'ok');
+  });
+
   it('shows chevron-right when collapsed', () => {
     render(
       <WorkspaceCard id="test" title="Card" icon={<span>C</span>} accentColor="#76ce40" defaultExpanded={false}>

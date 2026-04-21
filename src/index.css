@@ -3,6 +3,7 @@
 @import "./styles/loading.css";
 @import "./styles/focus-mode.css";
 @import "./styles/citation-jump.css";
+@import "./styles/live-state.css";
 
 /* ── Base Reset ── */
 *,

@@ -1,0 +1,44 @@
+/*
+ * live-state.css — Phase 05 Commit 5
+ *
+ * Tier-driven glow for surfaces registered with the RoomLiveStateProvider
+ * (§3.3 of the UI Polish Redesign spec). Surfaces stamp themselves with
+ * data-surface="<name>" + data-tier="<tier>"; this CSS applies the
+ * appropriate shadow/pulse.
+ *
+ * The glow-live-pulse keyframe is already defined in loading.css — do
+ * not redeclare. We reference the existing animation by name.
+ *
+ * Reduced motion: the live-tier pulse is stripped (static shadow only)
+ * so users with prefers-reduced-motion see the glow tier without the
+ * pulsing motion.
+ */
+
+/* idle: no glow (default; browser default inherits --shadow-flat) */
+[data-tier="idle"] {
+  box-shadow: var(--shadow-flat);
+}
+
+/* ready: subtle static green glow */
+[data-tier="ready"] {
+  box-shadow: var(--shadow-glow-ready);
+}
+
+/* live: pulsing green glow — arbitration ensures only one surface is
+   "live" at a time per room per spec §3.3. */
+[data-tier="live"] {
+  box-shadow: var(--shadow-glow-live);
+  animation: glow-live-pulse 1.8s ease-in-out infinite;
+}
+
+/* alert: red glow; stays until acknowledged. */
+[data-tier="alert"] {
+  box-shadow: var(--shadow-glow-error);
+}
+
+/* Reduced motion: stop the pulse, keep the static shadow. */
+@media (prefers-reduced-motion: reduce) {
+  [data-tier="live"] {
+    animation: none;
+  }
+}
