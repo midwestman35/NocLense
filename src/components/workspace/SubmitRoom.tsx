@@ -12,7 +12,9 @@
 
 import {
   useCallback,
+  useEffect,
   useMemo,
+  useRef,
   useState,
   type ChangeEvent,
   type JSX,
@@ -192,7 +194,7 @@ function EvidenceSummaryCard({
 }
 
 export function SubmitRoom(): JSX.Element {
-  const { investigation, evidenceSet } = useEvidence();
+  const { investigation, evidenceSet, loadGeneration } = useEvidence();
 
   const { text: initialResNote, isDraft } = useMemo(
     () =>
@@ -204,12 +206,14 @@ export function SubmitRoom(): JSX.Element {
 
   const [editedNote, setEditedNote] = useState<string | null>(null);
   const resNoteText = editedNote ?? initialResNote;
+  const lastSyncedGenerationRef = useRef<number>(loadGeneration);
 
-  const [prevInitial, setPrevInitial] = useState(initialResNote);
-  if (initialResNote !== prevInitial) {
-    setPrevInitial(initialResNote);
-    setEditedNote(null);
-  }
+  useEffect(() => {
+    if (loadGeneration !== lastSyncedGenerationRef.current) {
+      lastSyncedGenerationRef.current = loadGeneration;
+      setEditedNote(null);
+    }
+  }, [loadGeneration]);
 
   const jiraTemplate = useMemo(
     () => (investigation ? buildJiraTemplate(investigation) : null),

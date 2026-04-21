@@ -23,6 +23,7 @@ import {
 interface EvidenceContextValue {
   investigation: Investigation | null;
   evidenceSet: EvidenceSet | null;
+  loadGeneration: number;
   setInvestigation: (inv: Investigation) => void;
   restoreEvidenceSet: (set: EvidenceSet) => void;
   pinBlock: (block: Block, pinnedBy: 'user' | 'ai') => void;
@@ -53,6 +54,7 @@ export function EvidenceProvider({ children }: { children: ReactNode }): JSX.Ele
   const { activeCaseId, createCase } = useCase();
   const [investigation, setInvestigationState] = useState<Investigation | null>(null);
   const [evidenceSet, setEvidenceSet] = useState<EvidenceSet | null>(null);
+  const [loadGeneration, setLoadGeneration] = useState(0);
   const investigationRef = useRef<Investigation | null>(null);
   const evidenceSetRef = useRef<EvidenceSet | null>(null);
 
@@ -69,10 +71,12 @@ export function EvidenceProvider({ children }: { children: ReactNode }): JSX.Ele
   const setInvestigation = useCallback((inv: Investigation) => {
     commitInvestigation(inv);
     commitEvidenceSet(buildEvidenceSet(inv, activeCaseId));
+    setLoadGeneration((g) => g + 1);
   }, [activeCaseId, commitEvidenceSet, commitInvestigation]);
 
   const restoreEvidenceSet = useCallback((set: EvidenceSet) => {
     commitEvidenceSet(set);
+    setLoadGeneration((g) => g + 1);
   }, [commitEvidenceSet]);
 
   const pinBlock = useCallback((block: Block, pinnedBy: 'user' | 'ai') => {
@@ -161,13 +165,14 @@ export function EvidenceProvider({ children }: { children: ReactNode }): JSX.Ele
   const value = useMemo<EvidenceContextValue>(() => ({
     investigation,
     evidenceSet,
+    loadGeneration,
     setInvestigation,
     restoreEvidenceSet,
     pinBlock,
     unpinBlock,
     reorderItems: reorderEvidenceItems,
     updateItemNote,
-  }), [evidenceSet, investigation, pinBlock, reorderEvidenceItems, restoreEvidenceSet, setInvestigation, unpinBlock, updateItemNote]);
+  }), [evidenceSet, investigation, loadGeneration, pinBlock, reorderEvidenceItems, restoreEvidenceSet, setInvestigation, unpinBlock, updateItemNote]);
 
   return <EvidenceContext.Provider value={value}>{children}</EvidenceContext.Provider>;
 }

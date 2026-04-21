@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SubmitRoom } from '../SubmitRoom';
 import * as EvidenceContextModule from '../../../contexts/EvidenceContext';
@@ -38,10 +38,12 @@ const evSet: EvidenceSet = {
 function renderWithContext(
   investigation: Investigation | null = inv,
   evidenceSet: EvidenceSet | null = evSet,
+  loadGeneration = 1,
 ) {
   vi.spyOn(EvidenceContextModule, 'useEvidence').mockReturnValue({
     investigation,
     evidenceSet,
+    loadGeneration,
     setInvestigation: vi.fn(),
     restoreEvidenceSet: vi.fn(),
     pinBlock: vi.fn(),
@@ -101,5 +103,57 @@ describe('SubmitRoom', () => {
   it('Export .noclense button is present', () => {
     renderWithContext();
     expect(screen.getByRole('button', { name: /export.*noclense/i })).toBeInTheDocument();
+  });
+
+  it('preserves engineer edits when loadGeneration is unchanged', () => {
+    const setWithOneMoreItem: EvidenceSet = {
+      ...evSet,
+      items: [{ blockId: asBlockId('ctx'), pinnedAt: 1, pinnedBy: 'user', order: 0 }],
+    };
+    const { rerender } = renderWithContext(inv, evSet, 5);
+    const textarea = screen.getByRole('textbox', { name: /edit before posting/i });
+
+    fireEvent.change(textarea, { target: { value: 'my custom note' } });
+
+    vi.spyOn(EvidenceContextModule, 'useEvidence').mockReturnValue({
+      investigation: inv,
+      evidenceSet: setWithOneMoreItem,
+      loadGeneration: 5,
+      setInvestigation: vi.fn(),
+      restoreEvidenceSet: vi.fn(),
+      pinBlock: vi.fn(),
+      unpinBlock: vi.fn(),
+      reorderItems: vi.fn(),
+      updateItemNote: vi.fn(),
+    });
+    rerender(<SubmitRoom />);
+
+    expect(screen.getByRole('textbox', { name: /edit before posting/i })).toHaveValue(
+      'my custom note',
+    );
+  });
+
+  it('resets edits when loadGeneration bumps even if investigation id is unchanged', () => {
+    const { rerender } = renderWithContext(inv, evSet, 5);
+    const textarea = screen.getByRole('textbox', { name: /edit before posting/i });
+
+    fireEvent.change(textarea, { target: { value: 'my custom note' } });
+
+    vi.spyOn(EvidenceContextModule, 'useEvidence').mockReturnValue({
+      investigation: inv,
+      evidenceSet: evSet,
+      loadGeneration: 6,
+      setInvestigation: vi.fn(),
+      restoreEvidenceSet: vi.fn(),
+      pinBlock: vi.fn(),
+      unpinBlock: vi.fn(),
+      reorderItems: vi.fn(),
+      updateItemNote: vi.fn(),
+    });
+    rerender(<SubmitRoom />);
+
+    expect(screen.getByRole('textbox', { name: /edit before posting/i })).not.toHaveValue(
+      'my custom note',
+    );
   });
 });

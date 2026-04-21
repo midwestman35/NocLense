@@ -218,4 +218,66 @@ describe('EvidenceContext', () => {
     expect(result.current.evidence.evidenceSet).toEqual(customSet);
     expect(result.current.evidence.evidenceSet?.items).toHaveLength(2);
   });
+
+  describe('loadGeneration', () => {
+    it('starts at 0', () => {
+      const wrapper = createWrapper();
+      const { result } = renderHook(() => useEvidence(), { wrapper });
+
+      expect(result.current.loadGeneration).toBe(0);
+    });
+
+    it('increments on setInvestigation', () => {
+      const investigation = makeInvestigation();
+      const wrapper = createWrapper();
+      const { result } = renderHook(() => useEvidence(), { wrapper });
+
+      act(() => {
+        result.current.setInvestigation(investigation);
+      });
+      expect(result.current.loadGeneration).toBe(1);
+
+      act(() => {
+        result.current.setInvestigation(investigation);
+      });
+      expect(result.current.loadGeneration).toBe(2);
+    });
+
+    it('increments on restoreEvidenceSet', () => {
+      const investigation = makeInvestigation();
+      const wrapper = createWrapper();
+      const { result } = renderHook(() => useEvidence(), { wrapper });
+      const customSet = {
+        caseId: asCaseId('case-restored'),
+        investigationId: investigation.id,
+        items: [],
+      };
+
+      act(() => {
+        result.current.setInvestigation(investigation);
+      });
+      act(() => {
+        result.current.restoreEvidenceSet(customSet);
+      });
+
+      expect(result.current.loadGeneration).toBe(2);
+    });
+
+    it('does not increment on pinBlock', () => {
+      const investigation = makeInvestigation();
+      const wrapper = createWrapper();
+      const { result } = renderHook(() => useEvidence(), { wrapper });
+
+      act(() => {
+        result.current.setInvestigation(investigation);
+      });
+      const before = result.current.loadGeneration;
+
+      act(() => {
+        result.current.pinBlock(investigation.blocks[0], 'user');
+      });
+
+      expect(result.current.loadGeneration).toBe(before);
+    });
+  });
 });
