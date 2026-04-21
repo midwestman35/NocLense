@@ -88,6 +88,13 @@ export function WorkspaceCard({
   const [expanded, setExpanded] = useState(defaultExpanded);
   const focusCtx = useCardFocus();
   const isFocused = focusCtx?.focusedCardId === id;
+  // Phase 05 Commit 6 — rail mode: another card is focused, so this card
+  // renders as a compact <button role="tab"> strip in the rail column
+  // instead of its normal body. See WorkspaceGrid InvestigateGridInner
+  // for the DOM-split owner.
+  const isRailStrip = focusCtx !== undefined
+    && focusCtx.focusedCardId !== null
+    && focusCtx.focusedCardId !== id;
 
   // Strip reserved data-* keys so callers can't clobber the primitive's
   // own contract (data-card-id, data-focus-target).
@@ -139,6 +146,50 @@ export function WorkspaceCard({
     setExpanded(next);
     onExpandChange?.(next);
   }, [expanded, onExpandChange]);
+
+  // ── Phase 05 Commit 6 — rail mode render branch ──
+  // When another card is focused, render this one as a compact
+  // <button role="tab"> strip. Clicking/Enter/Space transfers focus to
+  // this card. No double-click toggling (the header isn't a header
+  // here), no inner focus-icon button (the strip IS the toggle), no
+  // expand/collapse body. Single real AT target, no duplication.
+  if (isRailStrip) {
+    return (
+      <button
+        {...forwardedDataAttrs}
+        type="button"
+        role="tab"
+        aria-label={`Focus ${title}`}
+        data-card-id={id}
+        data-focus-target="false"
+        data-rail-strip="true"
+        onClick={() => focusCtx.toggleFocus(id)}
+        className={clsx(
+          'flex w-full items-center gap-2 px-3 text-left',
+          'rounded-[var(--card-radius)] border bg-[var(--card)]',
+          'border-[var(--card-border)] hover:border-[var(--card-border-hover)]',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--card-border-hover)]',
+          'transition-[transform,border-color]',
+          'duration-[var(--duration-slow)] ease-[var(--ease-spring)]',
+          'motion-safe:hover:-translate-y-[1px]',
+          className,
+        )}
+        style={{
+          height: 'var(--card-header-height)',
+          minHeight: 'var(--card-header-height)',
+        }}
+      >
+        <span
+          className="block w-1.5 h-1.5 rounded-full shrink-0"
+          style={{ backgroundColor: accentColor }}
+        />
+        <span className="flex items-center gap-2 shrink-0">{icon}</span>
+        <span className="text-[11px] font-semibold text-[var(--foreground)] uppercase tracking-[0.5px] truncate">
+          {title}
+        </span>
+      </button>
+    );
+  }
 
   return (
     <div

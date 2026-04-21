@@ -462,7 +462,7 @@ Resizable surfaces move to **Phase 6+ roadmap**, bundled with the case library w
 2. If nested-panel: full hierarchy spec, persistence keys, min sizes, keyboard semantics, reset behavior.
 3. If grid: column/row span via user drag of grid-line handles; persistence as `localStorage` grid-template.
 
-**Polish-pass substitute:** card headers gain a `⊞` icon that toggles the card between default size and "focused" (fills the grid, siblings collapse to rail). Focus mode uses existing grid-area classes, no new dependency. Phase 04 ships this.
+**Polish-pass substitute:** card headers gain a `⊞` icon that toggles the card between default size and "focused" (fills the grid, siblings collapse to rail). Phase 04 ships the baseline (focused card fills, siblings hidden). Phase 05 Commit 6 ships the visible 80px right-side rail via a DOM-split `InvestigateGridInner` with `<button role="tab">` strips for each sibling.
 
 ---
 
@@ -472,7 +472,7 @@ Resizable surfaces move to **Phase 6+ roadmap**, bundled with the case library w
 
 - **Import Room** — single centered drop zone; fills on hover with subtle scale + `glow-ready`; cute label during parse; URL paste kicks off investigate flow. (`/` prefix command palette is deferred — see §7.)
 - **Submit Room** — canonical fields matching `Res-note.txt`; pre-filled from Evidence; one-click Copy-to-Zendesk, Create-REP, Export-.noclense.
-- **Correlation Graph card** — one node per extracted correlation ID (including new `traceId`); edges for co-occurrence; motion only on layout compute.
+- **Correlation Graph card** — moved to Phase 06A (see §6.5 and v3 Phase 05 plan). Net-new feature work (graph layout algorithm, edge co-occurrence, interactive node selection, traceId integration) rather than polish. Existing stub text in `NewWorkspaceLayout.tsx` remains until the card is implemented.
 - **Datadog Live card** — `glow-live` while streaming; decays to `ready` per arbitration rules.
 - **Similar Tickets card** — compact list from local folder + Zendesk history (future: case library).
 - **PhaseHeader + PhaseDots** — apply new tokens, tabular-nums on ticket ID, text-wrap on customer names.
@@ -535,8 +535,9 @@ Each phase completes when its validation bars are clear AND Codex has reviewed.
 | **02** | **Log Stream deep polish.** OC parser implementation, `traceId`/byte-offset persistence, JSON folding (minimal), citation-jump data path, parse overlay, multi-format tabs. No inline JSON highlighting. | Codex |
 | **03** | **Evidence exports.** Res-note / Jira / `.noclense` templates. Manifest versioning. Import shim for v0 case packs. | Codex |
 | **04** | **Focus-mode cards + Import Room + Submit Room.** Card focus toggle (substitute for resizable surfaces). Not resize panels. | Codex |
-| **05** | **Broad pass + citation-jump polish + reduced-motion audit.** | Codex |
+| **05** | **Broad pass + citation-jump polish + reduced-motion audit** + spec cleanup. | Codex |
 | **06** | *(future)* Case library learning loop — separate spec after 05 ships. |
+| **06A** | *(future)* **Correlation Graph card.** One node per extracted correlation ID (`traceId`, `callId`, `stationId`, etc.); edges for co-occurrence; layout algorithm; interactive selection. Categorically feature work rather than polish — moved out of Phase 05 §6.1 broad pass scope. | Codex |
 | **07** | *(future)* Standalone app packaging (Tauri evaluation memo) — separate spec. |
 
 Phase 00 is non-optional. Phases 01a–01c can be landed as separate PRs but all three belong to "Phase 01" conceptually.
@@ -579,7 +580,7 @@ These are intentionally left for the per-phase implementation rather than the sp
 - Specific micro-copy for cute-label phrase variants per operation (Phase 01a, once hook is wired).
 - How deeply to flatten nested JSON when "expand all" is triggered (Phase 02).
 - Exact drop zone behavior when a partially-parsed file fails mid-stream (Phase 02 error UX).
-- Focus-mode sibling rail deferred to Phase 05 (Phase 04 uses display: none for siblings; no rail).
+- ✅ Focus-mode sibling rail resolved in Phase 05 Commit 6 — 80px right-side rail via DOM-split `InvestigateGridInner`; each non-focused card renders as a single `<button role="tab">` strip with accent dot + icon + title. Clicking any strip transfers focus to that card. Keyboard-accessible via Tab + Enter/Space.
 - Specific Unleashed prompt adjustments to coerce the AI response into canonical block structure (Phase 00 + 01b iteration).
 
 ---

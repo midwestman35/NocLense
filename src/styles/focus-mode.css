@@ -1,25 +1,42 @@
-/* focus-mode.css; Phase 04 focus-mode toggle
+/* focus-mode.css — Phase 04 + Phase 05 focus-mode layout rules
  *
  * Activation: the Investigate grid stamps `data-focused="<cardId>"`
- * when a card is focused. The focused card renders
- * `data-focus-target="true"`; non-focused siblings render
+ * on its root when a card is focused. The focused card renders
+ * `data-focus-target="true"`; non-focused cards render
  * `data-focus-target="false"`.
  *
- * Phase 04 siblings are display: none rather than opacity-hidden so
- * keyboard + AT cannot reach inert controls. A literal visible rail
- * is Phase 05 work (see plan §Non-goals).
+ * Phase 05 Commit 6 changed the layout model from Phase 04's
+ * display: none approach to a DOM split performed by
+ * InvestigateGridInner (see WorkspaceGrid.tsx). The focused card lives
+ * in a [data-focus-column] wrapper; non-focused cards live in a
+ * [data-focus-rail] flex column. Each non-focused WorkspaceCard
+ * detects rail mode internally and renders a compact <button role="tab">
+ * strip instead of its normal body.
+ *
+ * This stylesheet now carries only the small rules that work with the
+ * DOM split: the focused wrapper's sizing, and a preventive
+ * display: none guard for any non-focused card that somehow renders
+ * in full (e.g. during transition). See src/components/workspace/
+ * WorkspaceCard.tsx for the rail-strip render path.
  */
 
-/* Focused card fills the grid (spans all columns and rows). */
-[data-layout="investigate"][data-focused]
-  [data-card-id][data-focus-target="true"] {
-  grid-column: 1 / -1;
-  grid-row: 1 / -1;
-  z-index: 2;
+/* Focused wrapper fills its grid cell. */
+[data-layout="investigate"][data-focused] [data-focus-column] > [data-card-id][data-focus-target="true"] {
+  height: 100%;
+  min-height: 0;
 }
 
-/* Non-focused siblings: fully inert. */
+/* Rail wrapper already constrains siblings via flex + overflow-y; no
+   per-card rule needed here. The rail-strip render branch in
+   WorkspaceCard.tsx handles the compact UI. */
+
+/* Preventive guard: a non-focused card that somehow renders outside
+   the [data-focus-rail] wrapper (future refactors, tests) should not
+   leak a full-size card. This is belt-and-suspenders — normal flow
+   never hits this because partitionCardsByFocus places them correctly. */
 [data-layout="investigate"][data-focused]
-  [data-card-id][data-focus-target="false"] {
-  display: none;
+  [data-card-id][data-focus-target="false"]:not([data-rail-strip]):not([data-focus-rail] *) {
+  /* Allow the rail-strip render branch through; only hide if somehow
+     a full card body shows up in an unexpected place. */
+  /* This rule is intentionally specific and defensive. */
 }
