@@ -1,8 +1,8 @@
 # Superpowers Handoff — Current In-Flight Work
 
-**Last updated:** 2026-04-22 (end of night session)
+**Last updated:** 2026-04-22 (Phase 06B closed; Phase 06C plan drafted, awaiting single probe)
 **Branch:** `april-redesign`
-**Current HEAD:** `191069a` — `docs: rewrite README, USAGE_GUIDE, DEVELOPER_HANDOFF (Gemini round 2)`
+**Current HEAD:** `143169d` — `chore: folder cleanup — archive stale docs, fix broken refs, track historical plans`
 
 > Single source of truth for resuming the current planning/review cycle in
 > a fresh Claude session on any device. Read this first, then act on the
@@ -18,14 +18,22 @@ Three-agent team:
 |---|---|---|
 | **Claude** (Claude Code) | CTO / Project Lead | Plans, reviews, steers architecture, approves merges |
 | **Codex** (OpenAI Codex CLI) | Principal Engineer | Implements from approved plans, writes tests, commits code |
-| **Gemini** (Google Gemini CLI) | Support Staff / Doc Engineer | Maintains README, USAGE_GUIDE, DEVELOPER_HANDOFF |
+| **Gemini** (Google Gemini CLI) | Support Staff / Doc Engineer | Maintains README, USAGE_GUIDE, DEVELOPER_HANDOFF, folder hygiene |
 
 Claude plans → Codex implements → Claude reviews → Gemini updates docs.
+
+**Review policy (as of 2026-04-22, lightweight):**
+- One adversarial probe per plan (not iterative rounds).
+- Per-slice self-assessment at end of slice (not per-commit).
+- Deep review at phase close-out, not mid-phase.
+- YELLOWs logged as known-limitations; only NO-GO blocks.
+- Security-critical slices retain the rigorous cadence (exception).
 
 **Never:**
 - Use the `codex:rescue` skill or any `/codex:*` dispatch slash-skill.
 - Implement source code yourself. Claude plans + reviews; Codex implements.
-- Skip the self-assessment stop between commits.
+- Dispatch Codex without naming a primary agent per the slice-archetype
+  convention (see `docs/superpowers/feedback_codex_agent_assignments.md`).
 
 ---
 
@@ -36,133 +44,152 @@ Claude plans → Codex implements → Claude reviews → Gemini updates docs.
 | 04.5 | Direction C token base, Button + WorkspaceCard curves | `d0e45c9` |
 | 05 | §4.2 transition-all sweep, citation-jump, reduced-motion audit | `cefc12e` |
 | 06A | Spinner primitive, anime.js guards, MotionConfig wiring, Direction C transitions, room parity, audit consolidation | `78a1e22` |
+| 06B | Correlation Graph card — G6 renderer, click-to-filter, keyboard a11y, large-graph performance (WebGL threshold, clustering, zoom controls) | `1783df1` |
 
-Phase 06A survived 7 adversarial review rounds (v1→v8 GO). Plan file:
-`docs/superpowers/plans/2026-04-21-phase06A-direction-c-broad-application.md`
-
----
-
-## Current state — Phase 06B (Correlation Graph)
-
-**Status:** Commits 1+2 shipped. Commits 3-5 remaining.
-
-**What landed (commit `12cd7cb`):**
-- `src/components/correlation-graph/types.ts` — GraphNode, GraphEdge, CorrelationGraphResult interfaces + type meta
-- `src/components/correlation-graph/useCorrelationGraph.ts` — data transformer hook with memoization + >500 node clustering
-- `src/components/correlation-graph/CorrelationGraph.tsx` — G6 canvas renderer, wired into NewWorkspaceLayout
-- `src/components/correlation-graph/__tests__/useCorrelationGraph.test.ts` — 4 tests (base graph, type scoping, clustering, expand toggle)
-- `src/components/correlation-graph/__tests__/CorrelationGraph.test.tsx` — renderer tests
-- `@antv/g6` installed as dependency
-- `src/styles/tokens.css` — `--correlation-*` color token palette added
-- Reduced-motion: force layout + viewport animation disabled when prefers-reduced-motion active
-
-**What's next:**
-
-### Commit 3 — Click-to-filter + hover tooltips + active-filter highlighting
-- Wire node clicks into LogContext filtering (use `addCorrelation` from `useLogContext()`)
-- Hovering a node: tooltip with correlation type, value, connected log count, connected node count
-- Hovering an edge: highlight the log entries it represents
-- Active correlation filters visually highlight their nodes (ring/glow)
-- Tests for click-to-filter behavior
-- Resume from: `src/components/correlation-graph/CorrelationGraph.tsx`
-
-### Commit 4 — Keyboard navigation + accessibility
-- Tab into graph, arrow keys to traverse, Enter/Space to activate, Escape to deselect
-- aria-label on graph container
-- Focused node announces type + value to screen readers
-- Append new animated surfaces to `docs/perf/reduced-motion-audit.md`
-
-### Commit 5 — Performance + polish
-- >500 nodes: auto-clustering (already in hook — wire into renderer)
-- >1000 nodes: "Graph is large" notice + "Show all" toggle
-- WebGL renderer if available
-- Zoom controls (buttons, not just scroll)
-- "Reset layout" button
-- Empty state message
+Phase 06A survived 7 adversarial review rounds (v1→v8 GO). Phase 06B
+shipped under the new lightweight-review policy in 5 commits + 1
+folder-cleanup commit.
 
 ---
 
-## Immediate next step
+## Current state — Phase 06C (Case Library)
 
-Draft or paste the **Commit 3 dispatch prompt** for Codex:
+**Status:** Plan drafted. Awaiting single adversarial probe per new
+lightweight review policy.
+
+**Plan file:** `docs/superpowers/plans/2026-04-22-phase06C-case-library.md`
+
+**Scope (v1, local-only):**
+- Persist investigations as retrievable `Case` records in IndexedDB
+- Compute embedding per case from `summary + impact + title`
+- Retrieve top-K similar past cases by cosine similarity
+- Surface in new `SimilarCasesCard` in Investigate Room
+- Auto-index on `.noclense` import
+
+**Structure (3 slices):**
+
+| Slice | Scope | Primary agent |
+|---|---|---|
+| 1 | CaseRepository over IndexedDB (new object store, schema migration, CRUD) | `data-engineer` |
+| 2 | CaseLibraryService (embedding indexing + cosine similarity retrieval with filters) | `ai-engineer` |
+| 3 | SimilarCasesCard UI + import-side auto-indexing + a11y | `react-specialist` (+ `accessibility-tester` secondary) |
+
+**Key open decision (to resolve during probe):** embedding provider.
+Existing `embeddingService.ts` uses Gemini (`text-embedding-004`);
+Unleashed-only policy creates tension. Default: keep Gemini. Flip
+to Unleashed if user confirms Unleashed has an embedding endpoint.
+
+---
+
+## Immediate next step — run the Phase 06C probe
+
+Paste the following into Codex CLI. Single round per new policy — if
+the verdict is NO-GO, we do ONE amendment cycle; if still NO-GO,
+escalate to the user for a scope decision rather than iterating.
 
 ```
-You are continuing Phase 06B of NocLense — Correlation Graph card.
-Commits 1+2 are shipped (data layer + G6 renderer at 12cd7cb).
+You are doing an adversarial review of a NocLense phase plan.
 
-MANDATORY PRE-READS:
-1. CLAUDE.md
-2. src/CLAUDE.md
-3. src/components/correlation-graph/CorrelationGraph.tsx (your starting point)
-4. src/components/correlation-graph/useCorrelationGraph.ts (the data hook)
-5. src/components/correlation-graph/types.ts (interfaces)
-6. src/contexts/LogContext.tsx — find addCorrelation / toggleCorrelation
+Target: docs/superpowers/plans/2026-04-22-phase06C-case-library.md
 
-COMMIT 3 — Click-to-filter + hover tooltips + active-filter highlighting:
+This is the ONLY review round for this plan. Flag only real issues;
+YELLOWs that would take another round to resolve should be documented
+as known-limitations in the revision log rather than blocking.
 
-1. NODE CLICK → FILTER:
-   - Clicking a non-cluster node calls addCorrelation (or equivalent)
-     from LogContext with the node's correlationType + value
-   - Clicking a cluster node calls toggleCluster (already wired in hook)
-   - The Log Stream card should immediately reflect the filter change
+Probe adversarially:
+1. EMBEDDING_PROVIDER decision: is "default to Gemini, flip on
+   confirmation" the right call? Any third option I'm missing?
+   Any hidden risk in shipping with two AI providers in the renderer
+   (Unleashed for everything else, Gemini for embeddings)?
+2. Slice 1 IndexedDB schema: does adding a new object store and
+   bumping the DB version have a meaningful migration risk for
+   existing user databases? Is there a way this breaks on v1→v2
+   upgrade that I haven't accounted for?
+3. Slice 2 idempotency: `indexCase` skips when embeddingVersion
+   matches CURRENT_VERSION — does this correctly handle the case
+   where embedding was set but version was never written (old data
+   pre-dating this phase)?
+4. Slice 3 component mounting: adding SimilarCasesCard to
+   NewWorkspaceLayout — will that overflow the Investigate Room CSS
+   grid? (The grid already carries 6 WorkspaceCards; this makes 7.)
+5. Similar-case discovery semantics: cosine similarity on
+   summary+impact+title may be dominated by common phrasing (e.g.
+   "ticket for customer X") and miss the real signal (which logs /
+   correlations were involved). Is this acceptable for v1, or
+   should v1 include correlation-type overlap in the scoring?
+6. Any proof hole, regression, or over-claimed framing introduced by
+   this plan?
 
-2. HOVER TOOLTIPS:
-   - Hovering a node shows: correlation type label, value, connected
-     log count, connected node count
-   - Hovering an edge shows: number of shared log entries, the two
-     correlation types it connects
-   - Use G6's built-in tooltip plugin or a custom HTML overlay
-
-3. ACTIVE-FILTER HIGHLIGHTING:
-   - Nodes whose correlation is currently active in LogContext should
-     have a visible ring or glow effect
-   - Excluded correlations should appear dimmed or struck-through
-   - Use the isActive / isExcluded flags already on GraphNode
-
-4. TESTS:
-   - Test that clicking a node calls the correct LogContext method
-   - Test that active/excluded nodes render with distinguishing attributes
-
-WORKFLOW: Implement Commit 3 → emit self-assessment → STOP.
-
-SELF-ASSESSMENT FORMAT:
-## Self-Assessment — Phase 06B, Commit 3
-- **Files changed:** [list]
-- **Tests:** [pass/fail + exact command]
-- **LogContext integration:** [which method is called on node click]
-- **Reduced-motion:** [any new animated surfaces? if so, how guarded]
-- **Confidence:** [high/medium/low]
-- **Risks / questions:** [list or "none"]
+Output per-probe status + findings, then Verdict: GO or NO-GO with
+required-fix bullets (NO-GO) or remaining YELLOWs (GO). Be concise.
+No preamble.
 ```
 
 ---
 
-## Gemini docs status
+## Decision tree after probe returns
 
-README.md, USAGE_GUIDE.md, DEVELOPER_HANDOFF.md: **GO** after round 2.
-All 3 REDs + 10 YELLOWs resolved. Committed at `191069a`.
+### If GO
+
+Draft the Slice 1 dispatch prompt (primary agent: `data-engineer`)
+following the convention in
+`docs/superpowers/feedback_codex_agent_assignments.md`. Dispatch to
+Codex, wait for Slice 1 self-assessment, greenlight, then Slice 2,
+then Slice 3.
+
+### If NO-GO
+
+1. Address required fixes in the plan file directly.
+2. Bump revision log with v1 → v2 resolution table.
+3. Re-dispatch the probe ONCE more with v2 context.
+4. If v2 still NO-GO → escalate to user for a scope decision
+   (drop the contentious concern, accept the YELLOW, or ship as-is).
+   Do NOT iterate to v3.
+
+---
+
+## After Phase 06C — Phase 07 (Tauri migration)
+
+**Timing:** Planning starts next week per user direction (2026-04-22).
+
+Until then, Phase 06C is the only in-flight work.
+
+---
+
+## Gemini documentation status
+
+- `README.md`, `docs/USAGE_GUIDE.md`, `docs/DEVELOPER_HANDOFF.md`
+  last rewritten by Gemini at `191069a` (round 2, 2026-04-22).
+- Folder cleanup manifest executed at `143169d` (same day).
+- Next Gemini engagement: end of Phase 06C or Phase 07 close-out
+  for doc refresh.
 
 ---
 
 ## Pre-existing tech debt (not ours)
 
-- `tsc` red on `src/contexts/logContextObject.ts` + `src/services/investigationExporter.ts`
-- `vitest` red on `src/contexts/__tests__/EvidenceContext.test.tsx` + `.worktrees/ui-overhaul*/llmService.test.ts`
-- `act()` warnings in `src/components/__tests__/AIButton.test.tsx` (cosmetic, not failures)
+- `tsc` red on `src/contexts/logContextObject.ts` +
+  `src/services/investigationExporter.ts` (pre-existing; not touched
+  by Phase 06B).
+- `vitest` red on `src/contexts/__tests__/EvidenceContext.test.tsx`
+  and `.worktrees/ui-overhaul*/llmService.test.ts` (pre-existing).
+- `act()` warnings in `src/components/__tests__/AIButton.test.tsx`
+  (cosmetic).
 
----
+## Phase 06B technical-debt backlog (surfaced at close-out)
 
-## What's after 06B
-
-| Phase | Scope |
-|---|---|
-| 06C | Case Library — indexing/retrieving past investigations |
-| 07 | Tauri migration — replacing Electron |
+- `src/components/correlation-graph/CorrelationGraph.tsx` at 601
+  lines (+20% over 500-line cap); recommended split before Phase
+  06C/07 extends the graph.
+- `src/components/correlation-graph/graphPresentation.tsx` at 517
+  lines; minor overage.
+- Manual NVDA / VoiceOver smoke on Electron runtime — out-of-band
+  a11y verification still pending.
 
 ---
 
 ## Posture
 
-Tight, diagnostic, no fluff. Claude reviews each Codex self-assessment
-before authorizing the next commit. Assume continuity — don't restart
-from zero.
+Tight, diagnostic, no fluff. Assume continuity — don't restart from
+zero. Trust the lightweight review policy: one probe, per-slice
+self-assessment, deep review at close-out.
