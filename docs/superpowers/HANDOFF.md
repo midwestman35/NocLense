@@ -1,8 +1,8 @@
 # Superpowers Handoff — Current In-Flight Work
 
-**Last updated:** 2026-04-22 (v8 plan drafted, awaiting Codex round 8 review)
+**Last updated:** 2026-04-22 (v8 GO — Wave 1 dispatch prompts ready)
 **Branch:** `april-redesign`
-**Current HEAD:** `be0315a` — `docs(phase-06a): draft v8 plan`
+**Current HEAD:** `51084fa` — `docs(phase-06a): v8 GO + Wave 1 dispatch prompts`
 
 > Single source of truth for resuming the current planning/review cycle in
 > a fresh Claude session on any device. Read this first, then act on the
@@ -41,11 +41,14 @@ yourself.
 
 ---
 
-## Plan status — 7 Codex review rounds survived
+## Plan status — v8 GO after 7 adversarial review rounds
 
-The plan iterated v1 → v8 through seven adversarial reviews. Current status:
-**v8 drafted, awaiting Codex round 8 verdict.** The full revision-log table
-inside the plan file is authoritative; what follows is the short version.
+The plan iterated v1 → v8 through seven adversarial reviews. **v8 passed
+with GO verdict.** Two YELLOWs accepted: (1) historical revision-log rows
+retain old wording (clearly marked superseded), (2) pure-variable and
+multiline Spinner gaps remain convention/review-guarded (explicitly
+acknowledged in plan). The full revision-log table inside the plan file is
+authoritative; what follows is the short version.
 
 | Round | Blockers | Key v-next fix |
 |---|---|---|
@@ -79,46 +82,211 @@ inside the plan file is authoritative; what follows is the short version.
 
 ---
 
-## Immediate next step — run Codex round 8
+## Immediate next step — dispatch Wave 1 (Slices 1–5 in parallel)
 
-Paste the following into the user's Codex CLI and ask them to return the
-verbatim response:
+v8 passed adversarial review with GO. Open 5 concurrent Codex CLI
+sessions — one per slice prompt below. Each slice is self-contained
+and parallel-safe.
+
+**After each commit within a slice:** Codex emits a self-assessment,
+then STOPS. The user pastes Codex's output back here for Claude to
+review before authorizing the next commit in that slice.
+
+**After all 5 Wave 1 slices merge:** dispatch Slice 6 (Wave 2, serial).
+
+---
+
+### Slice 1 prompt (2 commits: C1 Spinner primitive, C2 Tailwind sweep)
 
 ```
-You are doing an adversarial review of a NocLense phase plan.
+You are implementing Slice 1 of Phase 06A for NocLense.
 
-Target: docs/superpowers/plans/2026-04-21-phase06A-direction-c-broad-application.md
+MANDATORY PRE-READS (read these files before writing any code):
+1. CLAUDE.md (project root)
+2. src/CLAUDE.md (module context)
+3. docs/superpowers/plans/2026-04-21-phase06A-direction-c-broad-application.md
+   — read Slice 1 (Commits 1–2, starting at "### Slice 1")
+4. docs/perf/reduced-motion-audit.md §2.3 (context for the ⚠️ rows
+   this slice retires — but do NOT edit the audit doc; Slice 6 does that)
 
-Context: this is v8. v7 NO-GO raised 1 item:
-(α) Slice 1 numeric-size-rule prose still said "enforces exactly 5
-    literal-number matches + 1 ternary match" — contradicted the v7
-    zero-violations + per-file-count scheme. Two active contracts in
-    the same plan.
+SCOPE: Slice 1 only. Two commits:
 
-v8 change:
-- α: Updated the Slice 1 prose block to reference the v7 enforcement
-  model: (1) zero-violations grep excluding approved files + tests,
-  (2) per-file `git grep -cE` cardinality checks (3/1/1/1). The old
-  "exactly 5 + 1" language is removed. Single source of truth now:
-  the C9 grep block in Slice 6 defines enforcement; the Slice 1 prose
-  describes the rule and points at C9 for the mechanism.
+Commit 1 — Extract <Spinner /> primitive + migrate inline-style spinners.
+- Create src/components/ui/Spinner.tsx with named scale + numeric fallback
+- Add motion-safe:animate-spin + motion-reduce:animate-none guards
+- Add role="status" + sr-only label for accessibility
+- Migrate all inline-style `animation: 'spin ...'` sites to <Spinner />
+- Write src/components/ui/__tests__/Spinner.test.tsx
 
-Probe adversarially:
-1. Internal consistency: search the entire plan for any remaining
-   reference to "exactly 5" or "5 literal" or "1 ternary match" in
-   the context of numeric Spinner enforcement. Any surviving instance
-   contradicts v8.
-2. The updated Slice 1 prose and the C9 grep block: are they now
-   consistent on what gets excluded (which files), what gets counted
-   (per-file cardinality), and what the expected counts are?
-3. Any remaining v7 YELLOWs (pure-variable gap, multiline convention)
-   that have worsened or been accidentally re-introduced by the v8
-   edit?
-4. Any new regression introduced by the v8 change?
+Commit 2 — Migrate Tailwind animate-spin sites to <Spinner />.
+- Sweep all 17 sites per the migration table in the plan
+- Respect the numeric size rule: only the 6 approved sites use raw numbers
+- All other sites use named scale (xs/sm/md/lg/xl)
 
-Output per-probe status + findings, then Verdict: GO or NO-GO with
-required-fix bullets (NO-GO) or remaining YELLOWs (GO). Be concise.
-No preamble.
+WORKFLOW:
+- Implement Commit 1, then emit a self-assessment block and STOP.
+- Wait for the user to relay Claude's review before starting Commit 2.
+
+SELF-ASSESSMENT FORMAT (emit after each commit):
+## Self-Assessment — Slice 1, Commit [N]
+- **Files changed:** [list]
+- **Tests:** [pass/fail + command used]
+- **Numeric size rule:** [confirm approved sites only use raw numbers]
+- **Confidence:** [high/medium/low]
+- **Risks or open questions:** [list or "none"]
+```
+
+### Slice 2 prompt (1 commit: C3 anime.js hook guard)
+
+```
+You are implementing Slice 2 of Phase 06A for NocLense.
+
+MANDATORY PRE-READS (read these files before writing any code):
+1. CLAUDE.md (project root)
+2. src/CLAUDE.md (module context)
+3. docs/superpowers/plans/2026-04-21-phase06A-direction-c-broad-application.md
+   — read Slice 2 (Commit 3, starting at "### Slice 2")
+4. docs/perf/reduced-motion-audit.md §2.2 (context for the ⚠️ rows
+   this slice retires — but do NOT edit the audit doc; Slice 6 does that)
+
+SCOPE: Slice 2 only. One commit:
+
+Commit 3 — Reduced-motion guard in src/utils/anime.ts.
+- Add usePrefersReducedMotion hook (or import existing)
+- Guard useAnimeStagger, useAnimeTimeline, useAnimeValue with
+  reduced-motion check — snap to final state when reduced-motion is on
+- Write/extend src/utils/__tests__/anime.test.ts
+
+WORKFLOW:
+- Implement Commit 3, then emit a self-assessment block and STOP.
+
+SELF-ASSESSMENT FORMAT (emit after the commit):
+## Self-Assessment — Slice 2, Commit 3
+- **Files changed:** [list]
+- **Tests:** [pass/fail + command used]
+- **Guard pattern:** [describe how each hook snaps to final state]
+- **Confidence:** [high/medium/low]
+- **Risks or open questions:** [list or "none"]
+```
+
+### Slice 3 prompt (1 commit: C4 MotionConfig wiring)
+
+```
+You are implementing Slice 3 of Phase 06A for NocLense.
+
+MANDATORY PRE-READS (read these files before writing any code):
+1. CLAUDE.md (project root)
+2. src/CLAUDE.md (module context)
+3. docs/superpowers/plans/2026-04-21-phase06A-direction-c-broad-application.md
+   — read Slice 3 (Commit 4, starting at "### Slice 3"), paying close
+   attention to the DOM-marker pass-through test pattern
+4. docs/perf/reduced-motion-audit.md §2.5 (context only — do NOT edit)
+
+SCOPE: Slice 3 only. One commit:
+
+Commit 4 — <MotionConfig reducedMotion="user"> at App root + wiring test.
+- Wrap the App tree with <MotionConfig reducedMotion="user"> from
+  motion/react
+- Write src/__tests__/App.motionConfig.test.tsx using the DOM-marker
+  pass-through pattern described in the plan:
+  - vi.mock('motion/react') to render a <div data-testid="motion-config"
+    data-reduced-motion={prop}>{children}</div>
+  - Assert: getAllByTestId length === 1, toHaveAttribute correct value,
+    toHaveBeenCalled, mock.calls.every(prop === 'user')
+- Do NOT add per-primitive reduced-motion tests — this slice is
+  App-level wiring only
+
+WORKFLOW:
+- Implement Commit 4, then emit a self-assessment block and STOP.
+
+SELF-ASSESSMENT FORMAT (emit after the commit):
+## Self-Assessment — Slice 3, Commit 4
+- **Files changed:** [list]
+- **Tests:** [pass/fail + command used]
+- **DOM marker assertions:** [confirm all 4 assertions pass]
+- **Confidence:** [high/medium/low]
+- **Risks or open questions:** [list or "none"]
+```
+
+### Slice 4 prompt (2 commits: C5 toast curve, C6 primitive transitions)
+
+```
+You are implementing Slice 4 of Phase 06A for NocLense.
+
+MANDATORY PRE-READS (read these files before writing any code):
+1. CLAUDE.md (project root)
+2. src/CLAUDE.md (module context)
+3. docs/superpowers/plans/2026-04-21-phase06A-direction-c-broad-application.md
+   — read Slice 4 (Commits 5–6, starting at "### Slice 4")
+4. docs/perf/reduced-motion-audit.md §2.7 (context only — do NOT edit)
+
+SCOPE: Slice 4 only. Two commits:
+
+Commit 5 — Toast entrance uses --ease-emphasized.
+- Update the toast entrance animation in index.css to use the
+  --ease-emphasized CSS custom property instead of a hardcoded
+  cubic-bezier
+- Add a global reduced-motion media query that disables the toast
+  entrance animation
+
+Commit 6 — Direction C transition props on Dialog, DropdownMenu,
+Sheet, Tooltip.
+- Export a named transition const per primitive (e.g. DIALOG_TRANSITION)
+- Apply Direction C curves: emphasized for Dialog + Sheet, spring for
+  DropdownMenu + Tooltip
+- Write per-primitive tests that import the transition const and verify
+  curve values
+- Do NOT test reduced-motion behavior here — that's covered by Slice 3
+
+WORKFLOW:
+- Implement Commit 5, then emit a self-assessment block and STOP.
+- Wait for the user to relay Claude's review before starting Commit 6.
+
+SELF-ASSESSMENT FORMAT (emit after each commit):
+## Self-Assessment — Slice 4, Commit [N]
+- **Files changed:** [list]
+- **Tests:** [pass/fail + command used]
+- **Transition consts exported:** [list names, commit 6 only]
+- **Confidence:** [high/medium/low]
+- **Risks or open questions:** [list or "none"]
+```
+
+### Slice 5 prompt (2 commits: C7 Import Room, C8 room-transition-ease)
+
+```
+You are implementing Slice 5 of Phase 06A for NocLense.
+
+MANDATORY PRE-READS (read these files before writing any code):
+1. CLAUDE.md (project root)
+2. src/CLAUDE.md (module context)
+3. docs/superpowers/plans/2026-04-21-phase06A-direction-c-broad-application.md
+   — read Slice 5 (Commits 7–8, starting at "### Slice 5")
+4. docs/perf/reduced-motion-audit.md §2.6 (context only — do NOT edit)
+
+SCOPE: Slice 5 only. Two commits:
+
+Commit 7 — Import Room Direction C application + Submit Room verification.
+- Apply Direction C hover-lift classes to WorkspaceImportPanel
+- Write/extend WorkspaceImportPanel test verifying hover classes
+- Write SubmitRoom test verifying its WorkspaceCard instances inherit
+  Direction C hover-lift (Submit Room source unchanged — it already
+  uses WorkspaceCard)
+
+Commit 8 — --room-transition-ease aliased to var(--ease-spring).
+- Add --room-transition-ease: var(--ease-spring) in tokens.css
+- Replace the duplicated cubic-bezier tuple in room transition CSS
+  with the new alias
+
+WORKFLOW:
+- Implement Commit 7, then emit a self-assessment block and STOP.
+- Wait for the user to relay Claude's review before starting Commit 8.
+
+SELF-ASSESSMENT FORMAT (emit after each commit):
+## Self-Assessment — Slice 5, Commit [N]
+- **Files changed:** [list]
+- **Tests:** [pass/fail + command used]
+- **Confidence:** [high/medium/low]
+- **Risks or open questions:** [list or "none"]
 ```
 
 ---
