@@ -14,10 +14,22 @@
 **v2 → v3 (second Codex adversarial review):** NO-GO on 3 items +
 YELLOW Spinner mapping.
 **v3 → v4 (third Codex adversarial review):** NO-GO on 4 items.
-**v4 → v5 (fourth Codex adversarial review):** NO-GO on 4 items. v5
-table is authoritative for current state; v4/v3/v2 are historical.
+**v4 → v5 (fourth Codex adversarial review):** NO-GO on 4 items.
+**v5 → v6 (fifth Codex adversarial review):** NO-GO on 2 items. v6
+table is authoritative for current state; v5/v4/v3/v2 are historical.
 
-**v5 resolutions (2026-04-21, current):**
+**v6 resolutions (2026-04-22, current):**
+
+| # | v5 blocker | v6 resolution |
+|---|---|---|
+| α | C9 numeric Spinner grep (`<Spinner[^>]*size=\{[0-9]+\}` expect exactly 5) did not catch digit-bearing expressions outside bare literals (e.g. `size={loading ? 14 : 16}` elsewhere), and scanned test files, making the "exactly 5" count fragile to test fixtures. | Flipped strategy from exact-count to zero-violations: grep all `src/` EXCLUDING the 4 approved source files and all test files/dirs via pathspec magic (`:!`). Pattern widened to `<Spinner[^>]*size=\{[^}]*[0-9]` to match any digit inside `size={...}` — covers bare literals, ternaries, numeric variables. Separate approved-sites spot-check (`git grep -lE` on 4 files) confirms each approved file still carries at least one numeric Spinner. Count assertion eliminated. |
+| β | C9 Slice 3 existence check `test -f src/__tests__/App.motionConfig.test.tsx` is bash-only — fails in the PowerShell workspace. | Replaced with `git ls-files --error-unmatch src/__tests__/App.motionConfig.test.tsx`. Cross-platform (git resolves paths, not the shell); also proves the file is git-tracked, not just present on disk. |
+
+Side tightening (Codex YELLOWs, not blockers):
+- Probe 3: §2.7 audit attribution for Dialog/DropdownMenu/Sheet/Tooltip rows corrected from "covered by MotionConfig" to "covered by Slice 4 greps/tests" — MotionConfig governs reduced-motion runtime behavior; curve-value proof lives in Slice 4.
+- Probe 1: C4 DOM-marker rationale softened to acknowledge the test does not distinguish an App-level wrapper from a lone child-level one — a conscious scope limitation, not a gap.
+
+**v5 resolutions (2026-04-21, historical — superseded by v6 table above):**
 
 | # | v4 blocker | v5 resolution |
 |---|---|---|
@@ -595,9 +607,13 @@ parent). The v4 pattern above uses the rendered DOM as the source of
 truth: the DOM shows exactly one `motion-config` marker regardless of
 how many times the mock is called, and the attribute reflects the
 final settled prop value. Combined with assertion (d) — every call
-carried the right prop — the test catches all four failure modes
-(wrong value, missing prop, missing wrapper, nested wrapper) while
-surviving normal React evolution.
+carried the right prop — the test catches wrong prop values, a fully
+absent MotionConfig (zero markers), and a spurious nested MotionConfig
+added on top of the App-level one (two markers). Known scope limit:
+if App.tsx simultaneously drops its wrapper and a child adds one, the
+DOM count stays at 1 — not detected. Phase 06A introduces no
+child-level MotionConfig, so this is a non-issue for the current
+phase; flag it when reviewing future phases that add child wrappers.
 
 **Assertion rules for this commit:**
 - Do NOT add reduced-motion behavioral tests to individual primitives
@@ -977,23 +993,34 @@ git grep -nE 'role="status"' src/components/ui/Spinner.tsx
 git grep -n "sr-only" src/components/ui/Spinner.tsx
 # expect: >= 1 match each (role="status" + sr-only label)
 
-# NUMERIC SIZE RULE ENFORCEMENT — the plan's strict contract is that
-# raw <Spinner size={N}> (literal number) is allowed only at the five
-# enumerated off-scale sites. AIButton.tsx:222 uses a variable-driven
-# ternary (starts with `variant === ...`) which will NOT match this
-# regex — that site is verified separately immediately below.
-git grep -nE '<Spinner[^>]*size=\{[0-9]+\}' src/
-# expect: exactly 5 matches — InvestigationSetupModal.tsx (lines for
-# "Discover Stations" 11px, "Station details" 11px, "Start
-# Investigation" 13px), DiagnosePhase2.tsx ("Refine" 13px),
-# DiagnosePhase3.tsx ("Retry Attachment Upload" 11px). Line numbers
-# may drift across refactors; semantic anchors (button labels) are
-# the authoritative identifiers.
+# NUMERIC SIZE RULE ENFORCEMENT — strategy: prove zero violations exist
+# outside the six approved sites rather than counting exact matches
+# (count is fragile to test fixtures). Pattern `<Spinner[^>]*size=\{[^}]*[0-9]`
+# catches any digit inside size={...}: bare literals (size={11}),
+# ternaries (size={cond ? 14 : 16}), numeric variable names. Applies
+# to single-line Spinner JSX; multi-line formatted elements would
+# require a multi-line grep strategy, but the codebase convention is
+# single-line for inline primitives.
+git grep -nE '<Spinner[^>]*size=\{[^}]*[0-9]' \
+  -- ':!src/components/InvestigationSetupModal.tsx' \
+     ':!src/components/ai/diagnose/DiagnosePhase2.tsx' \
+     ':!src/components/ai/diagnose/DiagnosePhase3.tsx' \
+     ':!src/components/AIButton.tsx' \
+     ':!src/**/__tests__/**' \
+     ':!src/**/*.test.tsx' \
+  src/
+# expect: 0 matches — any output is a migration bug outside approved sites
 
-# AIButton's dynamic caller — must retain its ternary shape, not
-# collapse to a single literal number.
-git grep -nE '<Spinner[^>]*size=\{.*\?' src/components/AIButton.tsx
-# expect: 1 match (the variant/size ternary at :222)
+# Approved sites still carry their numeric Spinners (spot-check)
+git grep -lE '<Spinner[^>]*size=\{[^}]*[0-9]' \
+  src/components/InvestigationSetupModal.tsx \
+  src/components/ai/diagnose/DiagnosePhase2.tsx \
+  src/components/ai/diagnose/DiagnosePhase3.tsx \
+  src/components/AIButton.tsx
+# expect: all 4 filenames listed — if a file disappears, its numeric-size
+# sites were over-swept and need revert. (-lE reports each file once
+# regardless of match count; individual site counts are verified by
+# Spinner tests and manual smoke.)
 ```
 
 Grep proves source-state shape. Behavioral proof (label text, size
@@ -1032,8 +1059,9 @@ git grep -nE '\bMotionConfig\b' src/App.tsx
 
 # App-level wiring test file exists (content contract verified by
 # `npx vitest run` at phase close-out, not by grep)
-test -f src/__tests__/App.motionConfig.test.tsx
-# expect: exit 0
+git ls-files --error-unmatch src/__tests__/App.motionConfig.test.tsx
+# expect: exit 0 (file is git-tracked; works cross-platform including
+# PowerShell since path resolution is handled by git, not the shell)
 ```
 
 ### Slice 4 — Direction C primitive transitions
@@ -1122,11 +1150,10 @@ git grep -n "transition-all" src/
 for:
 - Toast entrance curve (C5): `--ease-emphasized`, covered by global
   reduced-motion media query.
-- Dialog transition curve (C6): emphasized, covered by MotionConfig.
-- DropdownMenu transition curve (C6): spring, covered by
-  MotionConfig.
-- Sheet transition curve (C6): emphasized, covered by MotionConfig.
-- Tooltip transition curve (C6): spring, covered by MotionConfig.
+- Dialog transition curve (C6): emphasized, covered by Slice 4 greps/tests.
+- DropdownMenu transition curve (C6): spring, covered by Slice 4 greps/tests.
+- Sheet transition curve (C6): emphasized, covered by Slice 4 greps/tests.
+- Tooltip transition curve (C6): spring, covered by Slice 4 greps/tests.
 
 §2.6 — Focus-mode / room transitions: append
 - Room transitions (post-06A): `--room-transition-ease` aliased to

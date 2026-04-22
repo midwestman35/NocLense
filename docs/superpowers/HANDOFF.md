@@ -1,8 +1,8 @@
 # Superpowers Handoff — Current In-Flight Work
 
-**Last updated:** 2026-04-21 (v5 plan drafted, awaiting Codex round 5 review)
+**Last updated:** 2026-04-22 (v6 plan drafted, awaiting Codex round 6 review)
 **Branch:** `april-redesign`
-**Current HEAD:** `084b165` — `docs(phase-06a): draft v5 plan`
+**Current HEAD:** `d202697` — `docs(phase-06a): draft v6 plan`
 
 > Single source of truth for resuming the current planning/review cycle in
 > a fresh Claude session on any device. Read this first, then act on the
@@ -41,10 +41,10 @@ yourself.
 
 ---
 
-## Plan status — 4 Codex review rounds survived
+## Plan status — 5 Codex review rounds survived
 
-The plan iterated v1 → v5 through four adversarial reviews. Current status:
-**v5 drafted, awaiting Codex round 5 verdict.** The full revision-log table
+The plan iterated v1 → v6 through five adversarial reviews. Current status:
+**v6 drafted, awaiting Codex round 6 verdict.** The full revision-log table
 inside the plan file is authoritative; what follows is the short version.
 
 | Round | Blockers | Key v-next fix |
@@ -53,6 +53,7 @@ inside the plan file is authoritative; what follows is the short version.
 | v2 → v3 | C4 couldn't prove wiring; stale paths; coarse Spinner scale | App-level `vi.mock('motion/react')` spy; explicit 17-site Spinner migration table |
 | v3 → v4 | C9 greps too narrow; Spinner rounding too permissive; C4 miss on nested wrapper; miscount | 5 off-scale sites → numeric `size={N}`; grep-enforced numeric rule; `toHaveBeenCalledTimes(1)` |
 | v4 → v5 | `toHaveBeenCalledTimes(1)` brittle to rerenders; numeric rule still policy-only; single-line MotionConfig grep; framing over-claimed | DOM-marker pass-through; grep enforces numeric rule; format-tolerant MotionConfig check; "source-state only" framing |
+| v5 → v6 | Numeric Spinner grep: brittle count + missed non-literal expressions + test files in scope; `test -f` bash-only | Zero-violations grep with pathspec exclusions; `git ls-files --error-unmatch` |
 
 ---
 
@@ -76,7 +77,7 @@ inside the plan file is authoritative; what follows is the short version.
 
 ---
 
-## Immediate next step — run Codex round 5
+## Immediate next step — run Codex round 6
 
 Paste the following into the user's Codex CLI and ask them to return the
 verbatim response:
@@ -86,38 +87,46 @@ You are doing an adversarial review of a NocLense phase plan.
 
 Target: docs/superpowers/plans/2026-04-21-phase06A-direction-c-broad-application.md
 
-Context: this is v5. v4 NO-GO raised 4 items:
-(α) C4 toHaveBeenCalledTimes(1) brittle to rerenders;
-(β) Numeric size rule policy-only, not grep-enforced;
-(γ) C9 MotionConfig grep single-line brittle;
-(δ) C9 framing over-claimed proof coverage.
+Context: this is v6. v5 NO-GO raised 2 items:
+(α) C9 numeric Spinner grep didn't catch digit-bearing expressions
+    outside bare literals (e.g. size={loading ? 14 : 16} elsewhere);
+    also scanned test files, making the "exactly 5" count fragile.
+(β) C9 Slice 3 existence check used `test -f` — bash-only, fails in
+    the PowerShell workspace.
 
-v5 changes:
-- C4 rewritten around DOM-marker pass-through: MotionConfig mock renders
-  <div data-testid="motion-config" data-reduced-motion={prop}>. Assertions:
-  getAllByTestId length === 1, toHaveAttribute correct value,
-  toHaveBeenCalled, mock.calls.every(prop === 'user'). Survives rerenders
-  because DOM reflects settled mount state.
-- C9 adds two new greps in Slice 1: <Spinner[^>]*size=\{[0-9]+\} (expect
-  exactly 5 matches — off-scale sites; AIButton ternary starts with
-  `variant`, so excluded), plus <Spinner[^>]*size=\{.*\? (expect exactly
-  1 match — AIButton's ternary).
-- C9 MotionConfig check split: \bMotionConfig\b presence in App.tsx
-  (format-tolerant, >=2 hits), plus test -f on wiring test file. Prop-
-  value contract lives in the vitest test, not grep.
-- C9 framing prefaced with "Scope: source-state verification only".
-- Side tightenings: Slice 4 transition-const grep widened; Numeric size
-  exception table re-keyed on file + semantic anchor.
+v6 changes:
+- α: Strategy flipped to zero-violations. Pattern widened to
+  `<Spinner[^>]*size=\{[^}]*[0-9]` (any digit in size={...}).
+  Approved source files + test files/dirs excluded via pathspec magic
+  (:! prefix). Expect 0 matches outside approved sites. Separate
+  approved-sites spot-check: `git grep -lE` on 4 files, expect all 4
+  listed.
+- β: `test -f` replaced with `git ls-files --error-unmatch`. Git
+  handles path resolution cross-platform; also proves the file is
+  tracked, not just present on disk.
+- Probe 3 YELLOW (v5): §2.7 audit attribution for Dialog/DropdownMenu/
+  Sheet/Tooltip corrected from "covered by MotionConfig" to "covered
+  by Slice 4 greps/tests".
+- Probe 1 GREEN note (v5): C4 rationale softened to acknowledge the
+  test does not distinguish App-level wrapper from a lone child-level
+  one.
 
 Probe adversarially:
-1. C4 DOM-marker test: any failure mode the call-count version caught
-   that this one misses? Specifically: if a child wraps its subtree in
-   MotionConfig, does the test still fire?
-2. C9 numeric Spinner greps: do both patterns cover a partial-literal
-   (e.g. size={isLoading ? 14 : 16})?
-3. C9 framing: any contracts the plan claims C9 retires that now fall
-   through — neither grep-covered nor vitest-covered?
-4. Any new regression introduced by the v5 changes?
+1. Pathspec exclusions: does `:!src/**/__tests__/**` exclude files
+   inside nested `__tests__/` dirs (e.g.
+   `src/components/__tests__/Spinner.test.tsx`)? Does
+   `:!src/**/*.test.tsx` also cover co-located tests like
+   `src/components/Spinner.test.tsx`? Any cross-platform concern when
+   git is invoked from PowerShell — does `**` in pathspec magic work
+   without shell glob expansion?
+2. Approved-sites spot-check: `git grep -lE` reports a file once
+   regardless of match count. InvestigationSetupModal.tsx should have
+   3 numeric Spinner sites — does `-lE` catch the case where 2 of the
+   3 are accidentally removed but 1 remains?
+3. `git ls-files --error-unmatch`: any scenario where the command
+   exits non-zero even though the file is present and correct — e.g.,
+   untracked new file not yet staged, or a .gitignore match?
+4. Any new regression introduced by the v6 changes?
 
 Output per-probe status + findings, then Verdict: GO or NO-GO with
 required-fix bullets (NO-GO) or remaining YELLOWs (GO). Be concise.
