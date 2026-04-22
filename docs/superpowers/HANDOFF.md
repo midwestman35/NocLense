@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-04-22 (v6 plan drafted, awaiting Codex round 6 review)
 **Branch:** `april-redesign`
-**Current HEAD:** `d202697` — `docs(phase-06a): draft v6 plan`
+**Current HEAD:** `781553e` — `docs(phase-06a): draft v6 plan`
 
 > Single source of truth for resuming the current planning/review cycle in
 > a fresh Claude session on any device. Read this first, then act on the
