@@ -12,23 +12,48 @@
 
 ---
 
+## Revision log
+
+**v1 → v2 (Codex round 1 adversarial review, 2026-04-22):** NO-GO on
+2 items + 2 YELLOWs requiring framing/scope fixes. v2 is authoritative;
+v1 is historical.
+
+| # | v1 issue | v2 resolution |
+|---|---|---|
+| α | **Slice 3 grid overflow (NO-GO).** Investigate Room is a fixed 6-slot 3×3 grid (`WorkspaceGrid.tsx:107`, `CARD_GRID_CLASSES` lines 174–181); a 7th card auto-places into implicit row. Plan left "new card vs. replace Similar Tickets" unresolved. | **Resolved: expand existing `similar-tickets` slot.** The current card (Zendesk past tickets via `similarPastTickets`) gains a second section for Case Library results. No new slot, no grid change, no displacement of existing functionality. Card keeps `id="similar-tickets"` / slot class for minimal churn; visible title becomes "Similar" with subsections "Past tickets" (existing Zendesk content) and "Past cases" (new Case Library content). |
+| β | **Wrong integration seams (NO-GO).** Plan referenced `src/contexts/CaseContext.tsx` + `useCaseContext()` + `src/services/importService.ts`; real surfaces are `src/store/caseContext.tsx` + `useCase()` exposing `activeCase` + `.noclense` flow through `src/components/import/WorkspaceImportPanel.tsx:124` + `src/services/noclenseImporter.ts:39`. | All file paths, hook names, and prop names in the file map + slice bodies now point at the verified seams. |
+| γ | **Missing normal-case lifecycle persistence (NO-GO).** Plan proved import-side indexing but left routine local case creation/update unpersisted; `caseContext.tsx` reducer state would stay in-memory, contradicting the "persist every investigation" promise. | Slice 1 scope extended: CaseRepository is wired into `caseContext.tsx` so every `createCase`, `updateCase`, `deleteCase` reducer action writes through the repository. Close/status transition to `'resolved'` additionally triggers embedding via CaseLibraryService. Slice 3 now reads from the repo-backed state, not a fresh hook. |
+| δ | **Embedding provider mid-phase flip risk (YELLOW).** "Default Gemini, flip if user confirms Unleashed" created config-split / version-churn risk mid-implementation. | **v1 frozen as Gemini-only.** Moving embeddings to Unleashed is explicitly out of scope for Phase 06C. Revisit as a dedicated decision in a later phase with its own plan + migration path. |
+| ε | **Overpromised semantic similarity (YELLOW).** Plan framed matches as "same symptom or correlation pattern" — cosine similarity on `title + summary + impact` is dominated by boilerplate and cannot deliver that. | Framing tightened to "semantically similar summary/impact text." Correlation-overlap and log-shape reranking moved explicitly to non-goals as a v2 candidate. |
+| ✓ | Probe 3 (Slice 2 idempotency): GO, no change needed. |
+
+Codex's IndexedDB migration YELLOW (Probe 2) was low-risk but real:
+blocked-upgrade handling and `initPromise` poisoning on failed open.
+Both folded into Slice 1 scope — see Slice 1 §3 below.
+
+---
+
 ## Context
 
 NocLense operators work on many investigations over time. Today,
 each investigation stands alone — there's no way to pull in a past
-case that had the same symptom or correlation pattern. The Case
-Library closes that loop: when an operator is mid-investigation,
-NocLense surfaces the top-K past cases most semantically similar to
-the current one, letting the operator steal relevant prior art.
+case that had a semantically similar summary. The Case Library
+closes that loop: when an operator is mid-investigation, NocLense
+surfaces the top-K past cases with the most similar written
+description to the current one, letting the operator steal relevant
+prior art.
 
 **Scope (v1, local-only):**
 - Persist every investigation as a retrievable `Case` in IndexedDB
-- Compute an embedding per case from `summary + impact + title`
+  — including cases created through the normal in-app flow, not
+  only imported `.noclense` packages
+- Compute an embedding per case from `title + summary + impact`
 - Retrieve top-K similar past cases by cosine similarity on demand
-- Surface results in a new `SimilarCasesCard` in the Investigate
-  Room (or replace the existing SimilarTicketsPanel — TBD per
-  Slice 3 design)
-- Import/export via existing `.noclense` format auto-adds to library
+- Surface results by expanding the existing Investigate Room
+  "Similar Tickets" card with a new "Past cases" section — no new
+  grid slot
+- `.noclense` import auto-adds to library via the real import
+  pathway
 
 **Out of scope (v2+ candidates):**
 - Multi-user / team-wide case library (needs server — Phase 07+)
@@ -40,35 +65,45 @@ the current one, letting the operator steal relevant prior art.
   phase
 - Embedding model swap / local ONNX transformer (keeps the API
   dependency but isolates the provider seam)
+- **Correlation-overlap or log-shape signal in similarity scoring**
+  — v1 is text-semantic similarity only. Reranking by
+  correlation-type Jaccard overlap or shared-log-signature is a
+  real improvement for this domain but requires additional
+  design; v2 candidate with its own plan.
+- **Moving embeddings off Gemini to Unleashed AI** — v1 is frozen
+  as Gemini-only. Any provider migration is its own phase with a
+  dedicated plan; do not attempt mid-implementation.
 
 ---
 
-## Open decision to resolve during probe
+## Embedding provider (frozen for v1)
 
-**EMBEDDING_PROVIDER** — the existing `embeddingService.ts` calls
-**Gemini** (`text-embedding-004`) directly via `@google/generative-ai`,
-while `AGENTS.md` states "Unleash-only: do not route new AI
-features through `src/services/providers/`." `embeddingService.ts`
-itself is not in `providers/` — it's at the services root — but
-the spirit of the rule is "canonical AI goes through
-`unleashService`."
+The existing `embeddingService.ts` calls **Gemini**
+(`text-embedding-004`) directly via `@google/generative-ai`. The
+`AGENTS.md` "Unleash-only" rule targets routing *through*
+`src/services/providers/`; `embeddingService.ts` sits at the
+services root and predates that rule.
 
-Three options:
+**v1 decision: keep Gemini.** The embedding seam is Gemini-only
+for Phase 06C.
 
-1. **Keep Gemini for embeddings** — embedding service stays as-is;
-   document that `VITE_GEMINI_EMBEDDING_KEY` is a separate credential
-   from the Unleashed token. Cheapest path; embeddings work today.
-2. **Move embeddings to Unleashed** — check whether Unleashed
-   exposes an embedding endpoint. If yes, port
-   `embeddingService.ts` to hit `unleashService.ts`. Cleanest but
-   requires user to confirm Unleashed capability.
-3. **Local embedding model (ONNX)** — bundle a quantized
-   transformer (~25MB). Zero API dependency, works offline.
-   Bigger lift, punt to v2.
+**Why frozen, not TBD:** Codex round-1 review flagged the
+mid-phase flip risk as a real concern. The renderer already ships
+multiple providers plus Gemini-specific wiring in
+`src/contexts/AIContext.tsx:7/302`, `src/types/ai.ts:11`, and
+`src/services/embeddingService.ts:20`. Adding a provider migration
+inside Phase 06C multiplies config-split + version-churn surface
+for no v1 value.
 
-**Default for this plan:** Option 1 (keep Gemini). Flip to Option
-2 if the user confirms Unleashed embedding support before Slice 2
-dispatches.
+**What this means operationally:**
+- `VITE_GEMINI_EMBEDDING_KEY` is a separate credential from the
+  Unleashed token. Document this in `AGENTS.md` § Environment
+  Variables (Slice 1 touches it).
+- If the embedding key is missing, the Case Library surfaces an
+  empty state with a "configure key" prompt rather than breaking.
+- Moving embeddings to Unleashed (or a local ONNX model) is a
+  separate phase with its own plan. Do not attempt during any
+  Phase 06C slice.
 
 ---
 
@@ -78,20 +113,37 @@ dispatches.
    schema edits needed in Slice 1 beyond adding optional
    `embedding?: number[]` and `embeddingVersion?: string` fields
    for Slice 2.
-2. `dbManager` in `src/utils/indexedDB.ts` exposes `updateLogEmbedding`
-   — pattern for `updateCaseEmbedding` should mirror it. Verify
-   the IndexedDB schema version-bump mechanism before adding a new
-   object store.
+2. `dbManager` in `src/utils/indexedDB.ts:42` already carries
+   additive-guarded upgrades; `initPromise` is cached at
+   `src/utils/indexedDB.ts:24`. Slice 1 must add a new object store
+   **and** add resilience for two failure modes the current
+   manager doesn't handle: (a) blocked-upgrade events (other tab
+   holds old version), (b) failed-init poisoning (cached rejected
+   `initPromise` prevents retry without reload).
 3. `embeddingService.ts` already has `cosineSimilarity()` +
    `retrieveTopKByQuery()` methods. Slice 2 extends, does not
    rewrite.
-4. `importService.ts` parses `.noclense` packages. Verify whether
-   current imports produce a complete `Case` object or just logs
-   + attachments.
-5. `SimilarTicketsPanel.tsx` exists under `src/components/ai/diagnose/`.
-   Verify whether it's a diagnose-phase-scoped component (likely)
-   or a general-purpose card (unlikely). Slice 3 may rename or
-   coexist.
+4. `.noclense` import flows through
+   `src/components/import/WorkspaceImportPanel.tsx:124` (invoke
+   point) and `src/services/noclenseImporter.ts:39` (the
+   importer). `src/services/importService.ts` is a separate,
+   older surface — **not** the current `.noclense` path. Slice 3
+   wires auto-indexing into `noclenseImporter`, not
+   `importService`.
+5. **Case lifecycle lives in `src/store/caseContext.tsx`**, not
+   `src/contexts/CaseContext.tsx`. The hook is `useCase()` and
+   exposes `activeCase` (not `currentCase`). The reducer owns
+   `state.cases` in-memory at `src/store/caseContext.tsx:41`. For
+   "persist every investigation" to hold, every reducer action
+   that mutates a case (`createCase`, `updateCase`, `deleteCase`,
+   state-change transitions like open → resolved) must write
+   through `CaseRepository`. Slice 1 owns this wiring.
+6. The Investigate Room `similar-tickets` card
+   (`NewWorkspaceLayout.tsx:270–300`) already renders Zendesk
+   past tickets via `similarPastTickets`. Slice 3 extends this
+   card with a second section for local Case Library results —
+   NOT a new card. Grid has exactly 6 slots
+   (`WorkspaceGrid.tsx:174–181`); adding a 7th overflows.
 
 ---
 
@@ -101,20 +153,22 @@ dispatches.
 ```
 src/services/caseRepository.ts                                      (Slice 1)
 src/services/caseLibraryService.ts                                  (Slice 2)
-src/components/workspace/SimilarCasesCard.tsx                       (Slice 3)
+src/components/workspace/SimilarCasesSection.tsx                    (Slice 3)
 src/services/__tests__/caseRepository.test.ts                       (Slice 1)
 src/services/__tests__/caseLibraryService.test.ts                   (Slice 2)
-src/components/workspace/__tests__/SimilarCasesCard.test.tsx        (Slice 3)
+src/components/workspace/__tests__/SimilarCasesSection.test.tsx     (Slice 3)
 ```
 
 ### Modified files
 ```
 src/types/case.ts                                                   (Slice 1 — add embedding fields)
-src/utils/indexedDB.ts                                              (Slice 1 — add cases object store + updateCaseEmbedding)
+src/utils/indexedDB.ts                                              (Slice 1 — add cases object store; blocked + init-retry resilience)
+src/store/caseContext.tsx                                           (Slice 1 — wire reducer actions through CaseRepository)
 src/services/embeddingService.ts                                    (Slice 2 — add buildCaseEmbeddingText helper)
-src/services/importService.ts                                       (Slice 3 — auto-add imported cases to library)
-src/components/workspace/NewWorkspaceLayout.tsx                     (Slice 3 — mount SimilarCasesCard)
-src/contexts/CaseContext.tsx                                        (Slice 3 — expose current case for similarity queries)
+src/services/noclenseImporter.ts                                    (Slice 3 — auto-index imported cases)
+src/components/import/WorkspaceImportPanel.tsx                      (Slice 3 — only if importer's return shape changes; ideally untouched)
+src/components/workspace/NewWorkspaceLayout.tsx                     (Slice 3 — embed SimilarCasesSection inside similar-tickets card)
+AGENTS.md                                                           (Slice 1 — document VITE_GEMINI_EMBEDDING_KEY env var)
 docs/perf/reduced-motion-audit.md                                   (Slice 3 — new animated surfaces)
 ```
 
@@ -126,51 +180,100 @@ Three slices, 3 commits total. Can run as a sequential pipeline or
 Slice 1 + Slice 2 in parallel (independent files), then Slice 3
 serially. Prefer sequential for simpler review.
 
-### Slice 1 — Case storage + repository layer
+### Slice 1 — Case storage, repository, and lifecycle wiring
 
 **Primary agent:** `data-engineer`
-**Rationale:** IndexedDB schema design, data-model migration, and
-persistence layer are the core concerns — React integration lands
-in Slice 3.
+**Rationale:** IndexedDB schema design + reducer integration are
+the core concerns. The reducer wiring is thin (call-through, not
+React rendering), so keeping it with the data layer avoids
+splitting an atomic persistence contract across two agents.
 
 **Files:** `src/services/caseRepository.ts` (new),
 `src/utils/indexedDB.ts` (extend), `src/types/case.ts` (extend),
-tests.
+`src/store/caseContext.tsx` (wire reducer), `AGENTS.md` (env var
+doc), tests.
 
-**Commit 1 — CaseRepository over IndexedDB**
+**Commit 1 — CaseRepository + lifecycle persistence**
 
-1. **Schema extension** — add optional `embedding?: number[]` and
-   `embeddingVersion?: string` to the `Case` interface in
-   `src/types/case.ts`. No breaking changes; existing cases
-   without embeddings still load.
+1. **Schema extension** (`src/types/case.ts`) — add optional
+   `embedding?: number[]` and `embeddingVersion?: string` to the
+   `Case` interface. No breaking changes; existing cases without
+   embeddings still load.
 
-2. **IndexedDB object store** — add a `cases` object store in
-   `dbManager` with key path `id`. Bump the DB version by 1 in
-   the open-upgrade handler. Add indexes on `createdAt` and
-   `updatedAt` for list ordering.
+2. **IndexedDB object store** (`src/utils/indexedDB.ts`) — add a
+   `cases` object store with key path `id`. Bump the DB version
+   by 1 in the open-upgrade handler. Add indexes on `createdAt`
+   and `updatedAt` for list ordering.
 
-3. **CaseRepository service** — CRUD surface:
+3. **IndexedDB resilience** (same file — Codex Probe 2 YELLOW
+   fix):
+   - Handle `blocked` event on `IDBOpenDBRequest`: log warning
+     and resolve with explicit error so callers can surface a
+     "another tab holds an older database version — close other
+     tabs and reload" message. Current init silently hangs.
+   - On init failure, DO NOT cache the rejected promise at
+     `initPromise` (current behavior at line 24 poisons all
+     subsequent calls). Instead: clear `initPromise` in a
+     `.catch` so the next call retries.
+
+4. **CaseRepository service** — CRUD surface:
    ```ts
    export class CaseRepository {
      saveCase(case: Case): Promise<void>;         // upsert
      getCase(id: string): Promise<Case | null>;
-     listCases(opts?: { limit?: number; orderBy?: 'createdAt' | 'updatedAt' }): Promise<Case[]>;
+     listCases(opts?: {
+       limit?: number;
+       orderBy?: 'createdAt' | 'updatedAt';
+     }): Promise<Case[]>;
      deleteCase(id: string): Promise<void>;
-     updateCaseEmbedding(id: string, embedding: number[], version: string): Promise<void>;
+     updateCaseEmbedding(
+       id: string,
+       embedding: number[],
+       version: string,
+     ): Promise<void>;
    }
    ```
    Mirror the log-embedding pattern already in `indexedDB.ts`.
+   Export a singleton instance so all callers share one.
 
-4. **Tests** — CRUD roundtrip, ordering, embedding update,
-   missing-case handling.
+5. **Reducer integration** (`src/store/caseContext.tsx`) — the
+   reducer currently holds `state.cases` in-memory only (line 41).
+   Each lifecycle action must persist:
+   - `createCase` → after reducer state updates, call
+     `caseRepository.saveCase(newCase)` in an effect (not inside
+     the reducer itself — reducers must stay pure).
+   - `updateCase` → same; persist the updated case.
+   - `deleteCase` → `caseRepository.deleteCase(id)`.
+   - `addBookmark`, `addNote`, `updateCaseState`, etc. — these
+     all mutate the active case; after-effect persists the
+     updated case.
+   - Persistence errors are logged, not thrown. Failed persist =
+     stale-on-next-reload but does not break the current session.
+   - On context mount, call `caseRepository.listCases()` and
+     hydrate `state.cases` with previously persisted cases so the
+     library survives reload.
+
+6. **AGENTS.md env var doc** — append `VITE_GEMINI_EMBEDDING_KEY`
+   to the Environment Variables block (§ Environment Variables)
+   with a comment that it's distinct from the Unleashed token
+   and only powers the Case Library embedding index.
+
+7. **Tests** (`caseRepository.test.ts`) — CRUD roundtrip,
+   ordering, embedding update, missing-case handling, blocked-
+   upgrade behavior (mock the IDB open request to fire `blocked`),
+   init-retry after failure (reject once, succeed on retry).
 
 **Verification:**
 - `npx tsc --noEmit` → 0
-- `npm run test:run -- src/services/__tests__/caseRepository.test.ts` → green
-- Manual: open DevTools → Application → IndexedDB, confirm the
-  new `cases` store exists after save.
+- `npm run test:run` (full suite) → green; specifically
+  `caseContext.test.tsx` should NOT regress.
+- Manual: create a case in the app, reload the page, confirm
+  the case is still there.
+- Manual: open a second tab (held at old DB version if possible),
+  then trigger an upgrade in a third tab; observe the blocked-
+  handler warning (dev-console check).
 
-**Commit message:** `feat(phase-06c): CaseRepository over IndexedDB for Case Library persistence`
+**Commit message:** `feat(phase-06c): CaseRepository + case lifecycle persistence`
 
 ---
 
@@ -224,12 +327,14 @@ builder), tests.
    }
    ```
 
-3. **Provider handling** — per EMBEDDING_PROVIDER decision (Option
-   1 default: Gemini). If `embeddingService.initialize()` has not
-   been called, `findSimilar` and `indexCase` return gracefully
-   (empty array / no-op + warn) rather than throwing. This lets
-   the UI render a "no embedding key configured" state rather
-   than crashing.
+3. **Provider handling** — Gemini-only per frozen v1 decision. If
+   `embeddingService.initialize()` has not been called (no
+   `VITE_GEMINI_EMBEDDING_KEY` in env or no runtime override),
+   `findSimilar` returns `[]` gracefully and `indexCase` is a
+   no-op + `console.warn`. Do NOT throw. The UI renders a
+   "configure embedding key in settings" state rather than
+   crashing. Check-key pattern mirrors `AIContext.tsx` handling
+   for missing Unleashed token.
 
 4. **Embedding version constant** — hardcode `CURRENT_VERSION =
    'gemini-text-embedding-004'` (or whatever the active model
@@ -249,83 +354,123 @@ builder), tests.
 
 ---
 
-### Slice 3 — UI integration (SimilarCasesCard)
+### Slice 3 — UI integration + import-side auto-indexing
 
 **Primary agent:** `react-specialist`
 **Secondary:** `accessibility-tester` for live-region + keyboard
 parity with Phase 06B Commit 4 (maintain the a11y bar we just
 raised for the graph).
 
-**Files:** `src/components/workspace/SimilarCasesCard.tsx` (new),
-`src/components/workspace/NewWorkspaceLayout.tsx` (mount),
-`src/contexts/CaseContext.tsx` (expose current case),
-`src/services/importService.ts` (auto-add on import),
-`docs/perf/reduced-motion-audit.md` (append), tests.
+**Files:** `src/components/workspace/SimilarCasesSection.tsx`
+(new — the "Past cases" subsection of the similar-tickets card),
+`src/components/workspace/NewWorkspaceLayout.tsx` (embed the
+section inside the existing `similar-tickets` card at lines
+270–300), `src/services/noclenseImporter.ts` (auto-index on
+import), `docs/perf/reduced-motion-audit.md` (append), tests.
 
-**Commit 3 — SimilarCasesCard + import-side auto-indexing**
+**DO NOT add a new grid slot.** The Investigate Room grid is
+locked at 6 slots (`WorkspaceGrid.tsx:174–181`); a 7th card
+overflows. Slice 3 extends the existing `similar-tickets` card
+with a second section.
 
-1. **SimilarCasesCard component** — new WorkspaceCard variant
-   mounted in the Investigate Room grid. Reads the current case
-   from `useCaseContext()`, calls
-   `CaseLibraryService.findSimilar(currentCase, { topK: 5 })`,
-   renders top-5 results with:
+**Commit 3 — SimilarCasesSection + auto-indexing**
+
+1. **Similar card restructure** (`NewWorkspaceLayout.tsx:270–300`)
+   — the existing WorkspaceCard at `id="similar-tickets"` keeps
+   its slot and accent color. Inside the card:
+   - Section header "Past tickets" wraps the existing Zendesk
+     `similarPastTickets` render (keep verbatim — no behavior
+     change to the Zendesk side).
+   - New section header "Past cases" below, renders
+     `<SimilarCasesSection />`.
+   - Card `title` prop changes from "Similar Tickets" to
+     "Similar" (the card now surfaces both). Card `meta`
+     combines counts: `{zendeskCount} tickets · {cases.length} cases`.
+
+2. **SimilarCasesSection component** — reads the active case via
+   `useCase()` → `activeCase` (from `src/store/caseContext.tsx`,
+   NOT a `useCaseContext()` that doesn't exist). If `activeCase`
+   is null, renders "No active case yet." Otherwise calls
+   `caseLibraryService.findSimilar(activeCase, {
+     topK: 5,
+     filters: { excludeCaseIds: [activeCase.id] }
+   })` and renders:
    - Title (primary text)
    - 1-line summary preview (truncated at ~120 chars)
-   - Severity badge (color-coded)
+   - Severity badge (color-coded, reuse existing severity token
+     if one exists; otherwise add a minimal colored dot)
    - Relative date ("3 days ago")
-   - "Open" button — emits a `caseOpened` event for now
-     (full wiring to case-replay is a future phase)
+   - "Open" button — calls `setActiveCase(id)` from
+     `useCase()` to switch to that case in the workspace
 
-2. **Loading + empty states**
+3. **Loading + empty states**
    - Loading: skeleton rows while `findSimilar` pending
-   - Empty (zero results or empty library): text-only message
-     "No similar cases yet — library fills as you close more
-     investigations"
-   - Error (embedder not initialized): "Configure embedding key
-     in settings" with a Settings link
+   - Empty (zero results, library not empty): "No semantically
+     similar cases in your library yet."
+   - Empty (library truly empty): "The library fills as you
+     create and resolve investigations — both new ones and
+     imported `.noclense` packs."
+   - Error (embedder not initialized): "Configure
+     `VITE_GEMINI_EMBEDDING_KEY` to enable similar-case
+     retrieval." with a Settings link.
 
-3. **Keyboard a11y (reuse Phase 06B pattern)**
-   - Card is a single tab-stop; arrow keys traverse the 5 result
-     rows
-   - Enter/Space on a row activates the "Open" action
+4. **Keyboard a11y (reuse Phase 06B pattern)**
+   - Section is a single tab-stop within the card; arrow keys
+     traverse the up-to-5 result rows
+   - Enter/Space on a row activates `setActiveCase`
    - aria-live="polite" announces result set changes ("Showing
-     5 similar cases")
-   - aria-live="assertive" announces open action ("Opening case
-     CASE-1234")
+     N similar past cases")
+   - aria-live="assertive" announces case switch ("Switching to
+     case CASE-1234")
    - Respect `usePrefersReducedMotion()` — skeleton shimmer
      animation skips on reduced-motion
 
-4. **CaseContext exposure** — verify `useCaseContext()` exposes
-   `currentCase`. If not, add it (reading from wherever cases
-   are loaded).
+5. **Import-side auto-indexing** — `src/services/noclenseImporter.ts`
+   is the actual import surface (verified at line 39). Wire
+   auto-indexing there:
+   - After a `.noclense` pack successfully imports its case
+     metadata, call `caseLibraryService.indexCase(case)` fire-
+     and-forget with error logging.
+   - The reducer-level persistence from Slice 1 already saves
+     the case to the repository; this call only triggers the
+     embedding compute.
+   - Do NOT block the import success path on embedding; the
+     pack lands in the library immediately, embedding catches
+     up asynchronously.
+   - If `WorkspaceImportPanel.tsx:124` needs to know embedding
+     state (e.g., "indexing…" label), expose an optional
+     callback from the importer; otherwise leave the panel
+     unchanged.
 
-5. **Import-side auto-indexing** — in `importService.ts`, after
-   a `.noclense` package loads:
-   - Extract the case metadata
-   - Call `CaseLibraryService.indexCase(case)` in the background
-   - Don't block the import success path on embedding completion;
-     fire-and-forget with error logging
-
-6. **Reduced-motion audit append** — one new row in
+6. **Reduced-motion audit append** — one new row block in
    `docs/perf/reduced-motion-audit.md` §2.7:
-   - SimilarCasesCard skeleton shimmer: guarded by
+   - SimilarCasesSection skeleton shimmer: guarded by
      `usePrefersReducedMotion()`
-   - Card entrance animation (if any — may not exist): note
-     guard or "no motion"
+   - No card-level entrance animation introduced (section is
+     embedded in existing card; card's entrance is Phase 05/06A
+     prior art)
 
-7. **Tests** — render with cases → shows 5 rows; render empty →
-   shows empty state; render no embedder → shows config prompt;
-   keyboard nav; aria attributes; reduced-motion skips shimmer.
+7. **Tests** — render with cases → shows up to 5 rows; render
+   empty → shows appropriate empty state; render no embedder →
+   shows config prompt with env var name; keyboard nav; aria
+   attributes; reduced-motion skips shimmer; `setActiveCase`
+   called with correct id on row activation; `excludeCaseIds`
+   includes the active case so it never self-lists.
 
 **Verification:**
 - `npx tsc --noEmit` → 0
-- `npm run test:run` (full suite to catch regressions) → green
-- Manual: import a `.noclense` package, wait ~2 seconds, open
-  another case, confirm the imported case appears in SimilarCases.
-- Manual a11y: keyboard nav + screen-reader announcements match
-  Phase 06B Correlation Graph.
+- `npm run test:run` (full suite — watch for Phase 06B Correlation
+  Graph regressions since we're touching the same grid row) →
+  green
+- Manual: create a case, resolve it (triggers Slice 1 persistence
+  + Slice 2 indexing); create a new case with similar summary;
+  confirm the first appears in the Past cases section.
+- Manual: import a `.noclense` pack, wait ~2 seconds, switch to
+  another active case, confirm the imported case appears.
+- Manual a11y: keyboard nav + reduced-motion matches Phase 06B
+  Correlation Graph parity.
 
-**Commit message:** `feat(phase-06c): SimilarCasesCard + import-side auto-indexing`
+**Commit message:** `feat(phase-06c): SimilarCasesSection inside Similar card + noclense auto-indexing`
 
 ---
 
@@ -376,46 +521,17 @@ parallel with Slice 2 stubbing against Slice 1's interface.
 
 ---
 
-## Probe prompt (single round per lightweight policy)
+## Review disposition
 
-```
-You are doing an adversarial review of a NocLense phase plan.
+**Round 1 (2026-04-22):** Codex returned NO-GO on 2 items + 2
+YELLOWs. All fixes applied in v2 (see Revision log at top).
 
-Target: docs/superpowers/plans/2026-04-22-phase06C-case-library.md
+**Round 2:** NOT SCHEDULED. Per the lightweight review policy,
+one amendment cycle after a NO-GO is the cap; if v2 still
+doesn't hold up, escalate to user for scope decision rather
+than iterating.
 
-This is the ONLY review round for this plan. Flag only real
-issues; YELLOWs that would take another round to resolve should
-be documented as known-limitations in the revision log rather
-than blocking.
-
-Probe adversarially:
-1. EMBEDDING_PROVIDER decision: is "default to Gemini, flip on
-   confirmation" the right call? Any third option I'm missing?
-   Any hidden risk in shipping with two AI providers in the
-   renderer (Unleashed for everything else, Gemini for
-   embeddings)?
-2. Slice 1 IndexedDB schema: does adding a new object store
-   and bumping the DB version have a meaningful migration risk
-   for existing user databases? Is there a way this breaks on
-   v1→v2 upgrade that I haven't accounted for?
-3. Slice 2 idempotency: `indexCase` skips when
-   embeddingVersion matches CURRENT_VERSION — does this
-   correctly handle the case where embedding was set but
-   version was never written (old data pre-dating this phase)?
-4. Slice 3 component mounting: adding SimilarCasesCard to
-   NewWorkspaceLayout — will that overflow the Investigate
-   Room CSS grid? (The grid already carries 6 WorkspaceCards;
-   this makes 7.)
-5. Similar-case discovery semantics: cosine similarity on
-   summary+impact+title may be dominated by common phrasing
-   (e.g. "ticket for customer X") and miss the real signal
-   (which logs / correlations were involved). Is this
-   acceptable for v1, or should v1 include correlation-type
-   overlap in the scoring?
-6. Any proof hole, regression, or over-claimed framing
-   introduced by this plan?
-
-Output per-probe status + findings, then Verdict: GO or NO-GO
-with required-fix bullets (NO-GO) or remaining YELLOWs (GO).
-Be concise. No preamble.
-```
+**Status:** v2 ready to dispatch. If the user wants a
+verification-only probe on the v2 amendments (not a fresh full
+probe), one is available — but defaulting is direct dispatch
+of Slice 1.
