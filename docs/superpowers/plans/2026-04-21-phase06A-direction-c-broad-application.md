@@ -17,10 +17,18 @@ YELLOW Spinner mapping.
 **v4 → v5 (fourth Codex adversarial review):** NO-GO on 4 items.
 **v5 → v6 (fifth Codex adversarial review):** NO-GO on 2 items.
 **v6 → v7 (sixth Codex adversarial review):** NO-GO on 1 RED + 1
-YELLOW (both with required fixes). v7 table is authoritative for
-current state; v6/v5/v4/v3/v2 are historical.
+YELLOW (both with required fixes).
+**v7 → v8 (seventh Codex adversarial review):** NO-GO on 1 RED (stale
+prose). v8 table is authoritative for current state;
+v7/v6/v5/v4/v3/v2 are historical.
 
-**v7 resolutions (2026-04-22, current):**
+**v8 resolutions (2026-04-22, current):**
+
+| # | v7 blocker | v8 resolution |
+|---|---|---|
+| α | Slice 1 numeric-size-rule prose (line ~370) still said "enforces exactly 5 literal-number matches + 1 ternary match" — contradicts the v7 zero-violations + per-file-count scheme. Two active contracts in the same plan. | Updated the Slice 1 prose to reference the v7 enforcement model: (1) zero-violations grep excluding approved files + tests, (2) per-file `git grep -cE` cardinality checks (3/1/1/1). Single source of truth. |
+
+**v7 resolutions (2026-04-22, historical — superseded by v8 table above):**
 
 | # | v6 blocker | v7 resolution |
 |---|---|---|
@@ -367,9 +375,12 @@ on 2026-04-21):**
 sites enumerated below. Sites are keyed on **file + semantic anchor**
 (the button label or surrounding context the spinner annotates),
 NOT on line number. Line numbers drift with refactors; semantic
-anchors remain stable. Slice 6 C9's numeric-Spinner grep enforces
-exactly 5 literal-number matches + 1 ternary match — any other
-numeric use is a migration bug that fails the C9 pre-condition.
+anchors remain stable. Slice 6 C9 enforces this via two checks:
+(1) a zero-violations grep that scans all `src/` EXCLUDING the four
+approved source files and all test files — any digit-bearing
+`size={...}` outside those files is a migration bug; (2) per-file
+`git grep -cE` cardinality checks (3/1/1/1) that prove the approved
+sites survived intact.
 
 | # | File | Semantic anchor | Pixel size |
 |---|---|---|---|

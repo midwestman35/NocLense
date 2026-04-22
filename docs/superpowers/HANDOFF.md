@@ -1,8 +1,8 @@
 # Superpowers Handoff — Current In-Flight Work
 
-**Last updated:** 2026-04-22 (v7 plan drafted, awaiting Codex round 7 review)
+**Last updated:** 2026-04-22 (v8 plan drafted, awaiting Codex round 8 review)
 **Branch:** `april-redesign`
-**Current HEAD:** `4f3c5dd` — `docs(phase-06a): draft v7 plan`
+**Current HEAD:** `1a8c425` — `docs(phase-06a): draft v8 plan`
 
 > Single source of truth for resuming the current planning/review cycle in
 > a fresh Claude session on any device. Read this first, then act on the
@@ -41,10 +41,10 @@ yourself.
 
 ---
 
-## Plan status — 6 Codex review rounds survived
+## Plan status — 7 Codex review rounds survived
 
-The plan iterated v1 → v7 through six adversarial reviews. Current status:
-**v7 drafted, awaiting Codex round 7 verdict.** The full revision-log table
+The plan iterated v1 → v8 through seven adversarial reviews. Current status:
+**v8 drafted, awaiting Codex round 8 verdict.** The full revision-log table
 inside the plan file is authoritative; what follows is the short version.
 
 | Round | Blockers | Key v-next fix |
@@ -55,6 +55,7 @@ inside the plan file is authoritative; what follows is the short version.
 | v4 → v5 | `toHaveBeenCalledTimes(1)` brittle to rerenders; numeric rule still policy-only; single-line MotionConfig grep; framing over-claimed | DOM-marker pass-through; grep enforces numeric rule; format-tolerant MotionConfig check; "source-state only" framing |
 | v5 → v6 | Numeric Spinner grep: brittle count + missed non-literal expressions + test files in scope; `test -f` bash-only | Zero-violations grep with pathspec exclusions; `git ls-files --error-unmatch` |
 | v6 → v7 | Approved-sites spot-check too weak (`-lE` file-list); prose over-claimed "numeric variable" coverage; `.test.ts` uncovered | Per-file `git grep -cE` counts (3/1/1/1); prose narrowed to "digit-bearing expressions"; `.test.ts` pathspec added |
+| v7 → v8 | Slice 1 numeric-rule prose still said "exactly 5 + 1" — contradicted v7 zero-violations + per-file-count scheme | Updated Slice 1 prose to single source of truth matching v7 enforcement model |
 
 ---
 
@@ -78,7 +79,7 @@ inside the plan file is authoritative; what follows is the short version.
 
 ---
 
-## Immediate next step — run Codex round 7
+## Immediate next step — run Codex round 8
 
 Paste the following into the user's Codex CLI and ask them to return the
 verbatim response:
@@ -88,41 +89,32 @@ You are doing an adversarial review of a NocLense phase plan.
 
 Target: docs/superpowers/plans/2026-04-21-phase06A-direction-c-broad-application.md
 
-Context: this is v7. v6 NO-GO raised 2 items:
-(α) Approved-sites spot-check used git grep -lE (file-list mode) —
-    reports each file once regardless of match count.
-    InvestigationSetupModal.tsx could drop from 3 to 1 numeric
-    Spinner site and still pass.
-(β) Prose claimed pattern catches "numeric variable names" but
-    regex [^}]*[0-9] requires a literal digit in source text.
-    Also .test.ts (non-JSX) was uncovered by pathspec exclusions.
+Context: this is v8. v7 NO-GO raised 1 item:
+(α) Slice 1 numeric-size-rule prose still said "enforces exactly 5
+    literal-number matches + 1 ternary match" — contradicted the v7
+    zero-violations + per-file-count scheme. Two active contracts in
+    the same plan.
 
-v7 changes:
-- α: Spot-check switched to `git grep -cE` (count mode) with per-file
-  expected counts: InvestigationSetupModal.tsx=3, DiagnosePhase2.tsx=1,
-  DiagnosePhase3.tsx=1, AIButton.tsx=1. A count mismatch (too low =
-  over-sweep; too high = new unapproved site in excluded file) forces
-  a conscious plan update.
-- β: Prose narrowed from "numeric variable names" to "digit-bearing
-  expressions" with explicit caveat that pure-variable references
-  (size={spinnerSize}) are not catchable by grep — deferred to
-  Spinner tests and code review. Added `:!src/**/*.test.ts` to
-  pathspec exclusions alongside existing .test.tsx.
+v8 change:
+- α: Updated the Slice 1 prose block to reference the v7 enforcement
+  model: (1) zero-violations grep excluding approved files + tests,
+  (2) per-file `git grep -cE` cardinality checks (3/1/1/1). The old
+  "exactly 5 + 1" language is removed. Single source of truth now:
+  the C9 grep block in Slice 6 defines enforcement; the Slice 1 prose
+  describes the rule and points at C9 for the mechanism.
 
 Probe adversarially:
-1. Per-file counts: if a legitimate refactor adds a 4th numeric
-   Spinner to InvestigationSetupModal.tsx, the count check breaks
-   (expected 3, got 4). The zero-violations grep ALSO excludes that
-   file, so it won't flag the new site either. Is the only recovery
-   path a plan update + count bump? Is that acceptable or too rigid?
-2. Pure-variable gap: the plan now acknowledges size={spinnerSize}
-   falls through grep. Is there any realistic scenario in Phase 06A
-   where a developer introduces a pure-variable numeric Spinner that
-   bypasses both the grep AND the Spinner test suite?
-3. Pathspec completeness: the plan now excludes __tests__/, *.test.tsx,
-   *.test.ts. Does the codebase use *.spec.tsx or *.spec.ts anywhere?
-   If so, those patterns need adding.
-4. Any new regression introduced by the v7 changes?
+1. Internal consistency: search the entire plan for any remaining
+   reference to "exactly 5" or "5 literal" or "1 ternary match" in
+   the context of numeric Spinner enforcement. Any surviving instance
+   contradicts v8.
+2. The updated Slice 1 prose and the C9 grep block: are they now
+   consistent on what gets excluded (which files), what gets counted
+   (per-file cardinality), and what the expected counts are?
+3. Any remaining v7 YELLOWs (pure-variable gap, multiline convention)
+   that have worsened or been accidentally re-introduced by the v8
+   edit?
+4. Any new regression introduced by the v8 change?
 
 Output per-probe status + findings, then Verdict: GO or NO-GO with
 required-fix bullets (NO-GO) or remaining YELLOWs (GO). Be concise.
