@@ -15,6 +15,7 @@ import {
   type EvidenceSet,
   type Investigation,
 } from '../../../types/canonical';
+import type { Case } from '../../../types/case';
 
 const toastMock = vi.fn();
 const setInvestigationMock = vi.fn();
@@ -23,6 +24,8 @@ const clearAllDataMock = vi.fn().mockResolvedValue(undefined);
 const setLoadingMock = vi.fn();
 const setSelectedLogIdMock = vi.fn();
 const setParsingProgressMock = vi.fn();
+const caseDispatchMock = vi.fn();
+const setActiveCaseMock = vi.fn();
 
 vi.mock('../../ui', () => ({
   Button: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement>) => (
@@ -99,6 +102,23 @@ function buildEvidenceSet(): EvidenceSet {
   };
 }
 
+function buildImportedCase(): Case {
+  return {
+    id: 'case-1',
+    title: 'Acme Telecom / Imported investigation',
+    severity: 'medium',
+    status: 'resolved',
+    summary: 'Imported summary',
+    impact: 'Imported impact',
+    createdAt: 1,
+    updatedAt: 1,
+    attachments: [],
+    bookmarks: [],
+    notes: [],
+    timeWindow: null,
+  };
+}
+
 describe('WorkspaceImportPanel .noclense import', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -129,6 +149,9 @@ describe('WorkspaceImportPanel .noclense import', () => {
     } as unknown as ReturnType<typeof useEvidence>);
     mockUseCase.mockReturnValue({
       activeCase: null,
+      cases: [],
+      dispatch: caseDispatchMock,
+      setActiveCase: setActiveCaseMock,
       updateCase: vi.fn(),
     } as unknown as ReturnType<typeof useCase>);
   });
@@ -136,10 +159,12 @@ describe('WorkspaceImportPanel .noclense import', () => {
   it('imports a .noclense file and restores investigation state', async () => {
     const investigation = buildInvestigation();
     const evidenceSet = buildEvidenceSet();
+    const importedCase = buildImportedCase();
     mockImportNoclenseFile.mockResolvedValue({
       ok: true,
       investigation,
       evidenceSet,
+      importedCase,
       manifest: {
         manifestSchemaVersion: 1,
         createdAt: 1,
@@ -173,6 +198,11 @@ describe('WorkspaceImportPanel .noclense import', () => {
     expect(clearAllDataMock).toHaveBeenCalledTimes(1);
     expect(setInvestigationMock).toHaveBeenCalledWith(investigation);
     expect(restoreEvidenceSetMock).toHaveBeenCalledWith(evidenceSet);
+    expect(caseDispatchMock).toHaveBeenCalledWith({
+      type: 'LOAD_CASES',
+      payload: [importedCase],
+    });
+    expect(setActiveCaseMock).toHaveBeenCalledWith(importedCase.id);
     expect(toastMock).toHaveBeenCalledWith('Investigation imported.', { variant: 'success' });
     expect(onComplete).toHaveBeenCalledTimes(1);
   });

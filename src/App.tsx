@@ -7,6 +7,7 @@ import { CaseProvider } from './store/caseContext';
 import { initTheme } from './utils/theme';
 import { ToastProvider } from './components/ui';
 import { NewWorkspaceLayout } from './components/workspace/NewWorkspaceLayout';
+import './services/caseLibraryBootstrap';
 
 function AppShell() {
   useEffect(() => {

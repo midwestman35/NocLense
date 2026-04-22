@@ -35,6 +35,7 @@ import ExportModal from '../export/ExportModal';
 import EvidencePanel from '../evidence/EvidencePanel';
 import { SubmitRoom } from './SubmitRoom';
 import { CorrelationGraph } from '../correlation-graph/CorrelationGraph';
+import { SimilarCasesSection } from './SimilarCasesSection';
 
 import { CaseStateBridge } from '../case/CaseStateBridge';
 import { Sparkles, FileText, Bookmark, Search, Database, AlertTriangle, FolderPlus, Download, Trash2, ExternalLink } from 'lucide-react';
@@ -114,6 +115,7 @@ export function NewWorkspaceLayout() {
   const [pendingSetup, setPendingSetup] = useState<InvestigationSetup | null>(null);
   const [activeTicket, setActiveTicket] = useState<ZendeskTicket | null>(null);
   const [showImportDialog, setShowImportDialog] = useState(false);
+  const [similarCaseCount, setSimilarCaseCount] = useState(0);
   const [fileError] = useState<string | null>(null);
   const holdImportPhase = investigationModalTicketId !== null;
   const derivedPhase: Phase = explicitPhase ?? (holdImportPhase ? 'import' : logs.length === 0 ? 'import' : 'investigate');
@@ -269,55 +271,76 @@ export function NewWorkspaceLayout() {
       {/* Bottom row — compact cards */}
       <WorkspaceCard
         id="similar-tickets"
-        title="Similar Tickets"
+        title="Similar"
         icon={<Search size={14} />}
         accentColor="#60a5fa"
         defaultExpanded={similarPastTickets.length > 0}
-        meta={similarPastTickets.length > 0 ? <span>{similarPastTickets.length} found</span> : undefined}
+        meta={<span>{similarPastTickets.length} tickets {similarCaseCount} cases</span>}
         className={CARD_GRID_CLASSES['similar-tickets']}
       >
-        {similarPastTickets.length === 0 ? (
-          <div className="p-3 text-xs text-[var(--muted-foreground)]">
-            <p>Past resolved tickets matching this investigation will surface here.</p>
-          </div>
-        ) : (
-          <div className="divide-y divide-[var(--border)] max-h-[200px] overflow-y-auto">
-            {similarPastTickets.map(t => {
-              const subdomain = loadAiSettings().zendeskSubdomain;
-              const zdUrl = subdomain
-                ? `https://${subdomain}.zendesk.com/agent/tickets/${t.id}`
-                : null;
-              return (
-                <div key={t.id} className="px-3 py-2 hover:bg-[var(--muted)]/50 transition-colors">
-                  <p className="text-[11px] font-medium text-[var(--foreground)] truncate">
-                    #{t.id}: {t.subject}
-                  </p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-[9px] text-[var(--muted-foreground)]">
-                      {t.createdAt ? new Date(t.createdAt).toLocaleDateString() : ''}
-                    </span>
-                    {t.tags.length > 0 && (
-                      <span className="text-[9px] text-[var(--muted-foreground)]">
-                        {t.tags.filter(tag => tag.startsWith('noc:')).slice(0, 2).join(', ') || t.tags.slice(0, 2).join(', ')}
-                      </span>
-                    )}
-                    {zdUrl && (
-                      <a
-                        href={zdUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[9px] text-blue-400 hover:text-blue-300 flex items-center gap-0.5 ml-auto"
-                      >
-                        <ExternalLink size={8} />
-                        Open
-                      </a>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+        <div className="divide-y divide-[var(--border)]">
+          <section className="space-y-2 p-3" aria-labelledby="similar-past-tickets-heading">
+            <h3
+              id="similar-past-tickets-heading"
+              className="text-[10px] font-medium uppercase tracking-[0.16em] text-[var(--muted-foreground)]"
+            >
+              Past tickets
+            </h3>
+
+            {similarPastTickets.length === 0 ? (
+              <div className="text-xs text-[var(--muted-foreground)]">
+                <p>Past resolved tickets matching this investigation will surface here.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-[var(--border)] max-h-[200px] overflow-y-auto">
+                {similarPastTickets.map(t => {
+                  const subdomain = loadAiSettings().zendeskSubdomain;
+                  const zdUrl = subdomain
+                    ? `https://${subdomain}.zendesk.com/agent/tickets/${t.id}`
+                    : null;
+                  return (
+                    <div key={t.id} className="px-3 py-2 hover:bg-[var(--muted)]/50 transition-colors">
+                      <p className="text-[11px] font-medium text-[var(--foreground)] truncate">
+                        #{t.id}: {t.subject}
+                      </p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[9px] text-[var(--muted-foreground)]">
+                          {t.createdAt ? new Date(t.createdAt).toLocaleDateString() : ''}
+                        </span>
+                        {t.tags.length > 0 && (
+                          <span className="text-[9px] text-[var(--muted-foreground)]">
+                            {t.tags.filter(tag => tag.startsWith('noc:')).slice(0, 2).join(', ') || t.tags.slice(0, 2).join(', ')}
+                          </span>
+                        )}
+                        {zdUrl && (
+                          <a
+                            href={zdUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[9px] text-blue-400 hover:text-blue-300 flex items-center gap-0.5 ml-auto"
+                          >
+                            <ExternalLink size={8} />
+                            Open
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
+          <section className="space-y-2 p-3" aria-labelledby="similar-past-cases-heading">
+            <h3
+              id="similar-past-cases-heading"
+              className="text-[10px] font-medium uppercase tracking-[0.16em] text-[var(--muted-foreground)]"
+            >
+              Past cases
+            </h3>
+            <SimilarCasesSection onCountChange={setSimilarCaseCount} />
+          </section>
+        </div>
       </WorkspaceCard>
 
       <WorkspaceCard
@@ -335,7 +358,7 @@ export function NewWorkspaceLayout() {
     </>
   ), [filteredLogs.length, selectedLog, fileError, activeCorrelations, filterText,
       pendingSetup, similarPastTickets, setSelectedLogId, setJumpState, setActiveCorrelations,
-      setFilterText, setScrollTargetTimestamp, parseProgress, handleCitationClick, evidenceSet]);
+      setFilterText, setScrollTargetTimestamp, parseProgress, handleCitationClick, evidenceSet, similarCaseCount]);
 
   // ── Submit Room ────────────────────────────────────────────────
   const submitContent = <SubmitRoom />;

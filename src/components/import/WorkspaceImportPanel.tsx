@@ -8,7 +8,7 @@ import { dbManager } from '../../utils/indexedDB';
 import { appendLogsToIndexedDB, importFiles, importPastedLogs } from '../../services/importService';
 import { importNoclenseFile } from '../../services/noclenseImporter';
 import type { ImportedDataset, LogSourceType } from '../../types';
-import type { Attachment } from '../../types/case';
+import type { Attachment, Case } from '../../types/case';
 
 const SOURCE_OPTIONS: Array<{ id: LogSourceType; label: string; description: string }> = [
   { id: 'apex', label: 'APEX', description: 'Application logs and exported text files.' },
@@ -39,6 +39,14 @@ function mergeAttachments(existing: Attachment[], datasets: ImportedDataset[]): 
     }
   });
   return next.sort((a, b) => a.importedAt - b.importedAt);
+}
+
+function upsertImportedCase(cases: Case[], importedCase: Case): Case[] {
+  const nextCases = cases.some((caseItem) => caseItem.id === importedCase.id)
+    ? cases.map((caseItem) => (caseItem.id === importedCase.id ? importedCase : caseItem))
+    : [...cases, importedCase];
+
+  return nextCases.sort((left, right) => right.updatedAt - left.updatedAt);
 }
 
 interface WorkspaceImportPanelProps {
@@ -73,7 +81,7 @@ export function WorkspaceImportPanel({ onComplete, onInvestigationReady }: Works
     serverUploadAndParse,
   } = useLogContext();
   const { setInvestigation, restoreEvidenceSet } = useEvidence();
-  const { activeCase, updateCase } = useCase();
+  const { activeCase, updateCase, cases, dispatch, setActiveCase } = useCase();
 
   const hasWorkspaceLogs = logs.length > 0;
 
@@ -145,6 +153,8 @@ export function WorkspaceImportPanel({ onComplete, onInvestigationReady }: Works
         setSelectedLogId(null);
         setInvestigation(result.investigation);
         restoreEvidenceSet(result.evidenceSet);
+        dispatch({ type: 'LOAD_CASES', payload: upsertImportedCase(cases, result.importedCase) });
+        setActiveCase(result.importedCase.id);
         toast('Investigation imported.', { variant: 'success' });
         onComplete?.();
         return;

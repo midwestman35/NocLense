@@ -143,6 +143,10 @@ Phase 06A C1/C2 retired every inline `animation: 'spin ...'` style and every raw
 | Correlation Graph layout reset | `src/components/correlation-graph/CorrelationGraph.tsx` | Reset reuses the force-layout config; `animation: false` is applied when reduced motion or large-graph mode is active before `graph.layout()` reruns. | âœ… |
 | Correlation Graph large-graph overlay | `src/components/correlation-graph/CorrelationGraph.tsx` | Static dialog mount only; no motion, no guard needed. | âœ… |
 
+| SimilarCasesSection skeleton shimmer | `src/components/workspace/SimilarCasesSection.tsx` | `usePrefersReducedMotion()` removes the `animate-shimmer` class and leaves static placeholders | ✅ |
+| SimilarCasesSection keyboard and live-region surface | `src/components/workspace/SimilarCasesSection.tsx` | Uses a static `:focus-visible` ring and ARIA live regions only; row traversal and activation introduce no motion | ✅ |
+| Similar card integration | `src/components/workspace/NewWorkspaceLayout.tsx` | No new card-level entrance animation; Phase 06C adds no animated surfaces beyond the SimilarCasesSection skeleton rows | ✅ |
+
 ### 2.8 - Phase 05 additions carried forward
 
 | Surface | File | Reduced-motion handling | Status |

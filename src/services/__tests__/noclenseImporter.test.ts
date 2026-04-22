@@ -1,5 +1,5 @@
 import JSZip from 'jszip';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildNoclenseZip } from '../investigationExporter';
 import { importNoclenseFile } from '../noclenseImporter';
 import {
@@ -9,6 +9,26 @@ import {
   type EvidenceSet,
   type Investigation,
 } from '../../types/canonical';
+
+const {
+  saveCaseMock,
+  indexCaseMock,
+} = vi.hoisted(() => ({
+  saveCaseMock: vi.fn().mockResolvedValue(undefined),
+  indexCaseMock: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../caseRepository', () => ({
+  caseRepository: {
+    saveCase: saveCaseMock,
+  },
+}));
+
+vi.mock('../caseLibraryService', () => ({
+  caseLibraryService: {
+    indexCase: indexCaseMock,
+  },
+}));
 
 const baseInvestigation: Investigation = {
   schemaVersion: INVESTIGATION_SCHEMA_VERSION,
@@ -47,6 +67,12 @@ async function makeZipFile(overrides?: {
 }
 
 describe('importNoclenseFile', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    saveCaseMock.mockResolvedValue(undefined);
+    indexCaseMock.mockResolvedValue(undefined);
+  });
+
   it('imports a valid v1 archive successfully', async () => {
     const file = await makeZipFile();
     const result = await importNoclenseFile(file);
@@ -54,7 +80,15 @@ describe('importNoclenseFile', () => {
     if (result.ok) {
       expect(result.investigation.id).toBe('inv-1');
       expect(result.evidenceSet.caseId).toBe('case-1');
+      expect(result.importedCase.id).toBe('case-1');
+      expect(result.importedCase.status).toBe('handoff');
     }
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(saveCaseMock).toHaveBeenCalledWith(expect.objectContaining({ id: 'case-1' }));
+    expect(indexCaseMock).toHaveBeenCalledWith(expect.objectContaining({ id: 'case-1' }));
   });
 
   it('returns error for non-ZIP file', async () => {
