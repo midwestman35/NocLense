@@ -1,8 +1,15 @@
 # Superpowers Handoff — Current In-Flight Work
 
-**Last updated:** 2026-04-22 (Phase 06C closed; Phase 07 planning starts next week)
+**Last updated:** 2026-04-22 (Phase 06C closed; work continuing on personal Mac for prototyping)
 **Branch:** `april-redesign`
-**Current HEAD:** `505e698` — `feat(phase-06c): Slice 3; similar cases surface + bootstrap`
+**Current HEAD:** `93f6f42` — `docs(superpowers): close Phase 06C + point to Phase 07 Tauri migration`
+
+> **If you are picking this up on a fresh machine (especially the
+> Mac that's now being onboarded):** read the "Machine hop — Mac
+> prototyping session" block below before anything else. Claude
+> memory does NOT travel between machines — the conventions stored
+> in `~/.claude/projects/.../memory/` on Windows are not visible
+> on Mac. This handoff is the cross-machine source of truth.
 
 > Single source of truth for resuming the current planning/review cycle in
 > a fresh Claude session on any device. Read this first, then act on the
@@ -51,6 +58,109 @@ Phase 06A survived 7 adversarial review rounds (v1→v8 GO). Phase 06B
 shipped under the new lightweight-review policy in 5 commits + 1
 folder-cleanup commit. Phase 06C shipped under the same policy in
 3 slice commits + 1 v2 amendment commit after round-1 Codex probe.
+
+---
+
+## Machine hop — Mac prototyping session (2026-04-22 onward)
+
+Enrique is continuing work on a personal Mac starting 2026-04-22 to
+**prototype** ahead of Phase 07 planning. This is exploratory work,
+**not** Phase 07 implementation.
+
+### Scope on the Mac (what you ARE doing)
+
+- Verify Phase 06C behavior on macOS native (create case → resolve
+  → check indexing; import `.noclense` pack → check SimilarCasesSection)
+- Run `npm run electron:dev` and confirm the app boots, renders, and
+  persists to IndexedDB on macOS
+- Visual-diff check: compare macOS WKWebView rendering vs the
+  Windows build's Chromium rendering for CSS subtleties (scrollbars,
+  font smoothing, flex edge cases)
+- Optional: begin installing Tauri toolchain (`rustup`, Xcode CLI
+  tools) so Phase 07 planning next week starts with toolchain ready
+- Optional: sketch out what a Tauri port of `electron/main.js` would
+  look like (scratch only — do NOT commit prototypes to the branch)
+
+### Out of scope on the Mac (what you are NOT doing)
+
+- Phase 07 implementation. Planning starts next week; no slice
+  dispatches until then.
+- Modifications to the Phase 06C surfaces (CaseRepository,
+  CaseLibraryService, SimilarCasesSection, caseLibraryBootstrap).
+  Phase 06C is sealed.
+- Amendments to closed-phase audit docs
+  (`docs/perf/reduced-motion-audit.md` Phase 06C rows).
+- Codex dispatches. No Phase 07 plan exists yet; nothing to execute.
+
+### Mac one-time setup checklist
+
+Run these once when you first open the repo on the Mac:
+
+```bash
+# 1. Clone (already done if you're reading this via `docs/superpowers/HANDOFF.md`)
+git clone <repo-url> NocLense-Mac
+cd NocLense-Mac
+git checkout april-redesign
+
+# 2. Sync dependencies (node_modules does NOT transfer from Windows)
+npm install
+
+# 3. Verify toolchain versions match Windows host
+node --version    # Expected: v24.x (Windows host is v24.14.0)
+npm --version
+
+# 4. Xcode CLI tools (for native build steps, notarization later)
+xcode-select --install    # skips if already installed
+
+# 5. Smoke test
+npm run test:run          # Should match Windows host — all green
+npm run dev               # Vite dev server; should boot at :5173
+npm run electron:dev      # Electron + Vite concurrent; should open app window
+```
+
+### Mac Claude-Code session bootstrap
+
+Claude memory files in `~/.claude/projects/C--Users-envelazquez.../memory/`
+are Windows-only. On the Mac you start with a fresh memory store. To
+preserve the conventions:
+
+**Option A (fastest, recommended for prototyping):** Don't worry about
+it. Rely on this `docs/superpowers/HANDOFF.md` + `CLAUDE.md` +
+`AGENTS.md` for all the cross-machine context. Prototyping doesn't
+need the lightweight-review policy or agent-assignment memory.
+
+**Option B (worth doing before Phase 07):** Re-derive the key memories
+on the Mac by asking Claude "set up the NocLense memory conventions
+from scratch" after pointing it at this handoff. The three most
+important conventions to re-establish:
+
+1. **Codex runs in a separate CLI session.** Never use `codex:rescue`
+   skill. Claude drafts prompts; user pastes into Codex CLI.
+2. **Lightweight review policy.** One adversarial probe per plan,
+   per-slice self-assessment (not per-commit), deep review at phase
+   close-out. YELLOWs logged, not fixed; only NO-GO blocks.
+3. **Codex agent assignments per slice.** Every dispatch prompt names
+   a primary agent from the decision table (see
+   `docs/superpowers/feedback_codex_agent_assignments.md`).
+
+**SessionStart git-sync hook:** The Windows machine has a
+`~/.claude/hooks/git-sync.sh` hook that fetches origin on every
+session start and warns if local is behind. If you want the same
+safety net on the Mac, invoke the `update-config` skill in Claude
+Code and ask it to install the same hook. Takes ~2 minutes.
+
+### What to push back to origin from the Mac
+
+- Prototyping scratch files should stay local. Do NOT commit
+  Tauri sketches, test `.app` bundles, or exploratory Rust code to
+  `april-redesign`.
+- If a legitimate finding emerges (e.g., "the IndexedDB path
+  differs on macOS in a way that blocks migration"), capture it in
+  `docs/superpowers/HANDOFF.md` under "Phase 07 readiness contracts"
+  and push that doc change — not the exploratory code.
+- If you end up wanting to save prototype code for later reference,
+  push to a separate throwaway branch like `mac-prototype` so
+  `april-redesign` stays production-ready for Phase 07 planning.
 
 ---
 
