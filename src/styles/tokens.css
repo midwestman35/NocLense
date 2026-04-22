@@ -48,6 +48,21 @@
   --button-subtle-surface: rgba(255, 255, 255, 0.56);
   --button-subtle-border: rgba(81, 145, 43, 0.14);
   --button-subtle-hover: rgba(81, 145, 43, 0.12);
+  --correlation-call-id: #417621;
+  --correlation-report-id: #b45309;
+  --correlation-operator-id: #2563eb;
+  --correlation-extension-id: #7c3aed;
+  --correlation-station-id: #0f766e;
+  --correlation-file-name: #be185d;
+  --correlation-cnc-id: #c2410c;
+  --correlation-message-id: #0891b2;
+  --correlation-graph-bg: #f5f7f4;
+  --correlation-graph-edge: rgba(115, 115, 115, 0.28);
+  --correlation-graph-cluster-edge: rgba(81, 145, 43, 0.34);
+  --correlation-graph-label: #171717;
+  --correlation-graph-muted-label: #737373;
+  --correlation-graph-node-stroke: rgba(212, 212, 212, 0.95);
+  --correlation-graph-active-ring: #0a0a0a;
 
   /* Shadow scale (Phase 01a): semantic elevation, not t-shirt sizes.
      flat = no shadow (relies on --card-border for edge)
@@ -113,6 +128,21 @@
   --button-subtle-surface: rgba(20, 25, 21, 0.86);
   --button-subtle-border: rgba(140, 243, 77, 0.12);
   --button-subtle-hover: rgba(81, 145, 43, 0.2);
+  --correlation-call-id: #76ce40;
+  --correlation-report-id: #f59e0b;
+  --correlation-operator-id: #60a5fa;
+  --correlation-extension-id: #a78bfa;
+  --correlation-station-id: #2dd4bf;
+  --correlation-file-name: #fb7185;
+  --correlation-cnc-id: #f97316;
+  --correlation-message-id: #22d3ee;
+  --correlation-graph-bg: #141513;
+  --correlation-graph-edge: rgba(150, 152, 140, 0.34);
+  --correlation-graph-cluster-edge: rgba(118, 206, 64, 0.4);
+  --correlation-graph-label: #e5eadf;
+  --correlation-graph-muted-label: #96988c;
+  --correlation-graph-node-stroke: #2a2e26;
+  --correlation-graph-active-ring: #d0fdbf;
 
   /* Shadow scale (dark): deeper layering, green glow keyed to palette 200. */
   --shadow-flat: none;

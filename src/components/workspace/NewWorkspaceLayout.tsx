@@ -34,9 +34,10 @@ import { AIOnboardingWizard } from '../onboarding/AIOnboardingWizard';
 import ExportModal from '../export/ExportModal';
 import EvidencePanel from '../evidence/EvidencePanel';
 import { SubmitRoom } from './SubmitRoom';
+import { CorrelationGraph } from '../correlation-graph/CorrelationGraph';
 
 import { CaseStateBridge } from '../case/CaseStateBridge';
-import { Sparkles, FileText, Bookmark, Clock, Search, Database, AlertTriangle, FolderPlus, Download, Trash2, ExternalLink } from 'lucide-react';
+import { Sparkles, FileText, Bookmark, Search, Database, AlertTriangle, FolderPlus, Download, Trash2, ExternalLink } from 'lucide-react';
 import type { InvestigationSetup } from '../../types/investigation';
 import type { ZendeskTicket } from '../../services/zendeskService';
 import { loadAiSettings } from '../../store/aiSettings';
@@ -322,14 +323,12 @@ export function NewWorkspaceLayout() {
       <WorkspaceCard
         id="correlation-graph"
         title="Correlation Graph"
-        icon={<Clock size={14} />}
-        accentColor="#a78bfa"
+        icon={<Database size={14} />}
+        accentColor="var(--correlation-call-id)"
         defaultExpanded={false}
         className={CARD_GRID_CLASSES['correlation-graph']}
       >
-        <div className="p-3 text-xs text-[var(--muted-foreground)]">
-          <p>Call-ID → extension → station → PBX entity tree visualization.</p>
-        </div>
+        <CorrelationGraph />
       </WorkspaceCard>
 
       <DatadogLiveCard />
