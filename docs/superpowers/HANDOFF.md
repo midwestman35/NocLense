@@ -1,8 +1,8 @@
 # Superpowers Handoff — Current In-Flight Work
 
-**Last updated:** 2026-04-22 (Phase 06B closed; Phase 06C plan v2 ready to dispatch)
+**Last updated:** 2026-04-22 (Phase 06C closed; Phase 07 planning starts next week)
 **Branch:** `april-redesign`
-**Current HEAD:** `ffe71b4` — `docs(phase-06c): v2 amendments — fix seams, add lifecycle persistence, freeze embedding provider`
+**Current HEAD:** `505e698` — `feat(phase-06c): Slice 3; similar cases surface + bootstrap`
 
 > Single source of truth for resuming the current planning/review cycle in
 > a fresh Claude session on any device. Read this first, then act on the
@@ -45,63 +45,96 @@ Claude plans → Codex implements → Claude reviews → Gemini updates docs.
 | 05 | §4.2 transition-all sweep, citation-jump, reduced-motion audit | `cefc12e` |
 | 06A | Spinner primitive, anime.js guards, MotionConfig wiring, Direction C transitions, room parity, audit consolidation | `78a1e22` |
 | 06B | Correlation Graph card — G6 renderer, click-to-filter, keyboard a11y, large-graph performance (WebGL threshold, clustering, zoom controls) | `1783df1` |
+| 06C | Case Library — IndexedDB CaseRepository + lifecycle persistence, CaseLibraryService (Gemini embedding index + cosine similarity), SimilarCasesSection inside existing Similar card, noclense auto-indexing | `505e698` |
 
 Phase 06A survived 7 adversarial review rounds (v1→v8 GO). Phase 06B
 shipped under the new lightweight-review policy in 5 commits + 1
-folder-cleanup commit.
+folder-cleanup commit. Phase 06C shipped under the same policy in
+3 slice commits + 1 v2 amendment commit after round-1 Codex probe.
 
 ---
 
-## Current state — Phase 06C (Case Library) — v2, ready to dispatch
+## Current state — between phases
 
-**Status:** Plan drafted + amended after round-1 Codex probe.
-Ready to dispatch Slice 1.
+Phase 06C shipped 2026-04-22. Phase 07 (Electron → Tauri migration)
+planning starts the following week per user direction. Until then,
+there is no in-flight implementation work.
 
-**Plan file:** `docs/superpowers/plans/2026-04-22-phase06C-case-library.md`
+**Phase 06C technical-debt carried forward:**
 
-**Scope (v1, local-only):**
-- Persist investigations as retrievable `Case` records in IndexedDB,
-  wired through the `caseContext` reducer so every created/updated/
-  resolved case persists (not only imported `.noclense` packs)
-- Compute embedding per case from `title + summary + impact` via
-  Gemini `text-embedding-004` (frozen for v1)
-- Retrieve top-K similar past cases by cosine similarity
-- Surface in the existing Investigate Room "Similar" card (expanded
-  with a "Past cases" section; NO new grid slot)
-- Auto-index on `.noclense` import via `noclenseImporter.ts`
-
-**Structure (3 slices):**
-
-| Slice | Scope | Primary agent |
-|---|---|---|
-| 1 | CaseRepository + IndexedDB object store + blocked/init-retry resilience + reducer wiring in `caseContext.tsx` for lifecycle persistence | `data-engineer` |
-| 2 | CaseLibraryService (embedding indexing + cosine similarity retrieval with filters); Gemini-only provider | `ai-engineer` |
-| 3 | SimilarCasesSection inside existing Similar card + noclense auto-indexing + a11y | `react-specialist` (+ `accessibility-tester` secondary) |
-
-**Round-1 probe fixes applied (v1 → v2):**
-- Slice 3 grid overflow resolved by extending existing card, not adding a 7th slot
-- Integration seams corrected: `useCase()` / `src/store/caseContext.tsx` / `noclenseImporter.ts` (not `useCaseContext` / `CaseContext.tsx` / `importService.ts`)
-- Normal-case lifecycle persistence added to Slice 1 scope (plan previously only covered import-side)
-- Embedding provider frozen as Gemini-only for v1; Unleashed migration explicitly out of scope
-- Framing tightened to "semantically similar summary/impact text" (no longer overpromising correlation-pattern matching)
-- IndexedDB blocked-upgrade + init-retry resilience folded into Slice 1
+1. **Case-close/resolve lifecycle indexing in `caseContext`** — Slice 3
+   explicitly punted this as an optional extension. Cases currently
+   enter the library via `.noclense` import OR explicit
+   `caseLibraryService.indexCase(case)` calls. In-app resolve
+   transitions do not auto-index. This is a real gap in the
+   "library fills as you resolve investigations" UX promise but is
+   non-blocking for v1. A follow-up commit wiring `caseContext`
+   state transitions to fire `indexCase` on `'resolved'` is the
+   clean resolution.
+2. **File-size convention violations** — carried forward from Phase
+   06B and extended by Phase 06C:
+   - `src/components/correlation-graph/CorrelationGraph.tsx` — 601 lines
+   - `src/components/correlation-graph/graphPresentation.tsx` — 517 lines
+   - `src/components/workspace/NewWorkspaceLayout.tsx` — 504 lines (new)
+   A bundled workspace-file split commit is appropriate before Phase
+   07 touches NewWorkspaceLayout for the Tauri migration.
+3. **Manual in-app smoke** — create → resolve → confirm indexing
+   (pending case-close extension), import → confirm appears in Past
+   cases. Not run from CLI during Phase 06C; recommended
+   out-of-band user check before Phase 07 dispatch.
 
 ---
 
-## Immediate next step — dispatch Slice 1 to Codex
+## Immediate next step — plan Phase 07 (Electron → Tauri migration)
 
-Plan v2 is amended and ready. Claude drafts the Slice 1 dispatch
-prompt (primary agent `data-engineer`) following the agent-
-assignment convention; user runs in Codex CLI; returns the
-self-assessment when done.
+Per user direction (2026-04-22), Phase 07 planning starts the week
+following Phase 06C close. No Codex dispatch until the plan lands.
 
-If the user prefers an optional verification-only probe on the v2
-amendments before dispatch, request one explicitly — otherwise
-direct dispatch is the default.
+**Phase 07 readiness contracts (from Phase 06C sign-off):**
 
-**Dispatch order:** Slice 1 → Slice 2 → Slice 3, serial. Slices 1+2
-could run parallel with Slice 2 stubbing against Slice 1's types,
-but serial is simpler and keeps reviews focused.
+1. **IndexedDB persistence across Electron → Tauri.** Phase 06C
+   shipped a new `cases` object store. Tauri uses a different
+   user-data-dir convention than Electron by default; Phase 07
+   plan must verify the data survives migration or design a
+   one-shot export/import step.
+2. **Env-var injection seam.**
+   `src/services/caseLibraryBootstrap.ts` reads
+   `import.meta.env.VITE_GEMINI_EMBEDDING_KEY` directly. Vite
+   handles this identically for Tauri builds, but `tauri.conf.json`
+   adds its own env-var surface — verify on a spike that the
+   bootstrap still fires.
+3. **`safeStorage` replacement.** `electron/main.js` uses
+   `safeStorage.encryptString` for credentials. Tauri has no direct
+   equivalent; plan for `tauri-plugin-stronghold` or the `keyring`
+   Rust crate behind an adapter that preserves `aiSettings.ts`'s
+   layered resolution contract.
+4. **IPC surface inventory.** `window.electronAPI` (from
+   `electron/preload.js`) is the sole Electron bridge. Open Phase
+   07 plan with a grep for `window.electronAPI` call sites and map
+   each to a Tauri `invoke()` command name.
+5. **Reduced-motion audit preservation.** `docs/perf/reduced-motion-
+   audit.md` is the canonical record; Tauri's WKWebView (macOS) and
+   WebView2 (Windows) both respect `prefers-reduced-motion` but
+   the audit's claims should be re-verified on a Tauri test build.
+
+**Agent assignments (expected, per decision table):**
+
+- `rust-engineer` — primary for backend port slices (Tauri command
+  handlers, OS integrations, credential storage)
+- `typescript-pro` — primary for renderer adapter slices (IPC
+  shim, env-var shim, build-config)
+- `electron-pro` — secondary reviewer on "did we preserve Electron
+  behavior" checks
+- `data-engineer` — secondary on the IndexedDB migration slice
+
+**Prerequisites before Phase 07 planning:**
+
+- macOS engineering sample (IT request drafted 2026-04-22; pending
+  approval). Phase 07 is blocked on this for signing/notarization
+  and native-build verification.
+- `rustup` toolchain installed on both dev machines.
+- Xcode CLI tools on macOS; MSVC build tools + WebView2 runtime on
+  Windows.
 
 ---
 
