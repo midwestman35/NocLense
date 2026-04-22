@@ -121,6 +121,18 @@ Phase navigation: forward via workflow actions (file upload, "Next: Submit" butt
 - **Error handling**: classify API errors and throw user-facing messages; never expose raw API error text or log API keys to the console.
 - **Styling**: Tailwind utility classes only; follow existing color scheme from `theme.css`; reference `FilterBar.tsx` for toolbar patterns, `Button.tsx` for button variants.
 
+## Multi-Agent Workflow
+
+This project is maintained by three AI agents with distinct roles:
+
+| Agent | Role | Scope |
+|---|---|---|
+| **Claude** (Claude Code) | CTO / Project Lead | Plans phases, steers architecture, conducts adversarial reviews, approves merges. Never writes implementation code for dispatched phases. |
+| **Codex** (OpenAI Codex CLI) | Principal Engineer | Implements slices from approved plans, writes tests, commits code. Runs in a separate CLI session; user relays output to Claude for review. |
+| **Gemini** (Google Gemini CLI) | Support Staff / Documentation Engineer | Rewrites and maintains all documentation: README.md, docs/USAGE_GUIDE.md, docs/DEVELOPER_HANDOFF.md. Does not touch source code or tests. |
+
+**Workflow:** Claude drafts plans → Codex implements → Claude reviews → Gemini updates docs to reflect shipped changes. For active phase dispatch, see `docs/superpowers/HANDOFF.md`.
+
 ## Reference Patterns
 
 - State management → `src/contexts/LogContext.tsx`
