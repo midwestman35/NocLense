@@ -1,8 +1,10 @@
-import React, { createContext, useContext, useReducer, useEffect, useCallback, useMemo } from 'react';
+/* eslint-disable react-refresh/only-export-components */
+import React, { createContext, useContext, useReducer, useEffect, useCallback, useMemo, useRef, useState } from 'react';
 import type { Case, Bookmark, Note, CaseState, CaseSeverity, CaseStatus } from '../types/case';
 import { caseReducer } from './caseReducer';
 import type { CaseAction } from './caseReducer';
 import { saveCases, loadCases } from './localStorage';
+import { caseRepository } from '../services/caseRepository';
 
 interface CreateCaseInput {
   title: string;
@@ -35,19 +37,100 @@ interface CaseContextValue {
 
 const CaseContext = createContext<CaseContextValue | undefined>(undefined);
 
+function buildCaseMap(cases: Case[]): Map<string, Case> {
+  return new Map(cases.map((caseItem) => [caseItem.id, caseItem]));
+}
+
+function mergeCasesByUpdatedAt(currentCases: Case[], loadedCases: Case[]): Case[] {
+  const merged = new Map<string, Case>();
+
+  loadedCases.forEach((caseItem) => {
+    merged.set(caseItem.id, caseItem);
+  });
+
+  currentCases.forEach((caseItem) => {
+    const existing = merged.get(caseItem.id);
+    if (!existing || caseItem.updatedAt >= existing.updatedAt) {
+      merged.set(caseItem.id, caseItem);
+    }
+  });
+
+  return Array.from(merged.values()).sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
 export function CaseProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(caseReducer, { cases: [], activeCaseId: null });
+  const [isHydrated, setIsHydrated] = useState(false);
+  const persistedCasesRef = useRef<Map<string, Case>>(new Map());
+  const stateRef = useRef(state);
 
   useEffect(() => {
-    const loaded = loadCases();
-    if (loaded.length > 0) {
-      dispatch({ type: 'LOAD_CASES', payload: loaded });
-    }
+    stateRef.current = state;
+  }, [state]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const hydrateCases = async () => {
+      let persistedCases: Case[] = [];
+
+      try {
+        persistedCases = await caseRepository.listCases({ orderBy: 'updatedAt' });
+      } catch (error) {
+        console.error('Failed to hydrate cases from CaseRepository:', error);
+      }
+
+      if (cancelled) return;
+
+      const legacyCases = loadCases();
+      const mergedPersistedCases = mergeCasesByUpdatedAt(legacyCases, persistedCases);
+      const mergedCases = mergeCasesByUpdatedAt(stateRef.current.cases, mergedPersistedCases);
+
+      persistedCasesRef.current = buildCaseMap(persistedCases);
+
+      if (mergedCases.length > 0) {
+        dispatch({ type: 'LOAD_CASES', payload: mergedCases });
+      }
+
+      setIsHydrated(true);
+    };
+
+    void hydrateCases();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
+    if (!isHydrated) return;
     saveCases(state.cases);
-  }, [state.cases]);
+  }, [isHydrated, state.cases]);
+
+  useEffect(() => {
+    if (!isHydrated) return;
+
+    const previousCases = persistedCasesRef.current;
+    const nextCases = buildCaseMap(state.cases);
+
+    state.cases.forEach((caseItem) => {
+      if (!previousCases.has(caseItem.id) || previousCases.get(caseItem.id) !== caseItem) {
+        void caseRepository.saveCase(caseItem).catch((error) => {
+          console.error(`Failed to persist case "${caseItem.id}":`, error);
+        });
+      }
+    });
+
+    previousCases.forEach((_caseItem, caseId) => {
+      if (!nextCases.has(caseId)) {
+        void caseRepository.deleteCase(caseId).catch((error) => {
+          console.error(`Failed to delete case "${caseId}":`, error);
+        });
+      }
+    });
+
+    persistedCasesRef.current = nextCases;
+  }, [isHydrated, state.cases]);
 
   const createCase = useCallback((data: CreateCaseInput) => {
     const newCase: Case = {

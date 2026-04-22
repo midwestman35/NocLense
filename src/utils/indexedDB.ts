@@ -4,13 +4,15 @@
  */
 
 import type { LogEntry } from '../types';
+import type { Case } from '../types/case';
 
-const DB_NAME = 'NocLenseDB';
-const DB_VERSION = 4;
+export const DB_NAME = 'NocLenseDB';
+export const DB_VERSION = 5;
 const SEARCH_INDEX_STORE = 'search_index';
 const MAX_TRIGRAM_IDS = 25000;
 const STORE_NAME = 'logs';
 const METADATA_STORE = 'metadata';
+const CASES_STORE = 'cases';
 
 interface DBMetadata {
     totalLogs: number;
@@ -19,7 +21,13 @@ interface DBMetadata {
     lastUpdated: number;
 }
 
-class IndexedDBManager {
+function createCasesStore(db: IDBDatabase): void {
+    const casesStore = db.createObjectStore(CASES_STORE, { keyPath: 'id' });
+    casesStore.createIndex('createdAt', 'createdAt', { unique: false });
+    casesStore.createIndex('updatedAt', 'updatedAt', { unique: false });
+}
+
+export class IndexedDBManager {
     private db: IDBDatabase | null = null;
     private initPromise: Promise<IDBDatabase> | null = null;
 
@@ -30,13 +38,37 @@ class IndexedDBManager {
         if (this.db) return this.db;
         if (this.initPromise) return this.initPromise;
 
-        this.initPromise = new Promise((resolve, reject) => {
-            const request = indexedDB.open(DB_NAME, DB_VERSION);
+        if (typeof indexedDB === 'undefined') {
+            return Promise.reject(new Error('IndexedDB is not available in this environment.'));
+        }
 
-            request.onerror = () => reject(request.error);
-            request.onsuccess = () => {
+        const openPromise = new Promise<IDBDatabase>((resolve, reject) => {
+            const request = indexedDB.open(DB_NAME, DB_VERSION);
+            let settled = false;
+
+            const rejectOnce = (error: Error) => {
+                if (settled) return;
+                settled = true;
+                reject(error);
+            };
+
+            const resolveOnce = () => {
+                if (settled) return;
+                settled = true;
                 this.db = request.result;
                 resolve(this.db);
+            };
+
+            request.onerror = () => {
+                rejectOnce(new Error(`Failed to open IndexedDB database "${DB_NAME}": ${request.error?.message ?? 'Unknown error'}`));
+            };
+            request.onblocked = () => {
+                const message = `IndexedDB upgrade for "${DB_NAME}" is blocked by another open NocLense tab. Close other tabs and reload.`;
+                console.warn(message);
+                rejectOnce(new Error(message));
+            };
+            request.onsuccess = () => {
+                resolveOnce();
             };
 
             request.onupgradeneeded = (event) => {
@@ -86,6 +118,24 @@ class IndexedDBManager {
                     }
                 }
 
+                // V5: add cases store for Case Library persistence
+                if (oldVersion < 5) {
+                    if (!db.objectStoreNames.contains(CASES_STORE)) {
+                        createCasesStore(db);
+                    } else {
+                        const tx = (event.target as IDBOpenDBRequest).transaction;
+                        if (tx) {
+                            const store = tx.objectStore(CASES_STORE);
+                            if (!store.indexNames.contains('createdAt')) {
+                                store.createIndex('createdAt', 'createdAt', { unique: false });
+                            }
+                            if (!store.indexNames.contains('updatedAt')) {
+                                store.createIndex('updatedAt', 'updatedAt', { unique: false });
+                            }
+                        }
+                    }
+                }
+
                 // Create metadata store
                 if (!db.objectStoreNames.contains(METADATA_STORE)) {
                     db.createObjectStore(METADATA_STORE, { keyPath: 'key' });
@@ -93,7 +143,20 @@ class IndexedDBManager {
             };
         });
 
+        this.initPromise = openPromise.catch((error) => {
+            this.initPromise = null;
+            throw error;
+        });
+
         return this.initPromise;
+    }
+
+    close(): void {
+        if (this.db) {
+            this.db.close();
+        }
+        this.db = null;
+        this.initPromise = null;
     }
 
     /**
@@ -389,7 +452,7 @@ class IndexedDBManager {
             let index: IDBIndex;
             try {
                 index = store.index(indexName);
-            } catch (e) {
+            } catch {
                 resolve(0);
                 return;
             }
@@ -414,7 +477,7 @@ class IndexedDBManager {
             let index: IDBIndex;
             try {
                 index = store.index(indexName);
-            } catch (e) {
+            } catch {
                 resolve(new Map());
                 return;
             }
@@ -454,7 +517,7 @@ class IndexedDBManager {
             let index: IDBIndex;
             try {
                 index = store.index(indexName);
-            } catch (e) {
+            } catch {
                 // Index doesn't exist, return empty set
                 resolve(new Set());
                 return;
@@ -598,6 +661,97 @@ class IndexedDBManager {
         });
     }
 
+    async saveCase(caseItem: Case): Promise<void> {
+        const db = await this.getDB();
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction([CASES_STORE], 'readwrite');
+            const store = transaction.objectStore(CASES_STORE);
+            const request = store.put(caseItem);
+
+            request.onsuccess = () => resolve();
+            request.onerror = () => reject(request.error);
+        });
+    }
+
+    async getCase(id: string): Promise<Case | null> {
+        const db = await this.getDB();
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction([CASES_STORE], 'readonly');
+            const store = transaction.objectStore(CASES_STORE);
+            const request = store.get(id);
+
+            request.onsuccess = () => resolve((request.result as Case | undefined) ?? null);
+            request.onerror = () => reject(request.error);
+        });
+    }
+
+    async listCases(opts?: {
+        limit?: number;
+        orderBy?: 'createdAt' | 'updatedAt';
+    }): Promise<Case[]> {
+        const db = await this.getDB();
+        const limit = opts?.limit;
+        const orderBy = opts?.orderBy ?? 'updatedAt';
+
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction([CASES_STORE], 'readonly');
+            const store = transaction.objectStore(CASES_STORE);
+            const index = store.index(orderBy);
+            const request = index.openCursor(null, 'prev');
+            const results: Case[] = [];
+
+            request.onsuccess = (event) => {
+                const cursor = (event.target as IDBRequest<IDBCursorWithValue>).result;
+                if (cursor && (!limit || results.length < limit)) {
+                    results.push(cursor.value as Case);
+                    cursor.continue();
+                } else {
+                    resolve(results);
+                }
+            };
+            request.onerror = () => reject(request.error);
+        });
+    }
+
+    async deleteCase(id: string): Promise<void> {
+        const db = await this.getDB();
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction([CASES_STORE], 'readwrite');
+            const store = transaction.objectStore(CASES_STORE);
+            const request = store.delete(id);
+
+            request.onsuccess = () => resolve();
+            request.onerror = () => reject(request.error);
+        });
+    }
+
+    async updateCaseEmbedding(id: string, embedding: number[], version: string): Promise<void> {
+        const db = await this.getDB();
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction([CASES_STORE], 'readwrite');
+            const store = transaction.objectStore(CASES_STORE);
+            const request = store.get(id);
+
+            request.onsuccess = () => {
+                const caseItem = request.result as Case | undefined;
+                if (!caseItem) {
+                    resolve();
+                    return;
+                }
+
+                const updatedCase: Case = {
+                    ...caseItem,
+                    embedding,
+                    embeddingVersion: version,
+                };
+                const putRequest = store.put(updatedCase);
+                putRequest.onsuccess = () => resolve();
+                putRequest.onerror = () => reject(putRequest.error);
+            };
+            request.onerror = () => reject(request.error);
+        });
+    }
+
     /**
      * Delete logs by file name
      */
@@ -667,8 +821,8 @@ class IndexedDBManager {
      */
     async updateMetadata(metadata: Partial<DBMetadata>): Promise<void> {
         const db = await this.getDB();
-        return new Promise(async (resolve, reject) => {
-            const current = await this.getMetadata();
+        const current = await this.getMetadata();
+        return new Promise((resolve, reject) => {
             const updated: DBMetadata = {
                 totalLogs: metadata.totalLogs ?? current?.totalLogs ?? 0,
                 fileNames: metadata.fileNames ?? current?.fileNames ?? [],

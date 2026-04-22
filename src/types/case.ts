@@ -65,4 +65,6 @@ export interface Case {
   notes: Note[];
   timeWindow?: { start: number; end: number } | null;
   state?: CaseState;
+  embedding?: number[];
+  embeddingVersion?: string;
 }

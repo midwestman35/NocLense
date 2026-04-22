@@ -126,6 +126,10 @@ All `VITE_*` vars are baked in at build time. Drop a `.env` file in the project 
 VITE_UNLEASH_TOKEN=           # Unleashed AI bearer token
 VITE_UNLEASH_ASSISTANT_ID=    # Unleashed AI assistant ID
 VITE_UNLEASH_USER_EMAIL=      # Email sent with Unleashed AI requests
+VITE_GEMINI_EMBEDDING_KEY=    # Separate from VITE_UNLEASH_TOKEN;
+                              # powers the Case Library embedding index only.
+                              # If absent, the Similar Cases section
+                              # renders a "configure key" empty state.
 VITE_ZENDESK_SUBDOMAIN=       # e.g. carbyne
 VITE_ZENDESK_EMAIL=
 VITE_ZENDESK_TOKEN=
