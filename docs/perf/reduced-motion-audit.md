@@ -1,15 +1,23 @@
-# Reduced-Motion Audit — Phase 05 (post-Direction-C baseline)
+# Reduced-Motion Audit - Phase 06A (post-cleanup baseline)
 
-**Date:** 2026-04-21
-**Phase:** 05 Commit 1
-**Scope:** Every animated surface reachable in normal app flow on the current `main` branch after Phase 04.5 `d0e45c9`.
+**Last update:** Phase 06A Commit 9 (pending local commit; verified on merged source baseline `b91a9ab`)
+**Status:** All ⚠️ rows from v1 (Phase 05) retired via Phase 06A.
+**Date:** 2026-04-22
+**Phase:** 06A Commit 9
+**Scope:** Every animated surface reachable in normal app flow on the current working tree after the Phase 06A Wave 1 slices merged.
 **Spec gates:** §4.2 (no `transition: all`), §4.8 (reduced-motion fallback everywhere).
 
-This is a living document — future work (Phase 05 Commits 2-6, Phase 06+) adds rows below. Keep it in order: new surfaces append with their phase number + commit SHA where they landed.
+**Verification evidence (Phase 06A C9, 2026-04-22):**
+- C9 pre-condition greps: passed.
+- Source-state audit result: passed. All required Slice 1-5 contracts were present before this document was updated.
+- `cmd /c npx vitest run`: failed in unrelated existing tests outside this docs-only slice, including `src/contexts/__tests__/EvidenceContext.test.tsx` and `.worktrees/ui-overhaul*/src/services/__tests__/llmService.test.ts`.
+- Interpretation: the reduced-motion source audit is green, while the current repo-wide Vitest baseline remains red and must be triaged separately.
+
+This is a living document. New animated surfaces should append below with the phase + commit where they landed and the reduced-motion contract they rely on.
 
 ---
 
-## Section 1 — §4.2 compliance (`transition: all` prohibition)
+## Section 1 - §4.2 compliance (`transition: all` prohibition)
 
 Phase 05 Commit 1 swept five live violations. All replacements use property-specific transition lists with `motion-reduce:` guards where a transform is in the list.
 
@@ -21,152 +29,167 @@ Phase 05 Commit 1 swept five live violations. All replacements use property-spec
 | 4 | PhaseDots pill | `transition-all duration-300` | `transition-[background-color,color,transform] duration-300 motion-reduce:transition-none` | Phase 05 C1 |
 | 5 | PhaseDots dot | `transition-all duration-300` | `transition-[background-color,transform,opacity] duration-300 motion-reduce:transition-none` | Phase 05 C1 |
 
-**Grep check (ran at commit time):**
-```
+**Grep check (re-verified for Phase 06A C9):**
+```bash
 $ git grep -n 'transition-all' src/
 ```
-Returns 0 matches outside the `Button.test.tsx` regex assertion (`not.toMatch(/\btransition-all\b/)`), which is an intentional enforcement pattern.
+Returns only the intentional test-regex assertions in `Button.test.tsx`, `ToggleChip.test.tsx`, and `PhaseDots.test.tsx`.
 
 ---
 
-## Section 2 — Animated surface coverage matrix
+## Section 2 - Animated surface coverage matrix
 
 Status legend:
 
-- ✅ **Compliant** — has a reduced-motion guard (CSS media query, Tailwind `motion-safe:`/`motion-reduce:` prefix, `usePrefersReducedMotion()` hook, or is binary like `display: none`).
-- ⚠️ **Needs work** — animation runs unconditionally; a fix is planned but not yet landed. Fix plan in the row.
-- 🔒 **Blocked** — cannot be fixed in current scope; waiting on something else.
+- ✅ **Compliant** - has a reduced-motion guard (CSS media query, Tailwind `motion-safe:`/`motion-reduce:` prefix, `usePrefersReducedMotion()` hook, or a binary/non-animated interaction).
+- ⚠️ **Needs work** - animation runs unconditionally; a fix is planned but not yet landed.
+- 🔒 **Blocked** - cannot be fixed in current scope; waiting on something else.
 
-### 2.1 — `motion/react` (motion v12) surfaces
+### 2.1 - `motion/react` (motion v12) surfaces
 
 | Surface | File | Trigger | Covered by | Status |
 |---|---|---|---|---|
-| EvidencePanel item pin/unpin | `src/components/evidence/EvidencePanel.tsx:99` | State change | `usePrefersReducedMotion()` hook → skips animation | ✅ |
-| CanonicalBlockRenderer typewriter reveal | `src/components/ai/diagnose/CanonicalBlockRenderer.tsx` | Mount | `usePrefersReducedMotion()` → skips reveal, shows full text | ✅ |
-| Dialog mount/unmount | `src/components/ui/Dialog.tsx` | Mount/unmount | motion library respects `prefers-reduced-motion` natively for component-level presence animations | ⚠️ needs verification |
-| DropdownMenu open/close | `src/components/ui/DropdownMenu.tsx` | Open toggle | Same as Dialog | ⚠️ needs verification |
-| Tooltip appear | `src/components/ui/Tooltip.tsx` | Hover | Same | ⚠️ needs verification |
-| Sidebar collapse | `src/components/ui/Sidebar.tsx` | Toggle | Same | ⚠️ needs verification |
-| Sheet slide | `src/components/ui/Sheet.tsx` | Open | Same | ⚠️ needs verification |
+| EvidencePanel item pin/unpin | `src/components/evidence/EvidencePanel.tsx:99` | State change | `usePrefersReducedMotion()` hook skips animation | ✅ |
+| CanonicalBlockRenderer typewriter reveal | `src/components/ai/diagnose/CanonicalBlockRenderer.tsx` | Mount | `usePrefersReducedMotion()` shows the full text immediately | ✅ |
+| Dialog mount/unmount | `src/components/ui/Dialog.tsx` | Mount/unmount | App-level `<MotionConfig reducedMotion="user">` in `src/App.tsx` (Phase 06A C4); Direction C tuple covered by Slice 4 greps/tests | ✅ |
+| DropdownMenu open/close | `src/components/ui/DropdownMenu.tsx` | Open toggle | App-level `<MotionConfig reducedMotion="user">` in `src/App.tsx` (Phase 06A C4); Direction C tuple covered by Slice 4 greps/tests | ✅ |
+| Tooltip appear | `src/components/ui/Tooltip.tsx` | Hover | App-level `<MotionConfig reducedMotion="user">` in `src/App.tsx` (Phase 06A C4); Direction C tuple covered by Slice 4 greps/tests | ✅ |
+| Sidebar collapse | `src/components/ui/Sidebar.tsx` | Toggle | App-level `<MotionConfig reducedMotion="user">` in `src/App.tsx` (Phase 06A C4) | ✅ |
+| Sheet slide | `src/components/ui/Sheet.tsx` | Open | App-level `<MotionConfig reducedMotion="user">` in `src/App.tsx` (Phase 06A C4); Direction C tuple covered by Slice 4 greps/tests | ✅ |
 
-**Fix plan for ⚠️ items:** add an app-level `<MotionConfig reducedMotion="user">` wrapper OR confirm via test harness that each surface's motion transitions collapse under reduced-motion. Not blocker for Phase 05; folded into a follow-up cleanup (Phase 06 scope).
+Phase 06A C4 established one app-level reduced-motion contract for the `motion/react` layer. Slice 4 then verified the Direction C transition tuples for the primitives that changed curves in this phase.
 
-### 2.2 — anime.js surfaces (expanded post-Codex review)
+### 2.2 - anime.js surfaces
 
 | Surface | File:line | Trigger | Covered by | Status |
 |---|---|---|---|---|
-| LogStreamHeader count stagger | `LogStreamHeader.tsx:127` — `useAnimeStagger(badgesRef, 'span', [filteredLogs.length], …)` | Filter changes | Hook must consult `usePrefersReducedMotion()` | ⚠️ needs verification |
-| LogStreamHeader animated count | `LogStreamHeader.tsx:121` — `useAnimeValue(prevCountRef.current, filteredLogs.length, { duration: 400 })` | Filter changes | Same — `useAnimeValue` tweens a number; under reduced-motion it should snap to target | ⚠️ needs verification |
-| LogViewer stagger | `LogViewer.tsx:317` — `useAnimeStagger(...)` | Citation jump / mount | Same | ⚠️ needs verification |
-| LogTimeline bar stagger | `timeline/LogTimeline.tsx:93` — `useAnimeStagger(containerRef, '.timeline-bar', [buckets.length], …)` | Bucket data change | Same | ⚠️ needs verification |
+| LogStreamHeader count stagger | `LogStreamHeader.tsx:127` - `useAnimeStagger(badgesRef, 'span', [filteredLogs.length], ...)` | Filter changes | Hook-level `usePrefersReducedMotion()` guard in `src/utils/anime.ts` (Phase 06A C3) | ✅ |
+| LogStreamHeader animated count | `LogStreamHeader.tsx:121` - `useAnimeValue(prevCountRef.current, filteredLogs.length, { duration: 400 })` | Filter changes | Hook-level `usePrefersReducedMotion()` guard in `src/utils/anime.ts` (Phase 06A C3) | ✅ |
+| LogViewer stagger | `LogViewer.tsx:317` - `useAnimeStagger(...)` | Citation jump / mount | Hook-level `usePrefersReducedMotion()` guard in `src/utils/anime.ts` (Phase 06A C3) | ✅ |
+| LogTimeline bar stagger | `timeline/LogTimeline.tsx:93` - `useAnimeStagger(containerRef, '.timeline-bar', [buckets.length], ...)` | Bucket data change | Hook-level `usePrefersReducedMotion()` guard in `src/utils/anime.ts` (Phase 06A C3) | ✅ |
 
-**Fix plan:** inspect `src/utils/anime.ts` hook implementations. If any of `useAnimeStagger`, `useAnimeValue`, or `useAnimeTimeline` do NOT already consult `usePrefersReducedMotion()` to no-op when motion is reduced, add the guard at the hook level (one fix covers all four consumer sites). Estimated 10–20 lines. Not blocker for Phase 05 since the animations are decorative, not gating; flagged for Phase 06.
+Phase 06A C3 moved the reduced-motion gate into the shared anime hooks, so every existing consumer inherits snap-to-final-state behavior without per-callsite branching.
 
-### 2.3 — Inline spin keyframes
+### 2.3 - Spinner indicators (Phase 06A consolidated)
 
 | Surface | File:line | Implementation | Covered by | Status |
 |---|---|---|---|---|
-| AIButton spinner (icon variant) | `AIButton.tsx:222` | Tailwind `animate-spin` | Tailwind honors `motion-reduce:` — surface doesn't currently use it | ⚠️ needs `motion-reduce:animate-none` |
-| AIButton status indicator | `AIButton.tsx:290` | inline `style={{ animation: 'spin 1s linear infinite' }}` | None — inline style bypasses reduced-motion | ⚠️ needs conditional style |
-| AIButton `<style>` block | `AIButton.tsx:329` | `<style>{\`@keyframes spin ...\`}</style>` | The keyframe itself is fine; the consumer style is the issue | ✅ (keyframe definition only) |
-| AiPanel spinner | `AiPanel.tsx:357` | inline `style={{ animation: 'spin 1s linear infinite' }}` | Same as AIButton:290 | ⚠️ |
-| AiPanel `<style>` block | `AiPanel.tsx:421` | `<style>{\`@keyframes spin ...\`}</style>` | Keyframe fine | ✅ |
-| AiPanel analyzing spinner | `AiPanel.tsx:448` | inline animation | Same | ⚠️ |
-| DiagnosePhase1/2/3 | multiple | Tailwind `animate-spin` | `motion-reduce:animate-none` not set | ⚠️ |
-| ExportModal spinner | `ExportModal.tsx:199` | Tailwind `animate-spin` | Same | ⚠️ |
-| InvestigationSetupModal spinners | `InvestigationSetupModal.tsx:303, 543, 591, 612, 864` (5 sites) | Tailwind `animate-spin` | Same | ⚠️ |
-| ServerSettingsPanel status spinner | `ServerSettingsPanel.tsx:72` | Tailwind `animate-spin` | Same | ⚠️ |
-| ZendeskPanel search spinner | `ZendeskPanel.tsx:101` | inline `style={{ animation: 'spin 1s linear infinite' }}` | None — inline style | ⚠️ |
-| ZendeskPanel analyzing spinner | `ZendeskPanel.tsx:200` | inline `style={{ animation: 'spin 1s linear infinite' }}` | None — inline style | ⚠️ |
-| SimilarTicketsPanel loading spinner | `ai/diagnose/SimilarTicketsPanel.tsx:124` | Tailwind `animate-spin` | Same | ⚠️ |
+| AIButton spinner (icon variant) | `src/components/AIButton.tsx:223` | `<Spinner size={variant === 'icon' ? 16 : size === 'sm' ? 14 : size === 'lg' ? 20 : 16} />` | Shared `<Spinner />` primitive uses `motion-safe:animate-spin` + `motion-reduce:animate-none` | ✅ |
+| AIButton status indicator | `src/components/AIButton.tsx:291` | `<Spinner size="sm" />` | Shared `<Spinner />` primitive uses `motion-safe:animate-spin` + `motion-reduce:animate-none` | ✅ |
+| AiPanel thinking spinner | `src/components/ai/AiPanel.tsx:358` | `<Spinner size="sm" />` | Shared `<Spinner />` primitive uses `motion-safe:animate-spin` + `motion-reduce:animate-none` | ✅ |
+| AiPanel analyzing spinner | `src/components/ai/AiPanel.tsx:448` | `<Spinner size="md" />` | Shared `<Spinner />` primitive uses `motion-safe:animate-spin` + `motion-reduce:animate-none` | ✅ |
+| DiagnosePhase1 loading spinner | `src/components/ai/diagnose/DiagnosePhase1.tsx:381` | `<Spinner size="xs" />` | Shared `<Spinner />` primitive uses `motion-safe:animate-spin` + `motion-reduce:animate-none` | ✅ |
+| DiagnosePhase1 fetch spinner | `src/components/ai/diagnose/DiagnosePhase1.tsx:429` | `<Spinner size="sm" />` | Shared `<Spinner />` primitive uses `motion-safe:animate-spin` + `motion-reduce:animate-none` | ✅ |
+| DiagnosePhase1 create spinner | `src/components/ai/diagnose/DiagnosePhase1.tsx:486` | `<Spinner size="sm" />` | Shared `<Spinner />` primitive uses `motion-safe:animate-spin` + `motion-reduce:animate-none` | ✅ |
+| DiagnosePhase2 updating spinner | `src/components/ai/diagnose/DiagnosePhase2.tsx:402` | `<Spinner size="xs" />` | Shared `<Spinner />` primitive uses `motion-safe:animate-spin` + `motion-reduce:animate-none` | ✅ |
+| DiagnosePhase2 refine spinner | `src/components/ai/diagnose/DiagnosePhase2.tsx:449` | `<Spinner size={13} />` | Shared `<Spinner />` primitive uses `motion-safe:animate-spin` + `motion-reduce:animate-none` | ✅ |
+| DiagnosePhase3 retry / submit / create spinners | `src/components/ai/diagnose/DiagnosePhase3.tsx:195,345,416` | `<Spinner size={11|"md"} />` callsites in the submit flow | Shared `<Spinner />` primitive uses `motion-safe:animate-spin` + `motion-reduce:animate-none` | ✅ |
+| ExportModal spinner | `src/components/export/ExportModal.tsx:200` | `<Spinner size="sm" />` | Shared `<Spinner />` primitive uses `motion-safe:animate-spin` + `motion-reduce:animate-none` | ✅ |
+| InvestigationSetupModal spinners | `src/components/InvestigationSetupModal.tsx:304,544,592,613,865` | `<Spinner />` callsites including exact-size exceptions `11` and `13` | Shared `<Spinner />` primitive uses `motion-safe:animate-spin` + `motion-reduce:animate-none` | ✅ |
+| ServerSettingsPanel status spinner | `src/components/ServerSettingsPanel.tsx:73` | `<Spinner size="md" />` | Shared `<Spinner />` primitive uses `motion-safe:animate-spin` + `motion-reduce:animate-none` | ✅ |
+| ZendeskPanel search / analyzing spinners | `src/components/zendesk/ZendeskPanel.tsx:102,201` | `<Spinner size="sm" />` and `<Spinner size="md" />` | Shared `<Spinner />` primitive uses `motion-safe:animate-spin` + `motion-reduce:animate-none` | ✅ |
+| SimilarTicketsPanel loading spinner | `src/components/ai/diagnose/SimilarTicketsPanel.tsx:125` | `<Spinner size="xs" />` | Shared `<Spinner />` primitive uses `motion-safe:animate-spin` + `motion-reduce:animate-none` | ✅ |
 
-**Fix plan:** two small follow-up commits worth of work. All fixes are one-liners — either add `motion-reduce:animate-none` to the Tailwind class or wrap the inline animation in a `usePrefersReducedMotion()` conditional. **Not blocker for Phase 05** because spinners are ephemeral indicators users dismiss by waiting; the degraded experience is "spinning icon keeps spinning under reduced motion" which is low-severity. Flagged for Phase 06.
+Phase 06A C1/C2 retired every inline `animation: 'spin ...'` style and every raw production `animate-spin` callsite. The only remaining `animate-spin` matches in `src/` are the Spinner primitive itself and its tests.
 
-### 2.4 — Global `@keyframes` in `src/index.css`
-
-| Keyframe | Trigger | Reduced-motion handling | Status |
-|---|---|---|---|
-| `phase-dot-pulse` | Active phase dot | `@media (prefers-reduced-motion: reduce) { .animate-phase-pulse { animation: none; } }` at line 113 | ✅ |
-| `evidence-add` | Pin new evidence | Same media query block | ✅ |
-| `room-fade-in` | Room transition | Same | ✅ |
-| `toast-in` | Toast mount | Same | ✅ |
-| `shimmer` | Skeleton loading | Same | ✅ |
-| `.btn-press-bounce` (Phase 04.5) | Button press | Media query in the class definition itself strips the transform transition | ✅ |
-
-### 2.5 — `src/styles/loading.css` keyframes
+### 2.4 - Global `@keyframes` in `src/index.css`
 
 | Keyframe | Trigger | Reduced-motion handling | Status |
 |---|---|---|---|
-| `tui-braille-cycle` | Braille spinner | Line 109 comment: "All animations honor prefers-reduced-motion"; explicit `@media (prefers-reduced-motion: reduce)` block at the end of the file | ✅ |
+| `phase-dot-pulse` | Active phase dot | `@media (prefers-reduced-motion: reduce) { .animate-phase-pulse { animation: none; } }` | ✅ |
+| `evidence-add` | Pin new evidence | Same media-query block | ✅ |
+| `room-fade-in` | Room transition | Same media-query block | ✅ |
+| `toast-in` | Toast mount | Same media-query block | ✅ |
+| `shimmer` | Skeleton loading | Same media-query block | ✅ |
+| `.btn-press-bounce` (Phase 04.5) | Button press | Media query in the class definition strips the transform transition | ✅ |
+
+### 2.5 - `src/styles/loading.css` keyframes
+
+| Keyframe | Trigger | Reduced-motion handling | Status |
+|---|---|---|---|
+| `tui-braille-cycle` | Braille spinner | Explicit `@media (prefers-reduced-motion: reduce)` block at the end of the file | ✅ |
 | `tui-block-cycle` | Block spinner | Same | ✅ |
 | `tui-dots-cycle` | Dots spinner | Same | ✅ |
 | `glow-live-pulse` | Live-tier surfaces | Same | ✅ |
-| `cute-label-reveal` | Per-character reveal on cute-label phrase change (`loading.css:144, 148`) | Same `@media (prefers-reduced-motion: reduce)` guard at end of file | ✅ |
-| `cute-label-breathe` | Per-character breathing loop on idle cute-label (`loading.css:145, 153`) | Same | ✅ |
+| `cute-label-reveal` | Per-character reveal on cute-label phrase change | Same reduced-motion media query | ✅ |
+| `cute-label-breathe` | Per-character breathing loop on idle cute-label | Same reduced-motion media query | ✅ |
 
-### 2.6 — `src/styles/focus-mode.css` (Phase 04 + Phase 04.5)
+### 2.6 - Focus mode + room transitions
 
 | Rule | Trigger | Reduced-motion handling | Status |
 |---|---|---|---|
-| `[data-card-id][data-focus-target="true"]` fill | Focus toggle | Binary CSS — no animation | ✅ |
+| `[data-card-id][data-focus-target="true"]` fill | Focus toggle | Binary CSS - no animation | ✅ |
 | `[data-card-id][data-focus-target="false"] { display: none }` | Focus toggle | Binary | ✅ |
 | `[data-card-body] { transition: none !important }` under reduced motion | Card expand/collapse | Explicit rule added in Phase 04.5 | ✅ |
+| Room transitions (`room-fade-in` + `--room-transition-ease`) | Room-to-room navigation | `--room-transition-ease: var(--ease-spring)` in `src/styles/tokens.css`; `@media (prefers-reduced-motion: reduce)` in `src/index.css` disables `room-fade-in` | ✅ |
 
-### 2.7 — Phase 04.5 Direction C additions
+### 2.7 - Phase 04.5 + Phase 06A Direction C additions
 
 | Surface | File | Reduced-motion handling | Status |
 |---|---|---|---|
 | `.btn-press-bounce` composite transition | `src/index.css` | `@media (prefers-reduced-motion: reduce)` strips the transform transition | ✅ |
 | Button `active:scale-[0.94]` | `Button.tsx` | `motion-reduce:active:scale-100 disabled:scale-100` classes | ✅ |
 | WorkspaceCard grid-template-rows + transform + opacity | `WorkspaceCard.tsx` | `[data-card-body] { transition: none !important }` at `src/index.css` | ✅ |
-| WorkspaceCard motion-safe hover lift | `WorkspaceCard.tsx` | `motion-safe:hover:-translate-y-[1px]` prefix — only applies when motion is OK | ✅ |
+| WorkspaceCard motion-safe hover lift | `WorkspaceCard.tsx` | `motion-safe:hover:-translate-y-[1px]` prefix applies only when motion is allowed | ✅ |
+| Toast entrance curve | `src/index.css` | Uses `var(--ease-emphasized)` for normal motion; global `@media (prefers-reduced-motion: reduce)` disables `toast-in` | ✅ |
+| Dialog transition curve | `src/components/ui/Dialog.tsx` | App-level `<MotionConfig reducedMotion="user">` handles reduced motion; Slice 4 greps/tests verify the emphasized tuple | ✅ |
+| DropdownMenu transition curve | `src/components/ui/DropdownMenu.tsx` | App-level `<MotionConfig reducedMotion="user">` handles reduced motion; Slice 4 greps/tests verify the spring tuple | ✅ |
+| Sheet transition curve | `src/components/ui/Sheet.tsx` | App-level `<MotionConfig reducedMotion="user">` handles reduced motion; Slice 4 greps/tests verify the emphasized tuple | ✅ |
+| Tooltip transition curve | `src/components/ui/Tooltip.tsx` | App-level `<MotionConfig reducedMotion="user">` handles reduced motion; Slice 4 greps/tests verify the spring tuple | ✅ |
 
-### 2.8 — Phase 05 new additions (land in subsequent commits)
+### 2.8 - Phase 05 additions carried forward
 
-| Surface | Commit | Planned reduced-motion handling |
-|---|---|---|
-| `CitationJumpChip` fade-in | C2 | `motion-reduce:animate-none` on chip root |
-| Container pulse on `[data-surface="log-stream"][data-citation-just-arrived="true"]` | C2 | `@media (prefers-reduced-motion: reduce) { animation: none }` in `citation-jump.css` |
-| Phase 02 row highlight fade | C2 (retrofit) | `@media (prefers-reduced-motion: reduce) { transition-duration: 0s }` — missing from Phase 02, added in C2 |
-| `bundle-pulse` keyframe | C4 | `motion-safe:animate-[bundle-pulse_...]` prefix on the badge span — the prefix means the animation never runs under reduced-motion |
-| Tier-driven glow on `[data-tier="live"]` | C5 | `@media (prefers-reduced-motion: reduce) { animation: none }` — static shadow only |
-| Rail flex layout | C6 | No animation — CSS flex layout is instant by definition |
-
----
-
-## Section 3 — Verification method
-
-Run these at the end of Phase 05 Commit 1 and re-verify at phase close-out:
-
-1. `git grep -n 'transition-all' src/` → returns 0 matches outside test regex.
-2. Manual: toggle OS "reduce motion" on Windows; open the app at each room (Import / Investigate / Submit); confirm:
-   - No box scales, translates, or rotates under the hover + active states where motion-safe / motion-reduce guards are in place
-   - Spinners either pause (ideal) or rotate instantly (acceptable for Phase 05; fixed in Phase 06)
-   - Card expand/collapse is instant
-   - Focus-mode toggle is instant
-   - Citation-jump chip and container pulse are static (chip shows immediately, no fade)
-   - Evidence badge updates counts without pulsing
-3. Programmatic: extend existing Vitest tests whenever a new animated surface lands, asserting the `motion-reduce:` class or media-query presence.
+| Surface | File | Reduced-motion handling | Status |
+|---|---|---|---|
+| `CitationJumpChip` fade-in | `citation-jump.css` | `motion-reduce:animate-none` on the chip root | ✅ |
+| Container pulse on `[data-surface="log-stream"][data-citation-just-arrived="true"]` | `citation-jump.css` | `@media (prefers-reduced-motion: reduce) { animation: none }` | ✅ |
+| Phase 02 row highlight fade | Phase 02 retrofit | `@media (prefers-reduced-motion: reduce) { transition-duration: 0s }` | ✅ |
+| `bundle-pulse` keyframe | Phase 05 C4 | `motion-safe:animate-[bundle-pulse_...]` prefix means it never runs under reduced motion | ✅ |
+| Tier-driven glow on `[data-tier="live"]` | Phase 05 C5 | `@media (prefers-reduced-motion: reduce) { animation: none }` - static shadow only | ✅ |
+| Rail flex layout | Phase 05 C6 | No animation - layout is instant | ✅ |
 
 ---
 
-## Section 4 — Follow-up cleanup items (Phase 06 hand-off)
+## Section 3 - Verification method
 
-Flagged during this audit; not blocker for Phase 05 close-out. Small cleanups:
+Re-run these checks after any new animated surface lands:
 
-1. **Spin indicator sweep.** Add `motion-reduce:animate-none` to every Tailwind `animate-spin` usage — confirmed count is now ~15 sites (AIButton, AiPanel, DiagnosePhase1/2/3, ExportModal, InvestigationSetupModal × 5, ServerSettingsPanel, SimilarTicketsPanel). Mechanical grep-and-edit. Replace the inline `style={{ animation: 'spin 1s linear infinite' }}` (AIButton × 2, AiPanel × 2, ZendeskPanel × 2) with a `usePrefersReducedMotion()`-gated conditional or a reusable `<Spinner />` primitive.
-2. **Anime.js hook-level guard.** Audit `src/utils/anime.ts` — `useAnimeStagger`, `useAnimeValue`, `useAnimeTimeline`. If any of the four consumer sites (LogStreamHeader count stagger + animated count, LogViewer stagger, LogTimeline bar stagger) don't already get reduced-motion coverage via the hook, add the guard at the hook level. One fix covers all four.
-3. **Motion/react primitive verification.** Wrap app root in `<MotionConfig reducedMotion="user">` OR add explicit tests to each motion/react primitive (Dialog, DropdownMenu, Tooltip, Sidebar, Sheet, EvidencePanel, CanonicalBlockRenderer) asserting reduced-motion behavior. The EvidencePanel + CanonicalBlockRenderer already use `usePrefersReducedMotion()` — the remaining 5 need the config or tests.
+1. `git grep -n 'transition-all' src/` -> returns only intentional test-regex assertions.
+2. `git grep -nE "animation:\s*['\"]?spin\b" src/` -> returns 0 matches.
+3. `git grep -n "animate-spin" src/` -> returns only `src/components/ui/Spinner.tsx` plus Spinner test assertions.
+4. `npx vitest run` -> desired repo gate: full suite green. For the Phase 06A C9 docs-only run on 2026-04-22, this command was red due to unrelated existing failures in `src/contexts/__tests__/EvidenceContext.test.tsx` and `.worktrees/ui-overhaul*/src/services/__tests__/llmService.test.ts`, so treat Vitest as a separate baseline-triage task rather than evidence against this audit update.
+5. Manual: toggle OS reduce motion on Windows; open the app in Import / Investigate / Submit and confirm:
+   - All production spinner surfaces render `<Spinner />` and remain static under reduced motion
+   - Anime-backed count and stagger surfaces snap directly to their final state
+   - Dialog / DropdownMenu / Tooltip / Sidebar / Sheet appear and disappear without animation when reduced motion is active
+   - Toast entrance and room transitions are static under reduced motion
+   - Card expand/collapse and focus-mode toggles remain instant
 
-Estimated effort: 2 small commits (~40 lines total), grouped as "spin sweep" + "anime hook guards + MotionConfig".
+Programmatic expectation: extend existing Vitest coverage whenever a new animated surface lands, asserting the `motion-reduce:` class, reduced-motion media-query handling, or App-level motion wiring as appropriate.
+
+---
+
+## Section 4 - Follow-up status (Phase 06A close-out)
+
+The original Phase 05 hand-off items are now retired:
+
+1. **Spin indicator sweep** - retired in Phase 06A C1/C2 via the shared `<Spinner />` primitive.
+2. **Anime.js hook-level guard** - retired in Phase 06A C3 via `usePrefersReducedMotion()` guards in `useAnimeStagger`, `useAnimeTimeline`, and `useAnimeValue`.
+3. **Motion/react primitive verification** - retired in Phase 06A C4 via the app-level `<MotionConfig reducedMotion="user">`; Slice 4 greps/tests cover the Direction C curve tuples for Dialog, DropdownMenu, Sheet, and Tooltip.
+
+No reduced-motion cleanup debt remains from the original Phase 05 audit. Remaining post-polish hand-offs are feature-scope items rather than motion regressions:
+
+- Correlation Graph card - Phase 06B
+- Case library learning loop - Phase 06C
+- Standalone Tauri packaging - Phase 07
+- Shared `transitions.ts` motion preset library - optional future cleanup
 
 ---
 
 ## Summary
 
-- **Phase 05 Commit 1 delivers:** ✅ 5 `transition-all` violations fixed; ✅ this audit document established as the reference.
-- **Green surfaces (verified compliant):** 19 — all global keyframes, loading.css (including cute-label-*), focus-mode, Phase 04.5 additions.
-- **Needs-work surfaces (⚠️):** 23 — anime.js hook consumer sites (4) that need `usePrefersReducedMotion` guard at the hook level; inline/Tailwind spin indicators (15 sites across AIButton, AiPanel, DiagnosePhase1/2/3, ExportModal, InvestigationSetupModal (5), ServerSettingsPanel, ZendeskPanel (2), SimilarTicketsPanel); motion/react primitive-level verification (5 surfaces).
-- **No regressions introduced by Phase 05.** All new animations in commits 2, 4, 5 shipped with motion-safe guards.
+- **Phase 06A Commit 9 consolidates:** all Phase 05 reduced-motion follow-ups retired in one audit pass after the Wave 1 slices merged.
+- **Verified compliant surfaces now include:** global keyframes, loading.css, focus-mode, Spinner-based indicators, anime.js hook consumers, app-level `motion/react` primitives, and all documented Direction C transition surfaces.
+- **Open reduced-motion debt from the original Phase 05 audit:** 0.
 
-Phase 05 resumption is unblocked from a §4.2 compliance standpoint. The ⚠️ surfaces are decorative spinners and library-level hooks where a centralized fix (guard in `useAnimeStagger`/`useAnimeValue` + a sweep of spin `motion-reduce:animate-none` prefixes) covers the bulk of the remaining work. Estimated Phase 06 cleanup: 2 small commits.
+Future motion work should append new rows for new surfaces rather than reopening the retired Phase 05 / Phase 06A entries.
