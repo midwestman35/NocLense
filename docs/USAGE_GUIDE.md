@@ -1,231 +1,130 @@
 # NocLense Usage Guide
 
-**Version:** 2.0 | **Updated:** 2026-03-30
+**Version:** 3.0 | **Last updated:** 2026-04-22
+
+Welcome to NocLense! This guide will help you quickly navigate the application, investigate telecom incidents, and close tickets with confidence. 
 
 ---
 
-## Getting Started
+## 1. Getting Started
 
-### Web (Vercel)
-Navigate to your deployed NocLense URL. All API credentials are configured via Vercel environment variables — no local setup needed.
-
-### Local Development
-```bash
-git clone https://github.com/midwestman35/NocLense.git
-cd NocLense
-npm install
-# Drop the .env file in the project root (get from team lead)
-npm run dev          # Web at http://localhost:5173
-npm run electron:dev # Desktop app (Electron + Vite)
-```
+You can access NocLense in two ways:
+- **Web Browser:** Navigate to the internal company URL provided by your team lead.
+- **Desktop Application:** Install the desktop app if you handle very large files (100MB+) frequently.
 
 ---
 
-## Core Workflow: Investigating a Ticket
+## 2. The 3-Phase Workflow
 
-### Step 1: Import Incident Data
+NocLense is built around a structured, 3-phase investigation process to keep you focused.
 
-**Option A — Start from a Zendesk ticket:**
-1. Enter a ticket number in the "Zendesk Ticket" field on the main screen
-2. Click **Investigate**
-3. The Investigation Setup Modal opens — select attachments, timezone, Datadog enrichment
-4. Click **Start Investigation** — files are downloaded and parsed automatically
+### Phase 1: IMPORT ROOM
+This is where you bring your incident data into the tool.
+- **Upload Files:** Drag and drop `.log`, `.txt`, `.csv`, or `.noclense` files directly onto the screen. Note that PDF and ZIP extraction only works through the Diagnose pipeline (Zendesk attachments), NOT through the main Import Room file upload.
+- **Resume Workspace:** You can also re-open a saved `.noclense` investigation file to pick up where you left off.
+- **Zendesk Fetch:** Enter a ticket number to automatically pull attachments and metadata from Zendesk.
+- **Paste Logs:** Click the "Paste logs" option to quickly drop in copied snippets from AWS CloudWatch or server consoles.
 
-**Option B — Upload log files directly:**
-1. Click **Upload files** or drag-and-drop `.log`, `.txt`, or `.csv` files
-2. Select the source type (APEX, Datadog, AWS Console, Unknown)
-3. Multiple files are merged by timestamp automatically
+### Phase 2: INVESTIGATE ROOM
+Once your data is loaded, you enter the Investigate Room. This workspace uses a 6-card layout:
+1. **Log Stream:** The main view of all your parsed logs.
+2. **AI Assistant:** Your troubleshooting partner to diagnose issues and answer questions.
+3. **Evidence:** A staging area where you pin important log lines.
+4. **Similar Tickets:** Automatically surfaces past Confluence investigations matching your current issue.
+5. **Correlation Graph:** A visual map of how calls and systems connect.
+6. **Datadog Live:** Connects to Datadog to pull real-time enrichment data.
 
-**Option C — Paste logs:**
-1. Click **Paste logs**
-2. Paste CloudWatch or console output directly
-3. Good for short incident windows
+**To run an AI Diagnosis:**
+1. In the AI Assistant card, click **Diagnose**.
+2. Make sure your Zendesk ticket number and timezone are correct.
+3. Click **Scan Logs Against Ticket**. 
+4. The AI will scan the logs, highlight relevant lines (in violet), and provide a root cause summary.
+5. You can refine the analysis by typing instructions in the chat box.
 
-### Step 2: Run AI Diagnosis
-
-1. Open the **Diagnose** tab in the AI sidebar (right side)
-2. Enter a Zendesk ticket number and click **Fetch** (or click **Skip** for ticket-free analysis)
-3. Select the customer timezone
-4. Optionally enable **Datadog Enrichment** to pull live server logs
-5. Click **Scan Logs Against Ticket**
-6. Wait 15–30 seconds for the AI analysis
-
-### Step 3: Review & Refine (Phase 2)
-
-After the scan completes, you land on the Review & Refine screen:
-
-**Left pane:**
-- **AI Diagnosis** — Root cause and summary at the top
-- **Correlated Logs** — Logs the AI identified as relevant (highlighted in violet in the main viewer)
-- **Also Check** — Suggested additional log sources
-- **Similar Past Tickets** — Past closed tickets and Confluence investigations matching this issue (auto-populated)
-
-**Right pane:**
-- **Troubleshooting** — Steps already taken or recommended
-- **Internal Note** — Editable draft that will be posted to Zendesk
-- **AI Refinement** — Type instructions to have the AI rewrite parts of the note
-
-**Actions you can take:**
-- Star additional logs in the main viewer — they get added to the correlated set
-- Edit the internal note directly
-- Ask the AI to refine: *"Make the root cause section more specific"*
-- Ask for a closure note: *"Fill out the closing note with our conclusions"* (triggers the closure template automatically)
-- Click a similar past ticket to see its closure note
-- Click **Next** when satisfied
-
-### Step 4: Submit (Phase 3)
-
-1. Review the closure note preview
-2. Options:
-   - **Include log archive** — bundles filtered logs as a ZIP
-   - **Download locally** — saves the ZIP to your computer
-   - **Attach to Zendesk** — uploads the ZIP to the ticket
-3. Click **Post Internal Note**
-4. Three things happen:
-   - Internal note posts to the Zendesk ticket
-   - Log archive downloads/attaches (if selected)
-   - **Investigation saves to Confluence** automatically (under Operations > NOC Investigations)
-5. Success screen shows links to both Zendesk and Confluence
+### Phase 3: SUBMIT ROOM
+When you've found the issue, move to the Submit Room to wrap up.
+- **Closure Note:** Review the AI-generated draft explaining the root cause and troubleshooting steps.
+- **Evidence Bundle:** Check the logs you've starred to ensure they are automatically attached to the summary.
+- **Post to Zendesk:** Click **Post Internal Note** to automatically send your summary and evidence ZIP directly to Zendesk.
+- **Save to Confluence:** NocLense automatically saves a copy of your investigation to the Confluence NOC Knowledge Base so your team can learn from it next time.
 
 ---
 
-## AI Features
+## 3. Filtering & Navigation
 
-### Diagnose Tab
-Full 3-phase investigation workflow (described above). Correlates Zendesk tickets with loaded logs using Carbyne-specific knowledge of APEX, CCS, FDX, Homer SIP, and Datadog log formats.
+Managing 100,000+ lines of text is easy using the built-in filters above the Log Stream:
 
-### Summary Tab
-One-click log summarization. Identifies what happened, key events, errors, and overall outcome.
-
-### Anomalies Tab
-Scans logs for anomalies, errors, and root causes. Returns a numbered list of issues with likely causes and recommended actions.
-
-### Chat Tab
-Free-form conversation with the AI about your logs. The AI has context of all loaded log entries. Supports multi-turn conversation (remembers previous exchanges).
-
-**Template triggers:** Certain phrases automatically inject templates:
-- *"closing note"*, *"closure note"*, *"close the ticket"* → Triggers the closure note template (Issue Summary, Troubleshooting Steps, Root Cause + closing boilerplate)
-
-### Auto-tag Tab
-Classifies logs into categories (SIP, Authentication, Network, Media, System, Database, Timeout, Error) with counts and analysis.
+- **Search:** Full-text search to find specific phrases or numbers.
+- **Level Filter:** Toggle between showing ERROR, WARN, INFO, or DEBUG messages.
+- **SIP Filter:** Show only SIP messages, or isolate specific methods (like INVITE or BYE).
+- **Source Filter:** When looking at multiple files, easily hide or show logs from Datadog, Homer, APEX, etc.
+- **Message Type:** Filter by specific structural formats.
+- **Correlation Dots:** Click the colored dots next to a Call-ID, Report-ID, Operator-ID, Extension-ID, Station-ID, File Name, CNC-ID, or Message-ID to instantly see only logs related to that ID.
+- **Favorites (Starring):** Click the star icon next to any log line to save it as Evidence. 
 
 ---
 
-## Filtering & Navigation
+## 4. AI Features
 
-### Log Viewer
-- **Search** — Full-text search with history (arrow keys to browse past searches)
-- **Level filter** — Toggle ERROR, WARN, INFO, DEBUG
-- **SIP filter** — Show only SIP messages, filter by method (INVITE, BYE, etc.)
-- **Source filter** — Filter by log source when multiple are loaded (Datadog, Homer SIP, Call Log, FDX, CCS/PBX, APEX Local)
-- **Message type filter** — Filter by message type with exclude support
-- **Collapse similar** — Merge consecutive similar rows with a count badge
-- **Favorites** — Star logs with the star icon, then filter to show only favorites
-- **AI highlighted** — Filter to show only logs the AI identified as relevant (violet highlight)
+Your AI Assistant has several built-in tools:
 
-### Correlation System
-Click colored dots next to Call-IDs, Report-IDs, or Station-IDs to filter by that value. Multiple correlations use AND between types, OR within a type.
+- **Diagnose:** Scans your logs against a specific Zendesk ticket to find the root cause.
+- **Summary:** Gives a quick, high-level overview of what happened during the loaded timeframe.
+- **Anomalies:** Automatically hunts for unexpected errors or strange patterns you might have missed.
+- **Chat:** Talk directly with the AI. You can ask things like, *"What caused the 503 error at 14:02?"*
+- **Auto-tag:** Categorizes logs into system areas (Network, Media, Database, etc.) so you know where the bulk of the activity happened.
 
-### Sidebar Panels (left rail)
-- **Files** — Manage imported log files
-- **Call IDs** — Browse and filter by Call-ID
-- **Reports** — Browse and filter by Report-ID
-- **Stations** — Browse and filter by Station-ID
-- **AI Analysis** — The AI sidebar (also accessible via the right panel)
-- **Filters** — Advanced filter management
-
-### Resizable AI Sidebar
-The AI sidebar on the right is resizable — drag the left edge to make it wider or narrower. Your preferred width is saved automatically.
+**Magic Phrases (Templates):**
+Typing any of these phrases into the Chat will automatically tell the AI to draft a final summary for you:
+- *"closing note"*
+- *"closure note"*
+- *"close the ticket"*
 
 ---
 
-## Investigation Memory (Confluence)
+## 5. Keyboard Shortcuts
 
-Every completed investigation is automatically saved to Confluence under **Operations > NOC Investigations**. This builds a team knowledge base over time.
-
-### What gets saved:
-- Ticket ID, subject, organization
-- Root cause with auto-detected category tags
-- AI diagnosis summary
-- Key evidence (correlated log entries with timestamps)
-- Troubleshooting steps
-- Full closure note
-- Suggested additional log sources
-
-### How it helps future investigations:
-When you run a new diagnosis, the **Similar Past Tickets** panel in Phase 2 searches Confluence for past investigations matching the current issue's root cause, components, and error patterns. If a similar case was resolved before, you'll see it immediately — along with the resolution that worked.
-
-### Multi-user:
-Each agent's investigations save independently. Leo submitting ticket #100 and you submitting ticket #200 at the same time creates two separate Confluence pages — no conflicts.
+Work faster with these hotkeys:
+- **Enter:** Submit your search or send a chat message.
+- **Escape:** Close a dropdown menu or clear your current search.
+- **Arrow Up / Down:** Browse through your previous searches in the search bar.
 
 ---
 
-## Keyboard Shortcuts
+## 6. Supported Log Formats
 
-| Shortcut | Action |
-|----------|--------|
-| `Enter` | Submit search / send chat message |
-| `Escape` | Close dropdown / clear search |
-| `Arrow Up/Down` | Browse search history |
+NocLense automatically understands these formats:
 
----
-
-## Supported Log Formats
-
-| Format | Source | Auto-detected by |
-|--------|--------|-----------------|
-| APEX logs | `[LEVEL] [date, time] [component]: message` | Regex pattern |
-| ISO logs | `[LEVEL] [YYYY-MM-DD HH:MM:SS,ms] [component] message` | Regex pattern |
-| Datadog CSV | `Date,Host,Service,Content` (JSON in Content field) | `.csv` extension + header |
-| Call Log CSV | `ID,Created,Phone,...,Station,...` (26-column Carbyne format) | `.csv` extension + header |
-| Homer SIP | `proto:PROTOCOL TIMESTAMP SOURCE ---> DESTINATION` | `proto:` header detection |
-| JSON payloads | Embedded in log entries | `{` ... `}` detection in payload |
-| PDF attachments | APEX event summaries | `.pdf` extension (text extracted) |
-| ZIP archives | Contains any of the above | `.zip` extension (extracted) |
+| Format | What it looks like / Source |
+|---|---|
+| **APEX logs** | `[ERROR] [2026-04-22, 14:00:00] [media-router]: timeout` |
+| **Datadog CSV** | Exported CSVs with `Date, Host, Service, Content` columns. |
+| **Call Log CSV** | Standard 26-column format. |
+| **Homer SIP** | `proto:UDP 2026-04-22 14:00:00 10.0.0.1 ---> 10.0.0.2` |
+| **ISO Logs** | `[INFO] [2026-04-22 14:00:00,123] [auth] token refreshed` |
+| **JSON Payloads** | Embedded `{ ... }` objects inside log text. |
+| **PDF & ZIP** | NocLense unpacks ZIPs and extracts text from PDFs automatically! (Via Zendesk attachments) |
 
 ---
 
-## Troubleshooting
+## 7. Troubleshooting FAQ
 
-### "Unleash API error (400)"
-- Check that `VITE_UNLEASH_TOKEN` is set and valid
-- If the error mentions "Assistant must be of type general", the assistant ID may be incorrect — clear `VITE_UNLEASH_ASSISTANT_ID` in the env
+**"Unleash API error (400)"**
+A 400 error means a malformed request (bad payload or model mismatch), NOT an expired token. An expired/missing token produces a separate "No API token configured" error.
 
-### Datadog station discovery returns 0 results
-- Open browser console (F12) to see which query strategies were tried
-- Check that your Datadog Application Key has the `logs_read_data` scope
-- Results are cached for 15 minutes — wait or use a different CNC name to test
-- You can always type station names manually
+**Datadog station discovery returns 0 results**
+Make sure your Datadog Application Key has the `logs_read_data` scope enabled. You can also just type the station names manually if auto-discovery fails.
 
-### Empty/blank log rows
-- If you see entries showing `[Empty entry — source]`, the parser found a line it couldn't extract a message from. The source label tells you which parser handled it.
+**Empty or blank log rows**
+This means the parser found a line it couldn't read properly. You can safely ignore these, or check the file manually if you suspect missing data.
 
-### Confluence save not working
-- Verify `VITE_JIRA_EMAIL` and `VITE_JIRA_TOKEN` are set (Confluence uses the same Atlassian credentials as Jira)
-- Verify `VITE_CONFLUENCE_SPACE_ID` and `VITE_CONFLUENCE_PARENT_PAGE_ID` are set
-- The Confluence save is non-blocking — if it fails, the Zendesk post still succeeds
-
-### Large files crashing the app
-- Files over 50MB trigger IndexedDB streaming mode automatically
-- For very large files (100MB+), consider splitting them before import
-- The app has a global error boundary — if it crashes, click "Try Again" to recover without losing data
+**Large files are slowing down my browser**
+If a file is over 50MB, NocLense automatically streams it from your hard drive to save memory. For files over 100MB, we highly recommend using the Desktop app version instead of the web browser.
 
 ---
 
-## Environment Variables
+## 8. Investigation Memory
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `VITE_UNLEASH_TOKEN` | Yes | Unleashed AI bearer token |
-| `VITE_UNLEASH_ASSISTANT_ID` | No | Optional assistant ID (leave empty for default) |
-| `VITE_ZENDESK_SUBDOMAIN` | Yes | Zendesk subdomain (e.g., `carbyne`) |
-| `VITE_ZENDESK_EMAIL` | Yes | Zendesk agent email |
-| `VITE_ZENDESK_TOKEN` | Yes | Zendesk API token |
-| `VITE_DATADOG_API_KEY` | No | Datadog API key (enables Datadog enrichment) |
-| `VITE_DATADOG_APP_KEY` | No | Datadog Application Key (needs `logs_read_data` scope) |
-| `VITE_DATADOG_SITE` | No | Datadog site (default: `datadoghq.com`) |
-| `VITE_JIRA_SUBDOMAIN` | No | Atlassian site (e.g., `reporty.atlassian.net`) |
-| `VITE_JIRA_EMAIL` | No | Atlassian email (for Jira + Confluence) |
-| `VITE_JIRA_TOKEN` | No | Atlassian API token |
-| `VITE_CONFLUENCE_SPACE_ID` | No | Confluence space ID for investigation store |
-| `VITE_CONFLUENCE_PARENT_PAGE_ID` | No | Parent page ID under which investigations are saved |
+Every time you submit a closure note in Phase 3, NocLense silently saves a clean copy of your investigation to the **Operations > NOC Investigations** space in Confluence. 
+
+Because of this, the next time someone on your team encounters a similar error or component failure, the **Similar Tickets** card will light up with your past resolution. This builds a shared brain for the entire NOC!

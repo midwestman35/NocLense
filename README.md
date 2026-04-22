@@ -1,109 +1,114 @@
 # NocLense
 
-**NocLense** is a desktop application for analyzing SIP/VoIP and telecommunications logs. Built for NOC engineers and support teams, it handles 100,000+ log entries with virtualized rendering, AI-powered analysis, and multi-format import support.
+![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
+![License](https://img.shields.io/badge/license-MIT-blue)
+![Node Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)
 
-> Runs as an Electron desktop app or in-browser via Vite dev server.
+NocLense is a high-performance desktop and browser application designed specifically for NOC engineers and support analysts. It solves the challenge of drowning in massive log files by rapidly ingesting 100,000+ lines across 8+ different telecom formats, allowing engineers to correlate SIP call flows, diagnose root causes with AI, and seamlessly close Zendesk tickets with attached evidence.
 
----
+<!-- Screenshot: add docs/assets/investigate-room.png when available -->
 
-## Features
+## Key Features
 
-### Log Analysis
-- **High-performance rendering** — `@tanstack/react-virtual` renders only visible rows; handles 100k+ entries without lag
-- **Multi-format import** — Datadog CSV, Homer SIP JSON, and plain-text log files
-- **Large-file streaming** — Files over 50 MB are streamed into IndexedDB in 2 MB chunks; no browser memory limits
-- **SIP/VoIP awareness** — Highlights SIP methods (INVITE, BYE, ACK, etc.), 4xx/5xx response codes, and call flows with automatic color coding
-- **Detailed inspection** — Expand any row for full JSON payload, structured fields, and raw message content
-- **Smart Filter** — One-click removal of DEBUG logs and SIP OPTIONS heartbeats to surface signal from noise
+- **Multi-format log ingestion**: Natively supports APEX, Datadog CSV, Homer SIP, Call Log CSV, ISO logs, embedded JSON payloads, and automatically extracts text from PDF and ZIP files.
+- **Virtualized rendering**: Easily handles 100k+ entries with `@tanstack/react-virtual` and IndexedDB streaming for files larger than 50MB, bypassing browser memory limits.
+- **Faceted correlation system**: Filter instantly across 8 correlation types (Call-ID, Report-ID, Operator-ID, Extension-ID, Station-ID, File Name, CNC-ID, Message-ID) with full AND/OR logic.
+- **AI-powered 3-phase investigation**: A guided workflow spanning the **Import Room** (data intake), **Investigate Room** (AI diagnosis, Datadog live enrichment, log correlation), and **Submit Room** (handoff and closure).
+- **Zendesk & Confluence integration**: Fetch tickets directly, draft internal closure notes, and automatically save investigation memory to Confluence to surface similar future tickets.
+- **Datadog live enrichment**: Live integration with Datadog to pull real-time server logs and discover CNC stations.
+- **Accessibility**: Comprehensive reduced-motion support, including the `<Spinner />` primitive with `role="status"` and `sr-only` labels, `<MotionConfig reducedMotion="user">` at the App root, the `usePrefersReducedMotion` hook in anime.js guards, and per-component `motion-safe`/`motion-reduce` CSS guards.
+- **Workspace Export**: Bundle logs, evidence, and AI diagnosis into a `.noclense` workspace archive.
 
-### Filtering & Correlation
-- **Faceted correlation sidebar** — Filter by Call-ID, Report-ID, Operator-ID, Extension-ID, Station-ID, File Name, CNC-ID, or Message-ID
-- **AND/OR logic** — Correlations use AND between types, OR within a type; exclusion correlations supported
-- **Search history** — Persisted across sessions with keyboard navigation
-- **Message type filter** — Filter by SIP method category, error level, or log format
+## Quick Start
 
-### AI-Powered Analysis
-- **Multi-provider support** — Google Gemini 3.1 (default), Claude 4.x (Sonnet/Haiku/Opus), and OpenAI Codex
-- **AI Assistant** — Conversational interface for asking questions about your logs
-- **Analyze Visible Logs** — One-click analysis of the current filtered view
-- **Explain with AI** — Contextual analysis for a selected log entry plus surrounding context
-- **Correlation analysis** — Analyze all logs for a given Call-ID or correlation from the sidebar
-- **Onboarding wizard** — Step-by-step API key setup with provider selection and key validation
-- **Secure key storage** — API keys encrypted at rest via Electron `safeStorage`
-
-### Case & Workspace Management
-- **Case context** — Attach a title, analyst name, notes, and tags to any investigation session
-- **Export packs** — Bundle logs, case metadata, and AI analysis into a `.noclense` ZIP archive
-- **Workspace import** — Restore a previous session from a saved workspace package
-
----
-
-## Getting Started
-
-### Desktop App (Electron)
+NocLense can run as a standalone Electron desktop app or as a web application via the Vite dev server.
 
 ```bash
+# Clone and install dependencies
+git clone <repo> && cd NocLense
 npm install
-npm run electron:dev     # Electron + Vite dev server
-npm run electron:build   # Package installer (NSIS on Windows, DMG on macOS)
+
+# Option A: Run as a Web App (available at http://localhost:5173)
+npm run dev
+
+# Option B: Run as a Desktop App (Electron + Vite)
+npm run electron:dev
+
+# Build for Production
+npm run build          # Web build
+npm run electron:build # Package Electron app (NSIS/DMG)
 ```
-
-### Web (Browser)
-
-```bash
-npm install
-npm run dev              # Vite dev server → http://localhost:5173
-npm run build            # TypeScript check + production build
-```
-
-### Load Your First Logs
-
-1. Launch the app and click **Open File** (or drag and drop)
-2. Supported formats: `.log`, `.txt`, `.csv` (Datadog), `.json` (Homer SIP)
-3. Multiple files are merged and sorted chronologically
-4. Use the **Correlation Sidebar** to filter by Call-ID or other identifiers
-5. Optionally configure an AI provider via the **AI Settings** panel (gear icon)
-
----
-
-## AI Setup
-
-NocLense supports three AI providers. All keys are stored encrypted — never in plaintext.
-
-| Provider | Models | API Key Source |
-|----------|--------|----------------|
-| Google Gemini | `gemini-3.1-flash-lite-preview` (default), `gemini-3.1-pro-preview` | [Google AI Studio](https://aistudio.google.com) — free tier available |
-| Anthropic Claude | `claude-sonnet-4-6`, `claude-haiku-4-5`, `claude-opus-4-6` | [Anthropic Console](https://console.anthropic.com) |
-| OpenAI Codex | `codex` | [OpenAI Platform](https://platform.openai.com) |
-
-Use the onboarding wizard (launches on first run) or the **AI Settings** panel to configure your provider.
-
----
 
 ## Tech Stack
 
 | Layer | Technology |
-|-------|-----------|
-| UI Framework | React 19 + TypeScript |
-| Desktop | Electron (with `safeStorage`, IPC bridge, preload isolation) |
-| Build | Vite + `vite-plugin-electron` |
-| Styling | Tailwind CSS + custom design token system |
-| Animation | Motion (`framer-motion` successor) |
-| Virtualization | `@tanstack/react-virtual` |
-| Storage | IndexedDB (large files), `localStorage` (settings/history) |
-| Testing | Vitest + React Testing Library |
-| AI Providers | `@google/generative-ai`, `@anthropic-ai/sdk`, OpenAI API |
+|---|---|
+| **UI Framework** | React 19 + TypeScript + Vite |
+| **Desktop Environment** | Electron (with safeStorage, IPC bridge) |
+| **Styling** | TailwindCSS + custom tokens |
+| **Animations** | Motion (formerly Framer Motion), anime.js v4 |
+| **Performance** | `@tanstack/react-virtual`, IndexedDB |
+| **Testing** | Vitest + React Testing Library |
 
----
+## AI Setup
 
-## Development
+NocLense integrates exclusively with **Unleashed AI**, acting as a secure abstraction layer pre-configured with the organization's Zendesk, Slack, and Confluence knowledge base.
+
+To configure the AI:
+1. Obtain an Unleashed AI token from your administrator.
+2. Provide the token via the `VITE_UNLEASH_TOKEN` environment variable.
+
+*Note: Multi-provider integrations (Gemini/Claude/OpenAI) have been deprecated in favor of the unified Unleashed AI pipeline.*
+
+## Environment Variables
+
+Create a `.env` file in the project root:
+
+| Variable | Description |
+|---|---|
+| `VITE_UNLEASH_TOKEN` | Unleashed AI bearer token (Required) |
+| `VITE_UNLEASH_ASSISTANT_ID` | Unleashed AI assistant identifier |
+| `VITE_UNLEASH_USER_EMAIL` | User email for Unleashed AI session tracking |
+| `VITE_ZENDESK_SUBDOMAIN` | Zendesk subdomain (e.g., carbyne) |
+| `VITE_ZENDESK_EMAIL` | Zendesk agent email |
+| `VITE_ZENDESK_TOKEN` | Zendesk API token |
+| `VITE_DATADOG_API_KEY` | Datadog API key for live enrichment |
+| `VITE_DATADOG_APP_KEY` | Datadog App Key (requires `logs_read_data` scope) |
+| `VITE_DATADOG_SITE` | Datadog site (e.g., `datadoghq.eu`) |
+| `VITE_JIRA_SUBDOMAIN` | Atlassian site for Jira/Confluence |
+| `VITE_JIRA_EMAIL` | Atlassian email |
+| `VITE_JIRA_TOKEN` | Atlassian API token |
+| `VITE_JIRA_PROJECT_KEY` | Jira project key for issue creation |
+| `VITE_CONFLUENCE_SPACE_ID` | Confluence space ID for investigation memory |
+| `VITE_CONFLUENCE_PARENT_PAGE_ID` | Parent page ID for saving investigations |
+
+## Development Commands
 
 ```bash
-npm run test             # Vitest watch mode
-npm run test:run         # Single CI run
-npm run test:coverage    # Coverage report
-npm run lint             # ESLint
+npm run test          # Run Vitest in watch mode
+npm run test:run      # Single CI test run
+npm run test:coverage # Coverage report
+npm run lint          # Run ESLint
+npm run build         # TypeScript type check & build
 ```
 
-See [`CLAUDE.md`](./CLAUDE.md) for architecture notes, coding conventions, and key file references.
-See [`docs/releases/CHANGELOG.md`](./docs/releases/CHANGELOG.md) for full version history.
+## Project Structure
+
+```
+NocLense/
+├── electron/         # Electron main process & preload scripts
+├── public/           # Static assets
+├── src/              
+│   ├── components/   # UI components (workspace, ai, filter)
+│   ├── contexts/     # Global state (LogContext, AIContext)
+│   ├── services/     # Integrations (Unleashed, Zendesk, Datadog)
+│   └── utils/        # Parsers, token estimators, animation hooks
+├── docs/             # Documentation & plans
+└── vite.config.ts    # Vite & proxy configuration
+```
+
+## Documentation
+
+- **[Architecture & Conventions](CLAUDE.md)**: Deep dive into the codebase and core concepts.
+- **[Developer Handoff](docs/DEVELOPER_HANDOFF.md)**: Onboarding guide for contributors and AI agents.
+- **[Usage Guide](docs/USAGE_GUIDE.md)**: Task-oriented guide for NOC engineers using the app.
