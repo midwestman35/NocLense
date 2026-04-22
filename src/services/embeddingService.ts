@@ -19,6 +19,7 @@
 
 import { GoogleGenerativeAI, type GenerativeModel } from '@google/generative-ai';
 import type { LogEntry } from '../types';
+import type { Case } from '../types/case';
 import { dbManager } from '../utils/indexedDB';
 
 type EmbeddingTaskType = 'RETRIEVAL_QUERY' | 'RETRIEVAL_DOCUMENT';
@@ -27,14 +28,15 @@ export class EmbeddingService {
   private client: GoogleGenerativeAI | null = null;
   private model: GenerativeModel | null = null;
   private static readonly MAX_BATCH_SIZE = 100;
+  private static readonly MAX_CASE_EMBEDDING_TEXT_LENGTH = 2048;
 
   /**
    * Initialize embedding service with API key.
    *
    * @param apiKey - Gemini API key
-   * @param modelId - Embedding model id (default: text-embedding-004)
+   * @param modelId - Embedding model id (default: gemini-text-embedding-004)
    */
-  public initialize(apiKey: string, modelId: string = 'text-embedding-004'): void {
+  public initialize(apiKey: string, modelId: string = 'gemini-text-embedding-004'): void {
     if (!apiKey || apiKey.trim().length === 0) {
       throw new Error('API key is required to initialize EmbeddingService');
     }
@@ -46,12 +48,21 @@ export class EmbeddingService {
   }
 
   /**
+   * Report whether the embedder is ready to serve requests.
+   *
+   * @returns True when the Gemini embedding model has been initialized
+   */
+  public isInitialized(): boolean {
+    return this.model !== null;
+  }
+
+  /**
    * Validate embedding model compatibility.
    *
    * Why: text generation models do not expose embedding APIs consistently.
    */
   private isEmbeddingModelCompatible(modelId: string): boolean {
-    return modelId.startsWith('text-embedding-');
+    return modelId.startsWith('text-embedding-') || modelId.startsWith('gemini-text-embedding-');
   }
 
   /**
@@ -62,6 +73,17 @@ export class EmbeddingService {
   private buildEmbeddingText(log: LogEntry): string {
     const callId = log.callId ? ` [callId:${log.callId}]` : '';
     return `${log.level} ${log.component} ${log.message}${callId}`;
+  }
+
+  /**
+   * Build a compact representation for case-library embeddings.
+   *
+   * @param caseItem - Case record to flatten into embedding text
+   * @returns Joined title, summary, and impact text capped at 2048 chars
+   */
+  public buildCaseEmbeddingText(caseItem: Case): string {
+    const text = [caseItem.title, caseItem.summary, caseItem.impact].join('\n');
+    return text.slice(0, EmbeddingService.MAX_CASE_EMBEDDING_TEXT_LENGTH);
   }
 
   /**
@@ -227,6 +249,16 @@ export class EmbeddingService {
   }
 
   /**
+   * Embed arbitrary document text for retrieval.
+   *
+   * @param text - Retrieval document text
+   * @returns Embedding vector or null when embedding fails
+   */
+  public async embedDocument(text: string): Promise<number[] | null> {
+    return this.embedText(text, 'RETRIEVAL_DOCUMENT');
+  }
+
+  /**
    * Cosine similarity between vectors.
    */
   public cosineSimilarity(a: number[], b: number[]): number {
@@ -340,4 +372,6 @@ export class EmbeddingService {
     }
   }
 }
+
+export const embeddingService = new EmbeddingService();
 
