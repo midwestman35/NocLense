@@ -88,7 +88,6 @@ describe('useCorrelationGraph', () => {
 
     expect(edge).toMatchObject({
       weight: 1,
-      logIds: [1],
       isClusterEdge: false,
     });
   });
@@ -169,5 +168,23 @@ describe('useCorrelationGraph', () => {
     expect(result.current.nodes.some((node) => node.id === 'cluster:report')).toBe(true);
     expect(result.current.edges).toHaveLength(largeGraphLogs.length);
     expect(result.current.edges.every((edge) => edge.target === 'cluster:report' || edge.source === 'cluster:report')).toBe(true);
+  });
+
+  it('renders the full graph when expandAllClusters is enabled', () => {
+    const largeGraphLogs = Array.from({ length: (GRAPH_CLUSTER_THRESHOLD / 2) + 50 }, (_, index) => (
+      createLogEntry(index + 1, {
+        callId: `call-${index}`,
+        reportId: `report-${index}`,
+      })
+    ));
+
+    vi.mocked(useLogContext).mockReturnValue(buildContext(largeGraphLogs));
+
+    const { result } = renderHook(() => useCorrelationGraph({ expandAllClusters: true }));
+
+    expect(result.current.isClustered).toBe(false);
+    expect(result.current.nodes).toHaveLength(largeGraphLogs.length * 2);
+    expect(result.current.edges).toHaveLength(largeGraphLogs.length);
+    expect(result.current.nodes.some((node) => node.isCluster)).toBe(false);
   });
 });

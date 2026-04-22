@@ -36,7 +36,6 @@ interface BaseGraphEdge {
   source: string;
   target: string;
   weight: number;
-  logIds: number[];
   correlationTypes: [GraphCorrelationType, GraphCorrelationType];
 }
 
@@ -71,8 +70,12 @@ interface NodeAccumulator extends GraphValueSeed {
 interface EdgeAccumulator {
   source: string;
   target: string;
-  logIds: Set<number>;
+  weight: number;
   correlationTypes: [GraphCorrelationType, GraphCorrelationType];
+}
+
+interface UseCorrelationGraphOptions {
+  expandAllClusters?: boolean;
 }
 
 const GRAPH_VALUE_EXTRACTORS: Record<GraphCorrelationType, (log: LogEntry) => string | undefined> = {
@@ -199,7 +202,7 @@ function buildBaseGraph(filteredLogs: readonly LogEntry[]): BaseGraphData {
         const existingEdge = edgeMap.get(edgeId);
 
         if (existingEdge) {
-          existingEdge.logIds.add(log.id);
+          existingEdge.weight += 1;
         } else {
           const orderedTypes: [GraphCorrelationType, GraphCorrelationType] = leftId === source.id
             ? [source.type, target.type]
@@ -208,7 +211,7 @@ function buildBaseGraph(filteredLogs: readonly LogEntry[]): BaseGraphData {
           edgeMap.set(edgeId, {
             source: leftId,
             target: rightId,
-            logIds: new Set<number>([log.id]),
+            weight: 1,
             correlationTypes: orderedTypes,
           });
         }
@@ -249,8 +252,7 @@ function buildBaseGraph(filteredLogs: readonly LogEntry[]): BaseGraphData {
       id: `${edge.source}__${edge.target}`,
       source: edge.source,
       target: edge.target,
-      weight: edge.logIds.size,
-      logIds: Array.from(edge.logIds).sort((left, right) => left - right),
+      weight: edge.weight,
       correlationTypes: edge.correlationTypes,
     })),
   );
@@ -378,6 +380,7 @@ function buildRenderedGraph(
   }
 
   const collapsedTypes = GRAPH_CORRELATION_TYPES.filter((type) => nodesByType.has(type) && !expandedClusterSet.has(type));
+  const hasCollapsedClusters = collapsedTypes.length > 0;
   const maxMemberCount = Math.max(
     0,
     ...collapsedTypes.map((type) => nodesByType.get(type)?.length ?? 0),
@@ -426,9 +429,7 @@ function buildRenderedGraph(
     const existingEdge = renderedEdges.get(renderedEdgeId);
 
     if (existingEdge) {
-      const mergedLogIds = new Set([...existingEdge.logIds, ...edge.logIds]);
-      existingEdge.logIds = Array.from(mergedLogIds).sort((left, right) => left - right);
-      existingEdge.weight = existingEdge.logIds.length;
+      existingEdge.weight += edge.weight;
       continue;
     }
 
@@ -436,8 +437,7 @@ function buildRenderedGraph(
       id: renderedEdgeId,
       source,
       target,
-      weight: edge.logIds.length,
-      logIds: [...edge.logIds],
+      weight: edge.weight,
       correlationTypes: edge.correlationTypes,
       isClusterEdge: source.startsWith('cluster:') || target.startsWith('cluster:'),
     });
@@ -453,19 +453,23 @@ function buildRenderedGraph(
     totalEdgeCount: baseGraph.totalEdgeCount,
     renderedNodeCount: nodes.length,
     renderedEdgeCount: edges.length,
-    isClustered: true,
+    isClustered: hasCollapsedClusters,
   };
 }
 
-export function useCorrelationGraph(): CorrelationGraphResult {
+export function useCorrelationGraph(options: UseCorrelationGraphOptions = {}): CorrelationGraphResult {
   const { filteredLogs, activeCorrelations } = useLogContext();
   const [expandedClusters, setExpandedClusters] = useState<GraphCorrelationType[]>([]);
+  const effectiveExpandedClusters = useMemo(
+    () => (options.expandAllClusters ? [...GRAPH_CORRELATION_TYPES] : expandedClusters),
+    [expandedClusters, options.expandAllClusters],
+  );
 
   const baseGraph = useMemo(() => buildBaseGraph(filteredLogs), [filteredLogs]);
   const activeState = useMemo(() => buildActiveNodeState(activeCorrelations), [activeCorrelations]);
   const renderedGraph = useMemo(
-    () => buildRenderedGraph(baseGraph, activeState, expandedClusters),
-    [activeState, baseGraph, expandedClusters],
+    () => buildRenderedGraph(baseGraph, activeState, effectiveExpandedClusters),
+    [activeState, baseGraph, effectiveExpandedClusters],
   );
 
   const toggleCluster = useCallback((type: GraphCorrelationType) => {

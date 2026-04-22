@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@antv/g6": "^5.1.0",
+    "@antv/g-webgl": "^2.0.52",
     "@fontsource/dm-sans": "^5.2.8",
     "@fontsource/jetbrains-mono": "^5.2.8",
     "@google/generative-ai": "^0.24.1",

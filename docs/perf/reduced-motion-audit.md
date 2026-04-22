@@ -137,6 +137,12 @@ Phase 06A C1/C2 retired every inline `animation: 'spin ...'` style and every raw
 | Sheet transition curve | `src/components/ui/Sheet.tsx` | App-level `<MotionConfig reducedMotion="user">` handles reduced motion; Slice 4 greps/tests verify the emphasized tuple | ✅ |
 | Tooltip transition curve | `src/components/ui/Tooltip.tsx` | App-level `<MotionConfig reducedMotion="user">` handles reduced motion; Slice 4 greps/tests verify the spring tuple | ✅ |
 
+| Correlation Graph keyboard focus ring | `src/components/correlation-graph/CorrelationGraph.tsx` | Static outline and node glow only; no motion, no guard needed. Phase 06B Commit 4 introduced no new animated surfaces. | âœ… |
+
+| Correlation Graph zoom controls | `src/components/correlation-graph/CorrelationGraph.tsx` | `graph.zoomTo()` and `graph.fitView()` use `{ duration: 180, easing: 'ease-out' }` only when motion is allowed; reduced motion and large-graph mode pass `false` for instant viewport updates. | âœ… |
+| Correlation Graph layout reset | `src/components/correlation-graph/CorrelationGraph.tsx` | Reset reuses the force-layout config; `animation: false` is applied when reduced motion or large-graph mode is active before `graph.layout()` reruns. | âœ… |
+| Correlation Graph large-graph overlay | `src/components/correlation-graph/CorrelationGraph.tsx` | Static dialog mount only; no motion, no guard needed. | âœ… |
+
 ### 2.8 - Phase 05 additions carried forward
 
 | Surface | File | Reduced-motion handling | Status |

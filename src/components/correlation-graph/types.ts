@@ -1,4 +1,6 @@
 export const GRAPH_CLUSTER_THRESHOLD = 500;
+export const LARGE_GRAPH_THRESHOLD = 1000;
+export const WEBGL_RENDERER_THRESHOLD = 200;
 
 export const GRAPH_CORRELATION_TYPES = [
   'callId',
@@ -85,7 +87,6 @@ export interface GraphEdge {
   source: string;
   target: string;
   weight: number;
-  logIds: number[];
   correlationTypes: [GraphCorrelationType, GraphCorrelationType];
   isClusterEdge: boolean;
 }
