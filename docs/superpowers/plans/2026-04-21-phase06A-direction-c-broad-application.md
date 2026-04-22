@@ -15,10 +15,19 @@
 YELLOW Spinner mapping.
 **v3 → v4 (third Codex adversarial review):** NO-GO on 4 items.
 **v4 → v5 (fourth Codex adversarial review):** NO-GO on 4 items.
-**v5 → v6 (fifth Codex adversarial review):** NO-GO on 2 items. v6
-table is authoritative for current state; v5/v4/v3/v2 are historical.
+**v5 → v6 (fifth Codex adversarial review):** NO-GO on 2 items.
+**v6 → v7 (sixth Codex adversarial review):** NO-GO on 1 RED + 1
+YELLOW (both with required fixes). v7 table is authoritative for
+current state; v6/v5/v4/v3/v2 are historical.
 
-**v6 resolutions (2026-04-22, current):**
+**v7 resolutions (2026-04-22, current):**
+
+| # | v6 blocker | v7 resolution |
+|---|---|---|
+| α | C9 approved-sites spot-check used `git grep -lE` (file-list mode), which reports each file once regardless of match count. InvestigationSetupModal.tsx could drop from 3 numeric Spinner sites to 1 and still pass. | Switched to `git grep -cE` (count mode) with per-file expected counts: InvestigationSetupModal.tsx=3, DiagnosePhase2.tsx=1, DiagnosePhase3.tsx=1, AIButton.tsx=1. A count mismatch (accidental over-sweep or new unapproved site in an excluded file) forces a conscious plan update. |
+| β | Plan prose claimed pattern catches "numeric variable names" but regex `[^}]*[0-9]` requires a literal digit in source text — `size={spinnerSize}` falls through. | Narrowed prose to "digit-bearing expressions" with explicit caveat that pure-variable references are not catchable by grep — deferred to Spinner tests and code review. Also added `:!src/**/*.test.ts` to pathspec exclusions (Probe 1 caveat: `.test.ts` files were uncovered alongside `.test.tsx`). |
+
+**v6 resolutions (2026-04-22, historical — superseded by v7 table above):**
 
 | # | v5 blocker | v6 resolution |
 |---|---|---|
@@ -996,8 +1005,10 @@ git grep -n "sr-only" src/components/ui/Spinner.tsx
 # NUMERIC SIZE RULE ENFORCEMENT — strategy: prove zero violations exist
 # outside the six approved sites rather than counting exact matches
 # (count is fragile to test fixtures). Pattern `<Spinner[^>]*size=\{[^}]*[0-9]`
-# catches any digit inside size={...}: bare literals (size={11}),
-# ternaries (size={cond ? 14 : 16}), numeric variable names. Applies
+# catches any digit inside size={...}: bare literals (size={11}) and
+# ternaries (size={cond ? 14 : 16}). Does NOT catch pure-variable
+# references (size={spinnerSize}) where no digit appears in source
+# text — those fall through to Spinner tests and code review. Applies
 # to single-line Spinner JSX; multi-line formatted elements would
 # require a multi-line grep strategy, but the codebase convention is
 # single-line for inline primitives.
@@ -1008,19 +1019,29 @@ git grep -nE '<Spinner[^>]*size=\{[^}]*[0-9]' \
      ':!src/components/AIButton.tsx' \
      ':!src/**/__tests__/**' \
      ':!src/**/*.test.tsx' \
+     ':!src/**/*.test.ts' \
   src/
 # expect: 0 matches — any output is a migration bug outside approved sites
 
-# Approved sites still carry their numeric Spinners (spot-check)
-git grep -lE '<Spinner[^>]*size=\{[^}]*[0-9]' \
-  src/components/InvestigationSetupModal.tsx \
-  src/components/ai/diagnose/DiagnosePhase2.tsx \
-  src/components/ai/diagnose/DiagnosePhase3.tsx \
+# Approved sites retain correct cardinality (per-file match counts).
+# A count mismatch (too low = accidental over-sweep; too high = new
+# unapproved site in an excluded file) forces a conscious plan update.
+git grep -cE '<Spinner[^>]*size=\{[^}]*[0-9]' \
+  src/components/InvestigationSetupModal.tsx
+# expect: 3 (Discover Stations 11px, Station details 11px, Start
+#            Investigation 13px — semantic anchors per numeric size table)
+
+git grep -cE '<Spinner[^>]*size=\{[^}]*[0-9]' \
+  src/components/ai/diagnose/DiagnosePhase2.tsx
+# expect: 1 (Refine send button 13px)
+
+git grep -cE '<Spinner[^>]*size=\{[^}]*[0-9]' \
+  src/components/ai/diagnose/DiagnosePhase3.tsx
+# expect: 1 (Retry Attachment Upload button 11px)
+
+git grep -cE '<Spinner[^>]*size=\{[^}]*[0-9]' \
   src/components/AIButton.tsx
-# expect: all 4 filenames listed — if a file disappears, its numeric-size
-# sites were over-swept and need revert. (-lE reports each file once
-# regardless of match count; individual site counts are verified by
-# Spinner tests and manual smoke.)
+# expect: 1 (variant-driven ternary)
 ```
 
 Grep proves source-state shape. Behavioral proof (label text, size

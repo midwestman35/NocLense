@@ -1,8 +1,8 @@
 # Superpowers Handoff — Current In-Flight Work
 
-**Last updated:** 2026-04-22 (v6 plan drafted, awaiting Codex round 6 review)
+**Last updated:** 2026-04-22 (v7 plan drafted, awaiting Codex round 7 review)
 **Branch:** `april-redesign`
-**Current HEAD:** `781553e` — `docs(phase-06a): draft v6 plan`
+**Current HEAD:** `b0d0ef2` — `docs(phase-06a): draft v7 plan`
 
 > Single source of truth for resuming the current planning/review cycle in
 > a fresh Claude session on any device. Read this first, then act on the
@@ -41,10 +41,10 @@ yourself.
 
 ---
 
-## Plan status — 5 Codex review rounds survived
+## Plan status — 6 Codex review rounds survived
 
-The plan iterated v1 → v6 through five adversarial reviews. Current status:
-**v6 drafted, awaiting Codex round 6 verdict.** The full revision-log table
+The plan iterated v1 → v7 through six adversarial reviews. Current status:
+**v7 drafted, awaiting Codex round 7 verdict.** The full revision-log table
 inside the plan file is authoritative; what follows is the short version.
 
 | Round | Blockers | Key v-next fix |
@@ -54,6 +54,7 @@ inside the plan file is authoritative; what follows is the short version.
 | v3 → v4 | C9 greps too narrow; Spinner rounding too permissive; C4 miss on nested wrapper; miscount | 5 off-scale sites → numeric `size={N}`; grep-enforced numeric rule; `toHaveBeenCalledTimes(1)` |
 | v4 → v5 | `toHaveBeenCalledTimes(1)` brittle to rerenders; numeric rule still policy-only; single-line MotionConfig grep; framing over-claimed | DOM-marker pass-through; grep enforces numeric rule; format-tolerant MotionConfig check; "source-state only" framing |
 | v5 → v6 | Numeric Spinner grep: brittle count + missed non-literal expressions + test files in scope; `test -f` bash-only | Zero-violations grep with pathspec exclusions; `git ls-files --error-unmatch` |
+| v6 → v7 | Approved-sites spot-check too weak (`-lE` file-list); prose over-claimed "numeric variable" coverage; `.test.ts` uncovered | Per-file `git grep -cE` counts (3/1/1/1); prose narrowed to "digit-bearing expressions"; `.test.ts` pathspec added |
 
 ---
 
@@ -77,7 +78,7 @@ inside the plan file is authoritative; what follows is the short version.
 
 ---
 
-## Immediate next step — run Codex round 6
+## Immediate next step — run Codex round 7
 
 Paste the following into the user's Codex CLI and ask them to return the
 verbatim response:
@@ -87,46 +88,41 @@ You are doing an adversarial review of a NocLense phase plan.
 
 Target: docs/superpowers/plans/2026-04-21-phase06A-direction-c-broad-application.md
 
-Context: this is v6. v5 NO-GO raised 2 items:
-(α) C9 numeric Spinner grep didn't catch digit-bearing expressions
-    outside bare literals (e.g. size={loading ? 14 : 16} elsewhere);
-    also scanned test files, making the "exactly 5" count fragile.
-(β) C9 Slice 3 existence check used `test -f` — bash-only, fails in
-    the PowerShell workspace.
+Context: this is v7. v6 NO-GO raised 2 items:
+(α) Approved-sites spot-check used git grep -lE (file-list mode) —
+    reports each file once regardless of match count.
+    InvestigationSetupModal.tsx could drop from 3 to 1 numeric
+    Spinner site and still pass.
+(β) Prose claimed pattern catches "numeric variable names" but
+    regex [^}]*[0-9] requires a literal digit in source text.
+    Also .test.ts (non-JSX) was uncovered by pathspec exclusions.
 
-v6 changes:
-- α: Strategy flipped to zero-violations. Pattern widened to
-  `<Spinner[^>]*size=\{[^}]*[0-9]` (any digit in size={...}).
-  Approved source files + test files/dirs excluded via pathspec magic
-  (:! prefix). Expect 0 matches outside approved sites. Separate
-  approved-sites spot-check: `git grep -lE` on 4 files, expect all 4
-  listed.
-- β: `test -f` replaced with `git ls-files --error-unmatch`. Git
-  handles path resolution cross-platform; also proves the file is
-  tracked, not just present on disk.
-- Probe 3 YELLOW (v5): §2.7 audit attribution for Dialog/DropdownMenu/
-  Sheet/Tooltip corrected from "covered by MotionConfig" to "covered
-  by Slice 4 greps/tests".
-- Probe 1 GREEN note (v5): C4 rationale softened to acknowledge the
-  test does not distinguish App-level wrapper from a lone child-level
-  one.
+v7 changes:
+- α: Spot-check switched to `git grep -cE` (count mode) with per-file
+  expected counts: InvestigationSetupModal.tsx=3, DiagnosePhase2.tsx=1,
+  DiagnosePhase3.tsx=1, AIButton.tsx=1. A count mismatch (too low =
+  over-sweep; too high = new unapproved site in excluded file) forces
+  a conscious plan update.
+- β: Prose narrowed from "numeric variable names" to "digit-bearing
+  expressions" with explicit caveat that pure-variable references
+  (size={spinnerSize}) are not catchable by grep — deferred to
+  Spinner tests and code review. Added `:!src/**/*.test.ts` to
+  pathspec exclusions alongside existing .test.tsx.
 
 Probe adversarially:
-1. Pathspec exclusions: does `:!src/**/__tests__/**` exclude files
-   inside nested `__tests__/` dirs (e.g.
-   `src/components/__tests__/Spinner.test.tsx`)? Does
-   `:!src/**/*.test.tsx` also cover co-located tests like
-   `src/components/Spinner.test.tsx`? Any cross-platform concern when
-   git is invoked from PowerShell — does `**` in pathspec magic work
-   without shell glob expansion?
-2. Approved-sites spot-check: `git grep -lE` reports a file once
-   regardless of match count. InvestigationSetupModal.tsx should have
-   3 numeric Spinner sites — does `-lE` catch the case where 2 of the
-   3 are accidentally removed but 1 remains?
-3. `git ls-files --error-unmatch`: any scenario where the command
-   exits non-zero even though the file is present and correct — e.g.,
-   untracked new file not yet staged, or a .gitignore match?
-4. Any new regression introduced by the v6 changes?
+1. Per-file counts: if a legitimate refactor adds a 4th numeric
+   Spinner to InvestigationSetupModal.tsx, the count check breaks
+   (expected 3, got 4). The zero-violations grep ALSO excludes that
+   file, so it won't flag the new site either. Is the only recovery
+   path a plan update + count bump? Is that acceptable or too rigid?
+2. Pure-variable gap: the plan now acknowledges size={spinnerSize}
+   falls through grep. Is there any realistic scenario in Phase 06A
+   where a developer introduces a pure-variable numeric Spinner that
+   bypasses both the grep AND the Spinner test suite?
+3. Pathspec completeness: the plan now excludes __tests__/, *.test.tsx,
+   *.test.ts. Does the codebase use *.spec.tsx or *.spec.ts anywhere?
+   If so, those patterns need adding.
+4. Any new regression introduced by the v7 changes?
 
 Output per-probe status + findings, then Verdict: GO or NO-GO with
 required-fix bullets (NO-GO) or remaining YELLOWs (GO). Be concise.
