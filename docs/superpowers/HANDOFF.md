@@ -1,8 +1,8 @@
 # Superpowers Handoff — Current In-Flight Work
 
-**Last updated:** 2026-04-22 (Phase 06B closed; Phase 06C plan drafted, awaiting single probe)
+**Last updated:** 2026-04-22 (Phase 06B closed; Phase 06C plan v2 ready to dispatch)
 **Branch:** `april-redesign`
-**Current HEAD:** `143169d` — `chore: folder cleanup — archive stale docs, fix broken refs, track historical plans`
+**Current HEAD:** `ffe71b4` — `docs(phase-06c): v2 amendments — fix seams, add lifecycle persistence, freeze embedding provider`
 
 > Single source of truth for resuming the current planning/review cycle in
 > a fresh Claude session on any device. Read this first, then act on the
@@ -52,99 +52,56 @@ folder-cleanup commit.
 
 ---
 
-## Current state — Phase 06C (Case Library)
+## Current state — Phase 06C (Case Library) — v2, ready to dispatch
 
-**Status:** Plan drafted. Awaiting single adversarial probe per new
-lightweight review policy.
+**Status:** Plan drafted + amended after round-1 Codex probe.
+Ready to dispatch Slice 1.
 
 **Plan file:** `docs/superpowers/plans/2026-04-22-phase06C-case-library.md`
 
 **Scope (v1, local-only):**
-- Persist investigations as retrievable `Case` records in IndexedDB
-- Compute embedding per case from `summary + impact + title`
+- Persist investigations as retrievable `Case` records in IndexedDB,
+  wired through the `caseContext` reducer so every created/updated/
+  resolved case persists (not only imported `.noclense` packs)
+- Compute embedding per case from `title + summary + impact` via
+  Gemini `text-embedding-004` (frozen for v1)
 - Retrieve top-K similar past cases by cosine similarity
-- Surface in new `SimilarCasesCard` in Investigate Room
-- Auto-index on `.noclense` import
+- Surface in the existing Investigate Room "Similar" card (expanded
+  with a "Past cases" section; NO new grid slot)
+- Auto-index on `.noclense` import via `noclenseImporter.ts`
 
 **Structure (3 slices):**
 
 | Slice | Scope | Primary agent |
 |---|---|---|
-| 1 | CaseRepository over IndexedDB (new object store, schema migration, CRUD) | `data-engineer` |
-| 2 | CaseLibraryService (embedding indexing + cosine similarity retrieval with filters) | `ai-engineer` |
-| 3 | SimilarCasesCard UI + import-side auto-indexing + a11y | `react-specialist` (+ `accessibility-tester` secondary) |
+| 1 | CaseRepository + IndexedDB object store + blocked/init-retry resilience + reducer wiring in `caseContext.tsx` for lifecycle persistence | `data-engineer` |
+| 2 | CaseLibraryService (embedding indexing + cosine similarity retrieval with filters); Gemini-only provider | `ai-engineer` |
+| 3 | SimilarCasesSection inside existing Similar card + noclense auto-indexing + a11y | `react-specialist` (+ `accessibility-tester` secondary) |
 
-**Key open decision (to resolve during probe):** embedding provider.
-Existing `embeddingService.ts` uses Gemini (`text-embedding-004`);
-Unleashed-only policy creates tension. Default: keep Gemini. Flip
-to Unleashed if user confirms Unleashed has an embedding endpoint.
-
----
-
-## Immediate next step — run the Phase 06C probe
-
-Paste the following into Codex CLI. Single round per new policy — if
-the verdict is NO-GO, we do ONE amendment cycle; if still NO-GO,
-escalate to the user for a scope decision rather than iterating.
-
-```
-You are doing an adversarial review of a NocLense phase plan.
-
-Target: docs/superpowers/plans/2026-04-22-phase06C-case-library.md
-
-This is the ONLY review round for this plan. Flag only real issues;
-YELLOWs that would take another round to resolve should be documented
-as known-limitations in the revision log rather than blocking.
-
-Probe adversarially:
-1. EMBEDDING_PROVIDER decision: is "default to Gemini, flip on
-   confirmation" the right call? Any third option I'm missing?
-   Any hidden risk in shipping with two AI providers in the renderer
-   (Unleashed for everything else, Gemini for embeddings)?
-2. Slice 1 IndexedDB schema: does adding a new object store and
-   bumping the DB version have a meaningful migration risk for
-   existing user databases? Is there a way this breaks on v1→v2
-   upgrade that I haven't accounted for?
-3. Slice 2 idempotency: `indexCase` skips when embeddingVersion
-   matches CURRENT_VERSION — does this correctly handle the case
-   where embedding was set but version was never written (old data
-   pre-dating this phase)?
-4. Slice 3 component mounting: adding SimilarCasesCard to
-   NewWorkspaceLayout — will that overflow the Investigate Room CSS
-   grid? (The grid already carries 6 WorkspaceCards; this makes 7.)
-5. Similar-case discovery semantics: cosine similarity on
-   summary+impact+title may be dominated by common phrasing (e.g.
-   "ticket for customer X") and miss the real signal (which logs /
-   correlations were involved). Is this acceptable for v1, or
-   should v1 include correlation-type overlap in the scoring?
-6. Any proof hole, regression, or over-claimed framing introduced by
-   this plan?
-
-Output per-probe status + findings, then Verdict: GO or NO-GO with
-required-fix bullets (NO-GO) or remaining YELLOWs (GO). Be concise.
-No preamble.
-```
+**Round-1 probe fixes applied (v1 → v2):**
+- Slice 3 grid overflow resolved by extending existing card, not adding a 7th slot
+- Integration seams corrected: `useCase()` / `src/store/caseContext.tsx` / `noclenseImporter.ts` (not `useCaseContext` / `CaseContext.tsx` / `importService.ts`)
+- Normal-case lifecycle persistence added to Slice 1 scope (plan previously only covered import-side)
+- Embedding provider frozen as Gemini-only for v1; Unleashed migration explicitly out of scope
+- Framing tightened to "semantically similar summary/impact text" (no longer overpromising correlation-pattern matching)
+- IndexedDB blocked-upgrade + init-retry resilience folded into Slice 1
 
 ---
 
-## Decision tree after probe returns
+## Immediate next step — dispatch Slice 1 to Codex
 
-### If GO
+Plan v2 is amended and ready. Claude drafts the Slice 1 dispatch
+prompt (primary agent `data-engineer`) following the agent-
+assignment convention; user runs in Codex CLI; returns the
+self-assessment when done.
 
-Draft the Slice 1 dispatch prompt (primary agent: `data-engineer`)
-following the convention in
-`docs/superpowers/feedback_codex_agent_assignments.md`. Dispatch to
-Codex, wait for Slice 1 self-assessment, greenlight, then Slice 2,
-then Slice 3.
+If the user prefers an optional verification-only probe on the v2
+amendments before dispatch, request one explicitly — otherwise
+direct dispatch is the default.
 
-### If NO-GO
-
-1. Address required fixes in the plan file directly.
-2. Bump revision log with v1 → v2 resolution table.
-3. Re-dispatch the probe ONCE more with v2 context.
-4. If v2 still NO-GO → escalate to user for a scope decision
-   (drop the contentious concern, accept the YELLOW, or ship as-is).
-   Do NOT iterate to v3.
+**Dispatch order:** Slice 1 → Slice 2 → Slice 3, serial. Slices 1+2
+could run parallel with Slice 2 stubbing against Slice 1's types,
+but serial is simpler and keeps reviews focused.
 
 ---
 
