@@ -14,7 +14,7 @@
  */
 import { useState, useRef, useEffect, useMemo } from 'react';
 import {
-  Bookmark, ChevronRight, ChevronLeft, Loader2, Send, CheckCircle,
+  Bookmark, ChevronRight, ChevronLeft, Send, CheckCircle,
   Star, Search, Plus, Sparkles, AlertTriangle, Info,
 } from 'lucide-react';
 import clsx from 'clsx';
@@ -23,6 +23,7 @@ import type { BookmarkTag } from '../../../types/case';
 import type { AiSettings } from '../../../store/aiSettings';
 import type { LogEntry } from '../../../types';
 import { useLogContext } from '../../../contexts/LogContext';
+import Spinner from '../../ui/Spinner';
 import ResizableSplit from './ResizableSplit';
 import SimilarTicketsPanel from './SimilarTicketsPanel';
 
@@ -398,7 +399,7 @@ export default function DiagnosePhase2({
         </span>
         {refining && (
           <span className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
-            <Loader2 size={10} className="animate-spin" /> AI updating…
+            <Spinner size="xs" label="Updating" /> AI updating…
           </span>
         )}
       </div>
@@ -445,7 +446,7 @@ export default function DiagnosePhase2({
             className="flex items-center justify-center rounded px-2 py-1.5 transition-colors disabled:opacity-40"
             style={{ backgroundColor: 'var(--success)', color: '#fff' }}
           >
-            {refining ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+            {refining ? <Spinner size={13} label="Refining" /> : <Send size={13} />}
           </button>
         </div>
       </div>

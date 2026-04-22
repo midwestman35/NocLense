@@ -11,6 +11,12 @@ interface TooltipProps {
   side?: 'top' | 'right';
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
+export const TOOLTIP_TRANSITION = {
+  duration: 0.15,
+  ease: [0.16, 1.11, 0.3, 1] as const, // sync with --ease-spring
+};
+
 const POSITION_CLASSES = {
   top: 'bottom-full left-1/2 -translate-x-1/2 mb-2',
   right: 'left-full top-1/2 -translate-y-1/2 ml-2',
@@ -53,7 +59,7 @@ export function Tooltip({ content, children, delay = 200, className, side = 'top
             initial={motionProps.initial}
             animate={motionProps.animate}
             exit={motionProps.exit}
-            transition={{ duration: 0.12 }}
+            transition={TOOLTIP_TRANSITION}
             className={twMerge(
               clsx(
                 'pointer-events-none absolute z-[var(--z-toast)] border border-[var(--border)]',

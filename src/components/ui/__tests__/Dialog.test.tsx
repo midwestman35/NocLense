@@ -1,6 +1,22 @@
+import type { ComponentProps, ReactNode } from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { Dialog } from '../Dialog';
+
+const { motionDivSpy } = vi.hoisted(() => ({
+  motionDivSpy: vi.fn(),
+}));
+
+vi.mock('motion/react', () => ({
+  AnimatePresence: ({ children }: { children?: ReactNode }) => <>{children}</>,
+  motion: {
+    div: ({ children, ...props }: ComponentProps<'div'> & { children?: ReactNode }) => {
+      motionDivSpy(props);
+      return <div {...props}>{children}</div>;
+    },
+  },
+}));
+
+import { Dialog, DIALOG_TRANSITION } from '../Dialog';
 
 describe('Dialog', () => {
   it('renders nothing when closed', () => {
@@ -35,5 +51,20 @@ describe('Dialog', () => {
       </Dialog>
     );
     expect(screen.getByText('Save')).toBeTruthy();
+  });
+
+  it('exports the Direction C emphasized transition', () => {
+    expect(DIALOG_TRANSITION).toEqual({
+      duration: 0.22,
+      ease: [0.34, 1.56, 0.64, 1],
+    });
+  });
+
+  it('wires the rendered dialog content to the exported transition const', () => {
+    render(<Dialog open={true} onClose={vi.fn()} title="My Dialog">Content here</Dialog>);
+
+    expect(
+      motionDivSpy.mock.calls.some(([props]) => props.role === 'dialog' && props.transition === DIALOG_TRANSITION),
+    ).toBe(true);
   });
 });

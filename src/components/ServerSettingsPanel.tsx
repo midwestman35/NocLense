@@ -6,9 +6,10 @@
  * layout or dialog until a decision is made on the backend approach.
  */
 import { useState, useEffect, useCallback } from 'react';
-import { Server, CheckCircle2, XCircle, Loader2, Unplug, Plug } from 'lucide-react';
+import { Server, CheckCircle2, XCircle, Unplug, Plug } from 'lucide-react';
 import { loadServerConfig, saveServerConfig, checkServerHealth, type ServerConfig } from '../services/serverService';
 import { useLogContext } from '../contexts/LogContext';
+import Spinner from './ui/Spinner';
 
 export default function ServerSettingsPanel() {
   const { setServerMode } = useLogContext();
@@ -69,7 +70,7 @@ export default function ServerSettingsPanel() {
 
   const statusIcon = {
     idle: <Unplug size={14} className="text-[var(--muted-foreground)]" />,
-    checking: <Loader2 size={14} className="animate-spin text-[var(--muted-foreground)]" />,
+    checking: <Spinner size="md" className="text-[var(--muted-foreground)]" label="Checking" />,
     connected: <CheckCircle2 size={14} className="text-emerald-500" />,
     error: <XCircle size={14} className="text-red-500" />,
   }[status];

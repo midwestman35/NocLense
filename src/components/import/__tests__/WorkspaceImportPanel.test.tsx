@@ -49,6 +49,12 @@ vi.mock('../../../services/noclenseImporter', () => ({
   importNoclenseFile: vi.fn(),
 }));
 
+vi.mock('../../../services/importService', () => ({
+  appendLogsToIndexedDB: vi.fn(),
+  importFiles: vi.fn(),
+  importPastedLogs: vi.fn(),
+}));
+
 const mockUseToast = vi.mocked(useToast);
 const mockUseLogContext = vi.mocked(useLogContext);
 const mockUseEvidence = vi.mocked(useEvidence);
@@ -234,12 +240,20 @@ describe('WorkspaceImportPanel .noclense import', () => {
     expect(setInvestigationMock).not.toHaveBeenCalled();
   });
 
-  it('drop zone applies motion-safe hover scale and glow classes', () => {
+  it('drop zone applies Direction C hover-lift classes with motion-safe timing', () => {
     render(<WorkspaceImportPanel />);
 
     const dropZone = screen.getByTestId('import-drop-zone');
+    const classTokens = dropZone.className.split(/\s+/);
 
-    expect(dropZone.className).toMatch(/motion-safe:hover:scale/);
-    expect(dropZone.className).toMatch(/shadow-\[var\(--shadow-glow-ready/);
+    expect(classTokens).toContain('motion-safe:transition-[transform]');
+    expect(classTokens).toContain('motion-safe:duration-[var(--duration-normal)]');
+    expect(classTokens).toContain('motion-safe:ease-[var(--ease-spring)]');
+    expect(classTokens).toContain('motion-safe:hover:-translate-y-[1px]');
+    expect(classTokens).toContain('motion-safe:hover:scale-[1.01]');
+    expect(classTokens).not.toContain('motion-safe:hover:shadow-[var(--shadow-glow-ready,none)]');
+    expect(classTokens).not.toContain('transition-[transform]');
+    expect(classTokens).not.toContain('duration-[var(--duration-normal)]');
+    expect(classTokens).not.toContain('ease-[var(--ease-spring)]');
   });
 });

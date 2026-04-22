@@ -7,6 +7,7 @@
 
 import { useEffect, useRef, useState, type DependencyList, type RefObject } from 'react';
 import type { JSAnimation, Timeline } from 'animejs';
+import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
 
 // Lazy-load anime.js so it stays out of the initial bundle
 let animeModule: typeof import('animejs') | null = null;
@@ -55,6 +56,7 @@ export function useAnimeStagger(
   options?: StaggerOptions
 ) {
   const animRef = useRef<JSAnimation | null>(null);
+  const prefersReducedMotion = usePrefersReducedMotion();
 
   useEffect(() => {
     const el = containerRef.current;
@@ -64,12 +66,23 @@ export function useAnimeStagger(
 
     const opts = { ...STAGGER_DEFAULTS, ...options };
 
+    if (prefersReducedMotion) {
+      animRef.current?.pause();
+      targets.forEach((target) => {
+        const targetElement = target as HTMLElement;
+        targetElement.style.opacity = String(opts.opacity[1]);
+        targetElement.style.transform =
+          `translateY(${opts.translateY[1]}px) scale(${opts.scale[1]})`;
+      });
+      return;
+    }
+
     let cancelled = false;
     loadAnime().then(({ animate, stagger }) => {
       if (cancelled) return;
       // Reset initial state
       targets.forEach((t) => {
-        (t as HTMLElement).style.opacity = '0';
+        (t as HTMLElement).style.opacity = String(opts.opacity[0]);
       });
 
       const props: Record<string, unknown> = {
@@ -90,7 +103,7 @@ export function useAnimeStagger(
       animRef.current?.pause();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps);
+  }, [prefersReducedMotion, ...deps]);
 }
 
 // ── useAnimeTimeline ─────────────────────────────────────────────
@@ -110,9 +123,15 @@ export function useAnimeTimeline(
   deps: DependencyList
 ) {
   const tlRef = useRef<Timeline | null>(null);
+  const prefersReducedMotion = usePrefersReducedMotion();
 
   useEffect(() => {
     if (steps.length === 0) return;
+    if (prefersReducedMotion) {
+      tlRef.current?.pause();
+      tlRef.current = null;
+      return;
+    }
 
     let cancelled = false;
     loadAnime().then(({ createTimeline }) => {
@@ -129,7 +148,7 @@ export function useAnimeTimeline(
       tlRef.current?.pause();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps);
+  }, [prefersReducedMotion, ...deps]);
 
   return {
     play: () => tlRef.current?.play(),
@@ -151,12 +170,21 @@ export function useAnimeValue(
   to: number,
   options?: { duration?: number; easing?: string; delay?: number }
 ): number {
-  const [value, setValue] = useState(from);
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const [value, setValue] = useState(() => (prefersReducedMotion ? to : from));
   const animRef = useRef<JSAnimation | null>(null);
   const objRef = useRef({ val: from });
 
   useEffect(() => {
     if (from === to) {
+      objRef.current.val = to;
+      setValue(to);
+      return;
+    }
+
+    if (prefersReducedMotion) {
+      animRef.current?.pause();
+      objRef.current.val = to;
       setValue(to);
       return;
     }
@@ -182,7 +210,7 @@ export function useAnimeValue(
       animRef.current?.pause();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [from, to]);
+  }, [from, to, prefersReducedMotion]);
 
   return value;
 }

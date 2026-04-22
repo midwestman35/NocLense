@@ -272,7 +272,7 @@
 /* ── Room & Card System ── */
 :root {
   --room-transition-duration: 600ms;
-  --room-transition-ease: cubic-bezier(0.33, 1, 0.68, 1);
+  --room-transition-ease: var(--ease-spring);
 
   --card-radius: var(--radius-lg); /* composed from primitive scale */
   --card-border: #2a2e26;      /* Phase 04.5 Direction C: warmed 263025 → 2a2e26 */

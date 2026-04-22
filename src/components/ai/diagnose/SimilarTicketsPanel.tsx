@@ -6,11 +6,12 @@
  * Clicking a ticket fetches its full closure note on-demand.
  */
 import { useState, useCallback } from 'react';
-import { ChevronDown, Loader2, Search, ExternalLink } from 'lucide-react';
+import { ChevronDown, Search, ExternalLink } from 'lucide-react';
 import clsx from 'clsx';
 import type { SimilarPastTicket } from '../../../types/diagnosis';
 import type { AiSettings } from '../../../store/aiSettings';
 import { fetchZendeskTicket } from '../../../services/zendeskService';
+import Spinner from '../../ui/Spinner';
 
 interface SimilarTicketsPanelProps {
   tickets: SimilarPastTicket[];
@@ -121,7 +122,7 @@ export default function SimilarTicketsPanel({ tickets, settings, onClosureNoteFe
                     </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
-                    {loadingId === t.id && <Loader2 size={10} className="animate-spin text-violet-400" />}
+                    {loadingId === t.id && <Spinner size="xs" className="text-violet-400" label="Loading" />}
                     <ChevronDown
                       size={11}
                       className={clsx('transition-transform', expandedId === t.id ? 'rotate-180' : '')}

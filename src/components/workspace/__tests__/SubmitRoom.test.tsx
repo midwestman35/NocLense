@@ -60,9 +60,17 @@ describe('SubmitRoom', () => {
   });
 
   it('renders both cards', () => {
-    renderWithContext();
+    const { container } = renderWithContext();
     expect(screen.getByText('Closure Note')).toBeInTheDocument();
     expect(screen.getByText('Evidence Summary')).toBeInTheDocument();
+
+    const closureCard = container.querySelector('[data-card-id="closure-note"]');
+    const evidenceCard = container.querySelector('[data-card-id="evidence-summary"]');
+
+    expect(closureCard).toBeInTheDocument();
+    expect(evidenceCard).toBeInTheDocument();
+    expect(closureCard?.className).toContain('motion-safe:hover:-translate-y-[1px]');
+    expect(evidenceCard?.className).toContain('motion-safe:hover:-translate-y-[1px]');
   });
 
   it('pre-fills textarea with res-note content', () => {

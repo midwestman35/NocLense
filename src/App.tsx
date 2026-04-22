@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { MotionConfig } from 'motion/react';
 import { LogProvider } from './contexts/LogContext';
 import { AIProvider } from './contexts/AIContext';
 import { EvidenceProvider } from './contexts/EvidenceContext';
@@ -16,17 +17,19 @@ function AppShell() {
 }
 
 const App = () => (
-  <ToastProvider>
-    <AIProvider>
-      <CaseProvider>
-        <EvidenceProvider>
-          <LogProvider>
-            <AppShell />
-          </LogProvider>
-        </EvidenceProvider>
-      </CaseProvider>
-    </AIProvider>
-  </ToastProvider>
+  <MotionConfig reducedMotion="user">
+    <ToastProvider>
+      <AIProvider>
+        <CaseProvider>
+          <EvidenceProvider>
+            <LogProvider>
+              <AppShell />
+            </LogProvider>
+          </EvidenceProvider>
+        </CaseProvider>
+      </AIProvider>
+    </ToastProvider>
+  </MotionConfig>
 );
 
 export default App;

@@ -5,6 +5,7 @@ import { Download, Star } from 'lucide-react';
 import type { LogEntry } from '../../types';
 import { Dialog } from '../ui';
 import { Button } from '../ui';
+import Spinner from '../ui/Spinner';
 import type { ExportOptions, PackType, RedactionPreset } from '../../types/export';
 import { buildPack } from '../../services/exportPackBuilder';
 import { buildZip, downloadBlob } from '../../services/zipBuilder';
@@ -196,7 +197,7 @@ export default function ExportModal({ isOpen, onClose }: ExportModalProps) {
           <Button onClick={handleExport} disabled={isExporting || (mode === 'data' ? eventsToExport.length === 0 : !activeCase || evidenceBookmarkCount === 0)}>
             {isExporting ? (
               <>
-                <span className="animate-spin">?</span>
+                <Spinner size="sm" label="Exporting" />
                 Exporting...
               </>
             ) : (

@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Search, Loader2, AlertTriangle, Sparkles, ExternalLink } from 'lucide-react';
+import { Search, AlertTriangle, Sparkles, ExternalLink } from 'lucide-react';
 import { loadAiSettings } from '../../store/aiSettings';
 import {
   fetchZendeskTicket,
@@ -8,6 +8,7 @@ import {
 } from '../../services/zendeskService';
 import { analyzeTicket } from '../../services/unleashService';
 import { useLogContext } from '../../contexts/LogContext';
+import Spinner from '../ui/Spinner';
 
 const STATUS_COLORS: Record<string, string> = {
   open: 'var(--destructive)',
@@ -98,7 +99,7 @@ export function ZendeskPanel() {
               transition: 'all 0.15s',
             }}
           >
-            {fetching ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Search size={14} />}
+            {fetching ? <Spinner size="sm" label="Searching" /> : <Search size={14} />}
           </button>
         </div>
 
@@ -197,7 +198,7 @@ export function ZendeskPanel() {
             }}
           >
             {analyzing
-              ? <><Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> Analyzing... (15–30 sec)</>
+              ? <><Spinner size="md" label="Analyzing" /> Analyzing... (15–30 sec)</>
               : <><Sparkles size={13} /> Analyze Against Loaded Logs</>
             }
           </button>
@@ -234,7 +235,6 @@ export function ZendeskPanel() {
         </div>
       )}
 
-      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }

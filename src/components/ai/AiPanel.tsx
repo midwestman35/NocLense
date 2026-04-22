@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
-import { Sparkles, AlertTriangle, MessageSquare, Tag, Settings, X, Send, Loader2, RefreshCw, Stethoscope, Maximize2, Minimize2 } from 'lucide-react';
+import { Sparkles, AlertTriangle, MessageSquare, Tag, Settings, X, Send, RefreshCw, Stethoscope, Maximize2, Minimize2 } from 'lucide-react';
 import { SkeletonAiPanel } from '../ui/Skeleton';
+import Spinner from '../ui/Spinner';
 import { useLogContext } from '../../contexts/LogContext';
 import { loadAiSettings, type AiSettings } from '../../store/aiSettings';
 import {
@@ -354,7 +355,7 @@ export default function AiPanel({
                     alignSelf: 'flex-start', padding: '9px 12px', borderRadius: '10px',
                     backgroundColor: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '8px',
                   }}>
-                    <Loader2 size={13} style={{ animation: 'spin 1s linear infinite', color: 'var(--success)' }} />
+                    <Spinner size="sm" className="text-[var(--success)]" label="Thinking" />
                     <span style={{ fontSize: '12px', color: 'var(--muted-foreground)' }}>Thinking... (15–30 sec)</span>
                   </div>
                 )}
@@ -418,7 +419,6 @@ export default function AiPanel({
         </div>
       </div>
 
-      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </>
   );
 }
@@ -445,7 +445,7 @@ function AnalysisTab({ result, onRun, runLabel, emptyPrompt, icon }: {
         }}
       >
         {result.loading
-          ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Analyzing... (15–30 sec)</>
+          ? <><Spinner size="md" label="Analyzing" /> Analyzing... (15–30 sec)</>
           : runLabel
         }
       </button>

@@ -12,7 +12,7 @@
  *   onScanReady      — called with ticket (or null) + confirmed timezone when ready to scan
  */
 import { useState, useEffect, useMemo } from 'react';
-import { Search, Loader2, Plus, SkipForward, Stethoscope, Database, ChevronDown, ChevronRight, FileText, Download, CheckCircle2 } from 'lucide-react';
+import { Search, Plus, SkipForward, Stethoscope, Database, ChevronDown, ChevronRight, FileText, Download, CheckCircle2 } from 'lucide-react';
 import type { AiSettings } from '../../../store/aiSettings';
 import {
   fetchZendeskTicket,
@@ -26,6 +26,7 @@ import { useLogContext } from '../../../contexts/LogContext';
 import { importFiles, appendLogsToIndexedDB } from '../../../services/importService';
 import { isZipFile, extractLogFilesFromZip } from '../../../utils/zipExtractor';
 import InvestigateUrlEntry from './InvestigateUrlEntry';
+import Spinner from '../../ui/Spinner';
 import { TIMEZONE_OPTIONS } from './timezoneOptions';
 
 // Common timezones: display label → value sent to AI prompt
@@ -377,7 +378,7 @@ export default function DiagnosePhase1({
                         }}
                       >
                         {loadingAttId === att.id
-                          ? <><Loader2 size={10} className="animate-spin" /> Loading…</>
+                          ? <><Spinner size="xs" label="Loading" /> Loading…</>
                           : loadedAttIds.has(att.id)
                             ? <><CheckCircle2 size={10} /> Loaded</>
                             : <><Download size={10} /> Load</>}
@@ -425,7 +426,7 @@ export default function DiagnosePhase1({
                   className="flex items-center gap-1.5 rounded border px-3 py-1.5 text-[11px] transition-colors disabled:opacity-50"
                   style={{ borderColor: 'var(--border)', backgroundColor: 'var(--muted)', color: 'var(--foreground)' }}
                 >
-                  {zdFetching ? <Loader2 size={12} className="animate-spin" /> : <Search size={12} />}
+                  {zdFetching ? <Spinner size="sm" label="Fetching" /> : <Search size={12} />}
                   {zdFetching ? 'Fetching…' : 'Fetch'}
                 </button>
               </div>
@@ -482,7 +483,7 @@ export default function DiagnosePhase1({
                 className="flex items-center justify-center gap-2 rounded border px-3 py-1.5 text-[11px] font-medium transition-colors disabled:opacity-50"
                 style={{ borderColor: 'var(--border)', backgroundColor: 'var(--muted)', color: 'var(--foreground)' }}
               >
-                {creating ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
+                {creating ? <Spinner size="sm" label="Creating" /> : <Plus size={12} />}
                 {creating ? 'Creating…' : 'Create Zendesk Ticket'}
               </button>
             </>

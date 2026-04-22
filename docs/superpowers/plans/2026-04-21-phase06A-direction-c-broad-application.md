@@ -1022,16 +1022,13 @@ git grep -n "sr-only" src/components/ui/Spinner.tsx
 # text — those fall through to Spinner tests and code review. Applies
 # to single-line Spinner JSX; multi-line formatted elements would
 # require a multi-line grep strategy, but the codebase convention is
-# single-line for inline primitives.
-git grep -nE '<Spinner[^>]*size=\{[^}]*[0-9]' \
-  -- ':!src/components/InvestigationSetupModal.tsx' \
-     ':!src/components/ai/diagnose/DiagnosePhase2.tsx' \
-     ':!src/components/ai/diagnose/DiagnosePhase3.tsx' \
-     ':!src/components/AIButton.tsx' \
-     ':!src/**/__tests__/**' \
-     ':!src/**/*.test.tsx' \
-     ':!src/**/*.test.ts' \
-  src/
+# single-line for inline primitives. NOTE: AIButton.tsx was reformatted
+# to single-line to satisfy this grep — do not split across lines.
+#
+# Windows compat: `:!` pathspec magic fails on Git for Windows. Use
+# the pipe-through-grep-v approach below instead.
+git grep -nE '<Spinner[^>]*size=\{[^}]*[0-9]' src/ \
+  | grep -vE '(InvestigationSetupModal|DiagnosePhase2|DiagnosePhase3|AIButton|__tests__|\.test\.tsx|\.test\.ts)'
 # expect: 0 matches — any output is a migration bug outside approved sites
 
 # Approved sites retain correct cardinality (per-file match counts).

@@ -11,6 +11,12 @@ interface DialogProps {
   footer?: React.ReactNode;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
+export const DIALOG_TRANSITION = {
+  duration: 0.22,
+  ease: [0.34, 1.56, 0.64, 1] as const, // sync with --ease-emphasized
+};
+
 export function Dialog({ open, onClose, title, children, footer }: DialogProps) {
   return (
     <AnimatePresence>
@@ -30,7 +36,7 @@ export function Dialog({ open, onClose, title, children, footer }: DialogProps) 
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 8 }}
-            transition={{ duration: 0.15, ease: [0, 0, 0.2, 1] }}
+            transition={DIALOG_TRANSITION}
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-[500px] max-h-[80vh] flex flex-col rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--card)] text-[var(--card-foreground)] shadow-[var(--shadow-floating)]"
           >

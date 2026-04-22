@@ -13,9 +13,10 @@
  */
 import { useState, useEffect, useMemo, useRef } from 'react';
 import {
-  Loader2, AlertTriangle, FileText, CheckCircle2,
+  AlertTriangle, FileText, CheckCircle2,
   Database, Globe, ChevronDown, ChevronRight, X, Zap, Search,
 } from 'lucide-react';
+import Spinner from './ui/Spinner';
 import { loadAiSettings } from '../store/aiSettings';
 import {
   fetchZendeskTicket,
@@ -300,7 +301,7 @@ export default function InvestigationSetupModal({ ticketId, onConfirm, onCancel 
           <div>
             {!ticket && !fetchError && (
               <div className="flex items-center gap-2.5 rounded border px-4 py-3" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--muted)' }}>
-                <Loader2 size={14} className="animate-spin text-violet-400" />
+                <Spinner size="md" className="text-violet-400" label="Fetching ticket" />
                 <span className="text-[12px]" style={{ color: 'var(--muted-foreground)' }}>Fetching ticket #{ticketId}…</span>
               </div>
             )}
@@ -540,7 +541,7 @@ export default function InvestigationSetupModal({ ticketId, onConfirm, onCancel 
                           className="flex items-center gap-1.5 rounded border px-2.5 py-1.5 text-[10px] font-medium transition-colors hover:bg-[var(--accent)]"
                           style={{ borderColor: 'var(--border)', color: 'var(--muted-foreground)' }}
                         >
-                          {ddTesting ? <Loader2 size={10} className="animate-spin" /> : <Zap size={10} />}
+                          {ddTesting ? <Spinner size="xs" label="Testing" /> : <Zap size={10} />}
                           Test Connection
                         </button>
                         {ddTestResult && (
@@ -588,7 +589,7 @@ export default function InvestigationSetupModal({ ticketId, onConfirm, onCancel 
                               className="flex items-center gap-1.5 whitespace-nowrap rounded border px-3 py-1.5 text-[11px] font-medium text-blue-400 transition-colors hover:bg-blue-500/10 disabled:opacity-40 disabled:hover:bg-transparent"
                               style={{ borderColor: 'color-mix(in srgb, #60a5fa 40%, transparent)' }}
                             >
-                              {discoveringStations ? <Loader2 size={11} className="animate-spin" /> : <Search size={11} />}
+                              {discoveringStations ? <Spinner size={11} label="Discovering" /> : <Search size={11} />}
                               Discover Stations
                             </button>
                           </div>
@@ -609,7 +610,7 @@ export default function InvestigationSetupModal({ ticketId, onConfirm, onCancel 
                           {/* Station Discovery */}
                           {discoveringStations && (
                             <div className="mt-2 flex items-center gap-2 rounded border px-2.5 py-2" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--muted)' }}>
-                              <Loader2 size={11} className="animate-spin text-blue-400" />
+                              <Spinner size={11} className="text-blue-400" label="Searching" />
                               <span className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
                                 Searching Datadog for stations in <span className="font-mono font-semibold">{manualCnc.trim() || detectedCnc || 'CNC'}</span>…
                               </span>
@@ -861,7 +862,7 @@ export default function InvestigationSetupModal({ ticketId, onConfirm, onCancel 
             className="flex items-center gap-2 rounded px-5 py-2 text-[12px] font-semibold text-white transition-opacity disabled:opacity-40"
             style={{ backgroundColor: '#7c3aed' }}
           >
-            {!ticket || scanningPdfs ? <Loader2 size={13} className="animate-spin" /> : <Zap size={13} />}
+            {!ticket || scanningPdfs ? <Spinner size={13} label="Starting" /> : <Zap size={13} />}
             Start Investigation
           </button>
         </div>

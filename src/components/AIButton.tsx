@@ -45,10 +45,11 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useAI } from '../contexts/AIContext';
-import { Sparkles, Loader2, X, Send } from 'lucide-react';
+import { Sparkles, X, Send } from 'lucide-react';
 import type { LogEntry } from '../types';
 import { loadAiSettings } from '../store/aiSettings';
 import { chatWithLogs } from '../services/unleashService';
+import Spinner from './ui/Spinner';
 
 interface AIButtonProps {
   /** Button variant */
@@ -219,7 +220,7 @@ export default function AIButton({
   const buttonContent = (
     <>
       {isLoading ? (
-        <Loader2 size={variant === 'icon' ? 16 : size === 'sm' ? 14 : size === 'lg' ? 20 : 16} className="animate-spin" />
+        <Spinner size={variant === 'icon' ? 16 : size === 'sm' ? 14 : size === 'lg' ? 20 : 16} label="Loading" />
       ) : (
         <Sparkles size={variant === 'icon' ? 16 : size === 'sm' ? 14 : size === 'lg' ? 20 : 16} />
       )}
@@ -287,7 +288,7 @@ export default function AIButton({
             <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px' }}>
               {aiLoading && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--muted-foreground)', fontSize: '12px' }}>
-                  <Loader2 size={13} style={{ animation: 'spin 1s linear infinite', color: 'var(--success)' }} />
+                  <Spinner size="sm" className="text-[var(--success)]" label="Analyzing" />
                   Analyzing... (15–30 sec)
                 </div>
               )}
@@ -326,7 +327,6 @@ export default function AIButton({
               </div>
             )}
           </div>
-          <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
         </div>
       )}
     </>

@@ -18,6 +18,12 @@ interface SheetProps {
   className?: string;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
+export const SHEET_TRANSITION = {
+  duration: 0.25,
+  ease: [0.34, 1.56, 0.64, 1] as const, // sync with --ease-emphasized
+};
+
 const slideVariants: Record<SheetSide, { initial: AxisVariant; animate: AxisVariant; exit: AxisVariant }> = {
   left: {
     initial: { x: '-100%' },
@@ -60,7 +66,7 @@ export function Sheet({ open, onClose, side = 'left', children, className }: She
             initial={variants.initial}
             animate={variants.animate}
             exit={variants.exit}
-            transition={{ duration: 0.15, ease: [0, 0, 0.2, 1] }}
+            transition={SHEET_TRANSITION}
             className={twMerge(clsx('fixed z-[var(--z-modal)] bg-[var(--card)] border-[var(--border)]', sideClasses[side], className))}
           >
             {children}

@@ -11,7 +11,7 @@
 import { useState } from 'react';
 import {
   ChevronLeft, Archive, Download, Paperclip, CheckCircle,
-  Loader2, Copy, ExternalLink, Plus,
+  Copy, ExternalLink, Plus,
 } from 'lucide-react';
 import type { AiSettings } from '../../../store/aiSettings';
 import type { ZendeskTicket, ZendeskTicketDraft } from '../../../services/zendeskService';
@@ -24,6 +24,7 @@ import { saveInvestigationToConfluence, type SavedInvestigation } from '../../..
 import { generateLogArchive, downloadBlob } from '../../../utils/logArchive';
 import type { LogEntry } from '../../../types';
 import type { DiagnosisResult } from '../../../types/diagnosis';
+import Spinner from '../../ui/Spinner';
 
 interface Props {
   settings: AiSettings;
@@ -191,7 +192,7 @@ export default function DiagnosePhase3({
               className="mt-2 flex items-center gap-1.5 rounded border px-3 py-1 text-[11px] font-medium transition-colors hover:bg-amber-500/10 disabled:opacity-50"
               style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}
             >
-              {retryingAttachment ? <Loader2 size={11} className="animate-spin" /> : <Paperclip size={11} />}
+              {retryingAttachment ? <Spinner size={11} label="Retrying" /> : <Paperclip size={11} />}
               {retryingAttachment ? 'Retrying…' : 'Retry Attachment Upload'}
             </button>
           </div>
@@ -341,7 +342,7 @@ export default function DiagnosePhase3({
             className="flex items-center justify-center gap-2 rounded py-2.5 text-[12px] font-semibold text-white disabled:opacity-50"
             style={{ backgroundColor: 'var(--success)' }}
           >
-            {submitting ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+            {submitting ? <Spinner size="md" label="Posting" /> : <CheckCircle size={14} />}
             {submitting ? 'Posting…' : `Post Internal Note to #${ticket.id}`}
           </button>
         ) : (
@@ -412,7 +413,7 @@ export default function DiagnosePhase3({
                     className="flex items-center justify-center gap-2 rounded py-2 text-[12px] font-semibold text-white disabled:opacity-50"
                     style={{ backgroundColor: 'var(--success)' }}
                   >
-                    {creating ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+                    {creating ? <Spinner size="md" label="Creating" /> : <CheckCircle size={14} />}
                     {creating ? 'Creating & Posting…' : 'Create Ticket & Post Note'}
                   </button>
                 </div>

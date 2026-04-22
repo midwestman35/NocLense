@@ -10,6 +10,12 @@ interface DropdownMenuProps {
   className?: string;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
+export const DROPDOWN_MENU_TRANSITION = {
+  duration: 0.15,
+  ease: [0.16, 1.11, 0.3, 1] as const, // sync with --ease-spring
+};
+
 export function DropdownMenu({ trigger, children, align = 'left', className }: DropdownMenuProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -34,7 +40,7 @@ export function DropdownMenu({ trigger, children, align = 'left', className }: D
             initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.12 }}
+            transition={DROPDOWN_MENU_TRANSITION}
             className={twMerge(
               clsx(
                 'absolute top-full mt-1 z-[var(--z-dropdown)] min-w-[180px] overflow-hidden rounded-[var(--radius-lg)] border border-[var(--button-subtle-border)]',

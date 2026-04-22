@@ -89,7 +89,7 @@ code, pre, kbd, samp { font-variant-numeric: tabular-nums; }
   }
 }
 .animate-toast-in {
-  animation: toast-in 200ms var(--ease-out) forwards;
+  animation: toast-in 220ms var(--ease-emphasized) forwards;
 }
 
 /* ── Skeleton Shimmer ── */

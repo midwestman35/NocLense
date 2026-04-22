@@ -118,6 +118,24 @@ describe('AIButton', () => {
     
     const button = screen.getByLabelText(/ai analysis in progress/i);
     expect(button).toBeDisabled();
+    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveAttribute('data-size', '16');
+  });
+
+  it('preserves the numeric-size ternary for non-icon branches', () => {
+    mockUseAI.mockReturnValue({
+      apiKeyConfigured: true,
+      isEnabled: true,
+      isLoading: true,
+    });
+
+    const { rerender } = render(<AIButton size="sm" />);
+
+    expect(screen.getByRole('status')).toHaveAttribute('data-size', '14');
+
+    rerender(<AIButton size="lg" />);
+
+    expect(screen.getByRole('status')).toHaveAttribute('data-size', '20');
   });
 
   it('displays tooltip when disabled', () => {
