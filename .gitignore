@@ -40,5 +40,13 @@ dist-electron
 
 # Git worktrees
 .worktrees/
+.tmp-*/
 tools/external/agent-scripts
 settings.local.json
+
+# Local brainstorming and tool logs
+.superpowers/brainstorm/
+.agents/
+
+# Untracked design exploration artifacts (provenance unknown, not canonical)
+docs/design-exploration/
