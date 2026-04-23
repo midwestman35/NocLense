@@ -5,10 +5,9 @@
  * Fetches logs matching an incident time window + filter to enrich AI diagnosis.
  *
  * Auth: DD-API-KEY + DD-APPLICATION-KEY headers.
- * Dev proxy: /datadog-proxy → https://{site}
- * Prod: direct to https://{site}/api/v2/logs/events/search
  */
 import type { AiSettings } from '../store/aiSettings';
+import { getDatadogBase } from './apiConfig';
 
 export interface DatadogEnrichmentOptions {
   enabled: boolean;
@@ -30,13 +29,7 @@ export interface DatadogLogEntry {
 }
 
 function datadogBase(settings: AiSettings): string {
-  if (import.meta.env.DEV) return '/datadog-proxy';
-  if (typeof window !== 'undefined' && (window as any).electronAPI) {
-    const site = settings.datadogSite || 'datadoghq.com';
-    const apiHost = site.startsWith('api.') ? site : `api.${site}`;
-    return `https://${apiHost}`;
-  }
-  return '/api/datadog-proxy';
+  return getDatadogBase(settings.datadogSite);
 }
 
 function datadogHeaders(settings: AiSettings): Record<string, string> {

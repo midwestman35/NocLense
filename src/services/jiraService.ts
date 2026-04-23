@@ -8,21 +8,11 @@
  */
 import type { AiSettings } from '../store/aiSettings';
 import type { JiraTicketDraft } from '../types/diagnosis';
+import { getAtlassianBase, getJiraApiBase } from './apiConfig';
 
 export interface JiraIssueCreatedResponse {
   key: string;
   url: string;
-}
-
-/** Use Vite dev proxy in development; serverless proxy in production Vercel; direct in Electron */
-function resolveJiraUrl(settings: AiSettings, path: string): string {
-  if (import.meta.env.DEV) {
-    return `/jira-proxy${path}`;
-  }
-  if (typeof window !== 'undefined' && (window as any).electronAPI) {
-    return `https://${settings.jiraSubdomain}${path}`;
-  }
-  return `/api/jira-proxy${path}`;
 }
 
 function jiraHeaders(settings: AiSettings): HeadersInit {
@@ -87,7 +77,7 @@ export async function createJiraTicket(
   }
 
   const headers = jiraHeaders(settings);
-  const url = resolveJiraUrl(settings, '/rest/api/3/issue');
+  const url = `${getJiraApiBase(settings.jiraSubdomain)}/issue`;
 
   const body = {
     fields: {
@@ -116,8 +106,6 @@ export async function createJiraTicket(
 
   const data = await res.json() as { id: string; key: string; self: string };
   const key = data.key;
-  const baseUrl = import.meta.env.DEV
-    ? `https://${settings.jiraSubdomain}`
-    : `https://${settings.jiraSubdomain}`;
+  const baseUrl = getAtlassianBase(settings.jiraSubdomain);
   return { key, url: `${baseUrl}/browse/${key}` };
 }

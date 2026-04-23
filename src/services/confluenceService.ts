@@ -6,11 +6,11 @@
  * Searches past investigations using CQL.
  *
  * Auth: Same Atlassian Basic auth as Jira (email/token:apiToken).
- * Dev proxy: /confluence-proxy → https://{jiraSubdomain}
  */
 import type { AiSettings } from '../store/aiSettings';
 import type { DiagnosisResult } from '../types/diagnosis';
 import type { ZendeskTicket } from './zendeskService';
+import { getAtlassianBase, getConfluenceApiBase, getConfluenceRestContentBase } from './apiConfig';
 
 export interface SavedInvestigation {
   pageId: string;
@@ -27,11 +27,7 @@ export interface ConfluenceSearchResult {
 }
 
 function confluenceBase(settings: AiSettings): string {
-  if (import.meta.env.DEV) return '/confluence-proxy';
-  if (typeof window !== 'undefined' && (window as any).electronAPI) {
-    return `https://${settings.jiraSubdomain}`;
-  }
-  return '/api/confluence-proxy';
+  return getConfluenceApiBase(settings.jiraSubdomain);
 }
 
 function confluenceHeaders(settings: AiSettings): Record<string, string> {
@@ -152,7 +148,7 @@ export async function saveInvestigationToConfluence(
   const body = buildInvestigationPageBody(ticket, diagnosis, internalNote, customerTimezone, investigator);
 
   const base = confluenceBase(settings);
-  const url = `${base}/wiki/api/v2/pages`;
+  const url = `${base}/pages`;
 
   const payload = {
     spaceId: settings.confluenceSpaceId,
@@ -179,7 +175,7 @@ export async function saveInvestigationToConfluence(
   const data = await res.json();
   const pageUrl = data._links?.base
     ? `${data._links.base}${data._links.webui}`
-    : `https://${settings.jiraSubdomain}/wiki${data._links?.webui ?? ''}`;
+    : `${getAtlassianBase(settings.jiraSubdomain)}/wiki${data._links?.webui ?? ''}`;
 
   return {
     pageId: String(data.id),
@@ -204,8 +200,8 @@ export async function searchConfluenceInvestigations(
   const textQuery = cleaned.map(k => `"${k}"`).join(' OR ');
   const cql = `ancestor = ${settings.confluenceParentPageId} AND type = page AND (text ~ ${textQuery}) ORDER BY lastmodified DESC`;
 
-  const base = confluenceBase(settings);
-  const url = `${base}/wiki/rest/api/content/search?cql=${encodeURIComponent(cql)}&limit=${limit}&expand=metadata.labels`;
+  const base = getConfluenceRestContentBase(settings.jiraSubdomain);
+  const url = `${base}/search?cql=${encodeURIComponent(cql)}&limit=${limit}&expand=metadata.labels`;
 
   try {
     const res = await fetch(url, { headers: confluenceHeaders(settings) });

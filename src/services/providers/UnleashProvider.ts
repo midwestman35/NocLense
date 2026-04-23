@@ -30,9 +30,7 @@ import type {
   ProviderAnalyzeResponse,
   ProviderHierarchicalContextChunk,
 } from './types';
-
-const UNLEASH_ENDPOINT = 'https://e-api.unleash.so';
-const DEV_PROXY_PATH = '/ai-proxy/chats';
+import { getUnleashChatsUrl } from '../apiConfig';
 
 interface UnleashMessage {
   text: string;
@@ -210,8 +208,7 @@ export class UnleashProvider implements LLMProvider {
   }
 
   private fetchChat(messages: UnleashMessage[], token: string): Promise<Response> {
-    const isElectron = typeof window !== 'undefined' && !!(window as any).electronAPI;
-    const url = import.meta.env.DEV ? DEV_PROXY_PATH : (isElectron ? `${UNLEASH_ENDPOINT}/chats` : '/api/ai-proxy/chats');
+    const url = getUnleashChatsUrl();
     const body: UnleashChatBody = { messages };
     if (this.assistantId) body.assistantId = this.assistantId;
 

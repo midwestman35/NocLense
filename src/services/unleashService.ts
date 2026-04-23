@@ -3,6 +3,7 @@ import type { LogEntry } from '../types';
 import type { DiagnosisResult, AiCorrelatedLog, LogSuggestion } from '../types/diagnosis';
 import { estimateTokens, recordTokenUsage } from '../utils/tokenEstimator';
 import { matchTemplate } from '../templates/nocTemplates';
+import { getUnleashChatsUrl } from './apiConfig';
 
 export interface ChatMessage {
   role: 'User' | 'Assistant';
@@ -44,15 +45,8 @@ export function formatLogsForAi(logs: LogEntry[]): string {
   return lines.join('\n');
 }
 
-/** Use Vite dev proxy in development; serverless proxy in production Vercel; direct in Electron */
 function resolveUrl(settings: AiSettings): string {
-  if (import.meta.env.DEV) {
-    return '/ai-proxy/chats';
-  }
-  if (typeof window !== 'undefined' && (window as any).electronAPI) {
-    return `${settings.endpoint}/chats`;
-  }
-  return '/api/ai-proxy/chats';
+  return getUnleashChatsUrl(settings.endpoint);
 }
 
 /** Extract text from ChatCompletionResponse message.parts */
