@@ -14,7 +14,8 @@
 | v1.2 | 2026-04-22 | Add vitest exclude for worktree/bug-scan dirs; document baseline red test set. |
 | v1.3 | 2026-04-22 | Add lint baseline (419 problems) + count-based regression gate. |
 | v2 | 2026-04-22 | Incorporate Gemini audit: (1) defer CorrelationGraph.tsx split out of 07A; (2) bridge legacy semantic CSS vars with aliases so ui/* primitives survive; (3) switch 07A.3 from tailwind.config.js to Tailwind v4 `@theme` in tokens.css; (4) remove Google Fonts CDN fallback in 07A.1 (vendor locally or stop); (5) add boot-time `data-theme="dark"` lock + `noclense-theme` localStorage scrub to 07A.1. |
-| **v2.1** | **2026-04-22** | **Reverse §2.2 deferral: split already executed at `ab1f9b8` under v1.3 before v2 landed. Clean extraction to `useCorrelationGraphCanvas.ts`; regression isolation preserved by commit ordering. Keep the split; proceed to 07A.1. Remaining v2 changes (items 2–5) unchanged.** |
+| v2.1 | 2026-04-22 | Reverse §2.2 deferral: split already executed at `ab1f9b8` under v1.3 before v2 landed. Clean extraction to `useCorrelationGraphCanvas.ts`; regression isolation preserved by commit ordering. Keep the split; proceed to 07A.1. Remaining v2 changes (items 2–5) unchanged. |
+| **v2.2** | **2026-04-22** | **Post-07A.6 mid-phase corrections from re-run Gemini audit: (1) authorize `color-mix(in srgb, var(--token) NN%, transparent)` as a valid pattern for inline alpha-blended token colors (already shipped in ~50 sites across 13 files in 07A.4–07A.6; reverting would lose token-tracking and create more churn). (2) Standardize HTML5 `accentColor` styling on the Tailwind `accent-*` className utility, not inline `style={{ accentColor: 'var(--*)' }}` — fix applied in 07A.7 scope. (3) Extend 07A.7 scope to include the accent-standardization pass. (4) Future slices: include gate output (build/test/lint tail) in per-slice self-assessment.** |
 
 **If previously read v1.x, pay attention to §2.2 (deferred), §3 Slice 07A.1 (theme lock added; no CDN fallback), §3 Slice 07A.2 (bridge aliases — don't delete semantic vars), and §3 Slice 07A.3 (Tailwind v4 @theme in CSS, not tailwind.config.js).**
 
@@ -514,17 +515,62 @@ Same mechanical rules as Slice 07A.4. Directories:
 
 **Gate:** as 07A.4. Grep `bg-slate-`, `bg-gray-`, `text-slate-`, `text-gray-` across `src/components/` and `src/pages/` — should return only the `ui/*` primitives (which are addressed separately in later phases) and/or be empty.
 
-### Slice 07A.7 — Investigate + Submit room verification + snapshot sweep
+### Slice 07A.7 — Room verification + snapshot sweep + v2.2 cleanup
 
-**Commit:** `feat(phase-07a): ckpt 07A.7; verify Investigate + Submit rooms match v5.1 deck + refresh snapshots`
+**Commit:** `feat(phase-07a): ckpt 07A.7; verify Investigate + Submit rooms match v5.1 deck + refresh snapshots + v2.2 cleanup`
 
-- Load the app in Electron; navigate to Investigate Room; compare against zip deck slide 07. Fix any visual regressions introduced during 07A.4–07A.6.
+**A. v2.2 cleanup — accent-color standardization**
+
+Re-run Gemini audit flagged inconsistent handling of HTML5 `accentColor`:
+three sites use the Tailwind `className="accent-*"` utility (correct
+pattern); two sites use `style={{ accentColor: 'var(--*)' }}` (inline).
+Standardize on the Tailwind utility.
+
+Fix exactly these two sites:
+
+- `src/components/InvestigationSetupModal.tsx:430` — change `style={{ accentColor: 'var(--violet)' }}` → merge `accent-violet` into the existing `className` on that element; remove the inline style.
+- `src/components/InvestigationSetupModal.tsx:656` — change `style={{ accentColor: 'var(--cyan)' }}` → merge `accent-cyan` into the existing `className`; remove the inline style.
+
+Do NOT rewrite any other `color-mix()` usage or any other inline style.
+Scope is narrow.
+
+**B. `color-mix()` is authorized (do NOT revert)**
+
+Per v2.2 authorization: `color-mix(in srgb, var(--token) NN%, transparent)`
+is a valid pattern for alpha-blended token colors in inline styles. The
+~50 sites across 13 files that 07A.4–07A.6 introduced stay as-is. Future
+phases may migrate some to Tailwind `bg-token/NN` opacity-modifier
+syntax as a separate cleanup, but that is NOT in 07A.7 scope.
+
+**C. Room verification**
+
+- Load the app in Electron; navigate to Investigate Room; compare against zip deck slide 07. Fix any visual regressions introduced during 07A.4–07A.6. Known-accepted: `ui/*` primitives still render old palette (documented YELLOW Y3 in Claude's 07A.3 review; rebuilt in 07B).
 - Navigate to Submit Room (variation A); compare against slide 08. Fix any regressions.
-- Run `npm run test:run -- -u` to refresh all snapshot tests across the affected surface area.
-- Inspect updated snapshots; reject any snapshot update that represents a real regression (not just a class rename).
+
+**D. Snapshot sweep**
+
+- Run `npm run test:run -- -u` to refresh snapshot tests affected by the reskin.
+- Inspect each updated snapshot; reject any that represents a real regression (not just a class rename).
 - Delete any test files under `src/styles/__tests__/` that hard-code Green-House color assertions and replace with token-based assertions.
 
-**Gate:** Investigate + Submit rooms visually match the deck. `npm run test:run` green. Zero snapshot updates rejected.
+**E. Gate output requirement (v2.2)**
+
+Per-slice self-assessment at end of 07A.7 MUST include the tail output
+(or explicit summary counts) of:
+- `npm run build`
+- `npm run test:run`
+- `npm run lint`
+
+so Claude's deep review can verify baseline-match without re-running gates.
+
+**Gate:**
+
+- `npm run build` green
+- `npm run test:run` baseline-match (18 pre-existing failures, no new)
+- `npm run lint` ≤ 404 errors / ≤ 15 warnings
+- Investigate + Submit rooms visually match the deck (with Y3 caveat)
+- Zero snapshot updates rejected
+- Self-assessment includes gate tails
 
 ---
 
