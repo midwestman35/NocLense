@@ -24,7 +24,7 @@ import { Button } from '../ui';
 import InvestigationSetupModal from '../InvestigationSetupModal';
 import { AIOnboardingWizard } from '../onboarding/AIOnboardingWizard';
 import ExportModal from '../export/ExportModal';
-import { SubmitRoom } from './SubmitRoom';
+import { SubmitRoom } from '../rooms/submit/SubmitRoom';
 
 import { CaseStateBridge } from '../case/CaseStateBridge';
 import { FolderPlus, Download, Trash2 } from 'lucide-react';
