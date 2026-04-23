@@ -99,6 +99,20 @@ electron/
 - **Grep check (v2.1):** any file referencing `.worktrees/` or `.tmp-daily-bug-scan-*` still in vitest exclude? (Should be fine — added in 4631955 — but verify after any local tree changes.)
 - Don't delete anything yet. This slice is inventory only.
 
+07B.0 survey findings (2026-04-23):
+- `api/ai-proxy.ts` — Vercel serverless proxy that forwards `/api/ai-proxy/*` to `https://e-api.unleash.so/*`.
+- `api/confluence-proxy.ts` — Vercel proxy for Confluence requests using `VITE_JIRA_SUBDOMAIN`.
+- `api/datadog-proxy.ts` — Vercel proxy for Datadog API requests using `VITE_DATADOG_*`.
+- `api/jira-proxy.ts` — Vercel proxy for Jira REST requests using `VITE_JIRA_SUBDOMAIN`.
+- `api/zendesk-proxy.ts` — Vercel proxy for Zendesk API requests using `VITE_ZENDESK_SUBDOMAIN`.
+- `api/tools/confluence-search.ts` — Vercel tool endpoint that searches Confluence with `TOOL_SECRET` auth.
+- `api/tools/datadog-errors.ts` — Vercel tool endpoint that queries Datadog logs with `TOOL_SECRET` auth.
+- `api/tools/zendesk-search.ts` — Vercel tool endpoint that searches Zendesk tickets with `TOOL_SECRET` auth.
+- `api/tools/zendesk-ticket.ts` — Vercel tool endpoint that fetches a structured Zendesk ticket summary with `TOOL_SECRET` auth.
+- `src/` direct-import grep result — no `from "./api/"`, `from "../api/"`, or `from "@/api/"` imports found on `april-redesign` as of 2026-04-23.
+- `wrangler.toml` survey — Cloudflare Pages config (`name`, `compatibility_date`, `pages_build_output_dir`) with no app-runtime wiring; treat as deploy residue unless 07B.8 audit finds an active workflow.
+- Vitest exclude survey — `vite.config.ts` still excludes `**/.worktrees/**` and `**/.tmp-daily-bug-scan-*/**`; no change needed in 07B.0.
+
 **Gate:** `npm run build` green (docs move shouldn't touch anything).
 
 ### Slice 07B.1 — Tauri scaffold + dev boot + capabilities config (v2 merged)
