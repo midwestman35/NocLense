@@ -70,7 +70,7 @@ export default function SimilarTicketsPanel({ tickets, settings, onClosureNoteFe
           backgroundColor: 'var(--muted)',
         }}
       >
-        <Search size={10} className="text-violet shrink-0" />
+        <Search size={10} className="text-violet-400 shrink-0" />
         <span
           className="text-[10px] font-semibold uppercase tracking-[0.14em] flex-1"
           style={{ color: 'var(--muted-foreground)' }}
@@ -113,7 +113,7 @@ export default function SimilarTicketsPanel({ tickets, settings, onClosureNoteFe
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={e => e.stopPropagation()}
-                          className="flex items-center gap-0.5 text-[9px] text-violet hover:text-ink-0"
+                          className="text-[9px] text-violet-400 hover:text-violet-300 flex items-center gap-0.5"
                         >
                           <ExternalLink size={8} />
                           Open
@@ -122,7 +122,7 @@ export default function SimilarTicketsPanel({ tickets, settings, onClosureNoteFe
                     </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
-                    {loadingId === t.id && <Spinner size="xs" className="text-violet" label="Loading" />}
+                    {loadingId === t.id && <Spinner size="xs" className="text-violet-400" label="Loading" />}
                     <ChevronDown
                       size={11}
                       className={clsx('transition-transform', expandedId === t.id ? 'rotate-180' : '')}

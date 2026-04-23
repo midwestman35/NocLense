@@ -8,19 +8,19 @@ import { getLogDisplayTimestamp } from '../utils/logTimestamp';
 import { useLogContext } from '../contexts/LogContext';
 
 const EVENT_TYPE_STYLES: Record<string, string> = {
-  transport: 'bg-cyan/10 text-cyan border-cyan/15',
-  http: 'bg-cyan/10 text-cyan border-cyan/15',
-  state: 'bg-violet/10 text-violet border-violet/15',
-  error: 'bg-red/10 text-red border-red/15',
-  report: 'bg-amber/10 text-amber border-amber/15',
-  user: 'bg-mint/10 text-mint border-mint/15',
-  transcript: 'bg-cyan/10 text-cyan border-cyan/15',
+  transport: 'bg-blue-500/10 text-blue-300 border-blue-500/15',
+  http: 'bg-blue-500/10 text-blue-300 border-blue-500/15',
+  state: 'bg-violet-500/10 text-violet-300 border-violet-500/15',
+  error: 'bg-red-500/10 text-red-300 border-red-500/15',
+  report: 'bg-amber-500/10 text-amber-300 border-amber-500/15',
+  user: 'bg-green-500/10 text-green-300 border-green-500/15',
+  transcript: 'bg-cyan-500/10 text-cyan-300 border-cyan-500/15',
 };
 
 const LEVEL_DOT: Record<string, string> = {
-  ERROR: 'bg-red',
-  WARN: 'bg-amber',
-  INFO: 'bg-cyan',
+  ERROR: 'bg-red-500',
+  WARN: 'bg-amber-500',
+  INFO: 'bg-blue-400',
   DEBUG: 'bg-[var(--muted-foreground)]',
 };
 
@@ -118,9 +118,9 @@ function LogRow({
         'flex cursor-pointer flex-col border-b border-[var(--border)] font-mono transition-colors duration-[var(--duration-fast)]',
         active ? 'bg-[var(--muted)]' : 'hover:bg-[var(--muted)]/70',
         isHighlighted && 'bg-[var(--warning)]/8 ring-1 ring-inset ring-[var(--warning)]/25',
-        isAiHighlighted && 'bg-violet/10 ring-1 ring-inset ring-violet/30',
+        isAiHighlighted && 'bg-violet-500/10 ring-1 ring-inset ring-violet-500/30',
         isCitationTarget && 'bg-[color:color-mix(in_srgb,var(--glow-ready)_20%,transparent)]',
-        log.jsonMalformed && 'border-l-2 border-l-amber/60',
+        log.jsonMalformed && 'border-l-2 border-l-amber-500/60',
       )}
       onClick={handleRowClick}
     >

@@ -117,9 +117,9 @@ export default function FilterControls() {
         checked={isShowAiHighlightOnly}
         onChange={setIsShowAiHighlightOnly}
         disabled={aiHighlightedLogIds.size === 0}
-        icon={<Sparkles size={9} className={isShowAiHighlightOnly && aiHighlightedLogIds.size > 0 ? 'text-violet' : 'text-transparent'} />}
-        activeClassName="bg-violet/20 border-violet"
-        activeLabelClassName="group-hover:text-violet"
+        icon={<Sparkles size={9} className={isShowAiHighlightOnly && aiHighlightedLogIds.size > 0 ? 'text-violet-400' : 'text-transparent'} />}
+        activeClassName="bg-violet-500/20 border-violet-500"
+        activeLabelClassName="group-hover:text-violet-400"
         count={aiHighlightedLogIds.size}
       />
 
@@ -127,7 +127,7 @@ export default function FilterControls() {
         label="Collapse similar"
         checked={isCollapseSimilarEnabled}
         onChange={setIsCollapseSimilarEnabled}
-        icon={isCollapseSimilarEnabled ? <Check size={12} className="text-ink-0" /> : null}
+        icon={isCollapseSimilarEnabled ? <Check size={12} className="text-white" /> : null}
         activeClassName="bg-[var(--foreground)] border-[var(--foreground)]"
         activeLabelClassName="group-hover:text-[var(--foreground)]"
         title="Group consecutive rows with same service and message"

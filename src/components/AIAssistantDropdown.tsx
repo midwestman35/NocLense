@@ -23,7 +23,7 @@ const AIAssistantDropdown = ({ onOpenAssistant, onOpenSettings }: AIAssistantDro
     <div className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="inline-flex items-center gap-2 rounded-lg border border-line bg-bg-2/80 px-3 py-2 text-sm font-semibold text-ink-0 transition-[background-color,border-color,color] duration-150 hover:bg-bg-3"
+        className="px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-[background-color,border-color,color] duration-150 text-sm font-semibold border border-white/10 inline-flex items-center gap-2"
         title="AI Assistant options"
       >
         AI Assistant
@@ -42,17 +42,17 @@ const AIAssistantDropdown = ({ onOpenAssistant, onOpenSettings }: AIAssistantDro
           />
 
           {/* Dropdown panel */}
-          <div className="absolute top-full right-0 z-50 mt-1 w-48 overflow-hidden rounded-lg border border-line-2 bg-bg-2 shadow-[var(--shadow-raised)]">
+          <div className="absolute top-full right-0 mt-1 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-[var(--shadow-raised)] z-50 overflow-hidden">
             <button
               onClick={handleOpenAssistant}
-              className="flex w-full cursor-pointer items-center gap-2 px-4 py-2 text-left text-sm text-ink-1 transition-colors hover:bg-bg-3 hover:text-ink-0"
+              className="flex items-center gap-2 px-4 py-2 text-sm text-slate-200 hover:bg-white/10 cursor-pointer w-full text-left transition-colors"
             >
               <MessageSquare size={15} />
               Open AI Chat
             </button>
             <button
               onClick={handleOpenSettings}
-              className="flex w-full cursor-pointer items-center gap-2 px-4 py-2 text-left text-sm text-ink-1 transition-colors hover:bg-bg-3 hover:text-ink-0"
+              className="flex items-center gap-2 px-4 py-2 text-sm text-slate-200 hover:bg-white/10 cursor-pointer w-full text-left transition-colors"
             >
               <Settings size={15} />
               AI Settings

@@ -71,8 +71,8 @@ export default function ServerSettingsPanel() {
   const statusIcon = {
     idle: <Unplug size={14} className="text-[var(--muted-foreground)]" />,
     checking: <Spinner size="md" className="text-[var(--muted-foreground)]" label="Checking" />,
-    connected: <CheckCircle2 size={14} className="text-mint" />,
-    error: <XCircle size={14} className="text-red" />,
+    connected: <CheckCircle2 size={14} className="text-emerald-500" />,
+    error: <XCircle size={14} className="text-red-500" />,
   }[status];
 
   return (
@@ -87,7 +87,7 @@ export default function ServerSettingsPanel() {
           onClick={handleToggle}
           className={`flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-colors ${
             config.enabled
-              ? 'bg-[var(--mint-deep)] text-mint hover:opacity-90'
+              ? 'bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25'
               : 'bg-[var(--muted)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
           }`}
         >

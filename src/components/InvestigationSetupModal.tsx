@@ -284,7 +284,7 @@ export default function InvestigationSetupModal({ ticketId, onConfirm, onCancel 
           style={{ borderBottom: '1px solid var(--border)', backgroundColor: 'var(--muted)' }}
         >
           <div className="flex items-center gap-2.5">
-            <Zap size={16} className="text-violet" />
+            <Zap size={16} className="text-violet-400" />
             <span className="text-[14px] font-semibold" style={{ color: 'var(--foreground)' }}>
               Investigation Setup
             </span>
@@ -301,18 +301,12 @@ export default function InvestigationSetupModal({ ticketId, onConfirm, onCancel 
           <div>
             {!ticket && !fetchError && (
               <div className="flex items-center gap-2.5 rounded border px-4 py-3" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--muted)' }}>
-                <Spinner size="md" className="text-violet" label="Fetching ticket" />
+                <Spinner size="md" className="text-violet-400" label="Fetching ticket" />
                 <span className="text-[12px]" style={{ color: 'var(--muted-foreground)' }}>Fetching ticket #{ticketId}…</span>
               </div>
             )}
             {fetchError && (
-              <div
-                className="flex items-center gap-2 rounded border px-4 py-3 text-[12px] text-red"
-                style={{
-                  borderColor: 'color-mix(in srgb, var(--destructive) 30%, transparent)',
-                  backgroundColor: 'color-mix(in srgb, var(--destructive) 10%, transparent)',
-                }}
-              >
+              <div className="flex items-center gap-2 rounded border border-red-500/30 bg-red-500/10 px-4 py-3 text-[12px] text-red-400">
                 <AlertTriangle size={13} />
                 {fetchError}
               </div>
@@ -323,9 +317,9 @@ export default function InvestigationSetupModal({ ticketId, onConfirm, onCancel 
                 style={{ borderColor: 'color-mix(in srgb, var(--success) 35%, transparent)', backgroundColor: 'color-mix(in srgb, var(--success) 8%, transparent)' }}
               >
                 <div className="flex items-start gap-1.5">
-                  <CheckCircle2 size={13} className="mt-0.5 shrink-0 text-mint" />
+                  <CheckCircle2 size={13} className="mt-0.5 shrink-0 text-green-400" />
                   <div className="min-w-0">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-mint">Ticket Loaded</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-green-400">Ticket Loaded</p>
                     <p className="mt-0.5 truncate text-[13px] font-semibold" style={{ color: 'var(--foreground)' }}>
                       #{ticket.id}: {ticket.subject}
                     </p>
@@ -344,7 +338,7 @@ export default function InvestigationSetupModal({ ticketId, onConfirm, onCancel 
               {/* ── Detected Station (from PDF scan) ── */}
               {scanningPdfs && (
                 <div className="flex items-center gap-2 rounded border px-3 py-2.5" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--muted)' }}>
-                  <Search size={12} className="animate-pulse text-violet" />
+                  <Search size={12} className="animate-pulse text-violet-400" />
                   <span className="text-[11px]" style={{ color: 'var(--muted-foreground)' }}>
                     Scanning PDF attachments for station info…
                   </span>
@@ -354,9 +348,9 @@ export default function InvestigationSetupModal({ ticketId, onConfirm, onCancel 
               {!scanningPdfs && apexEvents.length > 0 && (
                 <div
                   className="rounded border px-4 py-3"
-                  style={{ borderColor: 'color-mix(in srgb, var(--cyan) 30%, transparent)', backgroundColor: 'color-mix(in srgb, var(--cyan) 8%, transparent)' }}
+                  style={{ borderColor: 'color-mix(in srgb, #60a5fa 30%, transparent)', backgroundColor: 'color-mix(in srgb, #60a5fa 8%, transparent)' }}
                 >
-                  <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-cyan">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-blue-400 mb-1.5">
                     Detected from {apexEvents.length} APEX Event PDF{apexEvents.length !== 1 ? 's' : ''}
                   </p>
                   {apexEvents.map((ev, i) => (
@@ -399,7 +393,7 @@ export default function InvestigationSetupModal({ ticketId, onConfirm, onCancel 
                   {ticket.attachments.length > 1 && (
                     <div className="flex gap-2">
                       <button type="button" onClick={() => setSelectedIds(new Set(ticket.attachments.filter(isImportableAttachment).map(a => a.id)))}
-                        className="text-[10px] text-cyan hover:underline">all</button>
+                        className="text-[10px] text-blue-400 hover:underline">all</button>
                       <button type="button" onClick={() => setSelectedIds(new Set())}
                         className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>none</button>
                     </div>
@@ -427,19 +421,19 @@ export default function InvestigationSetupModal({ ticketId, onConfirm, onCancel 
                             checked={checked}
                             disabled={!selectable}
                             onChange={() => selectable && toggleAtt(att.id)}
-                            className="accent-violet"
+                            className="accent-violet-500"
                           />
-                          <FileText size={12} style={{ color: zip ? 'var(--amber)' : pdf ? 'var(--destructive)' : 'var(--muted-foreground)', flexShrink: 0 }} />
+                          <FileText size={12} style={{ color: zip ? '#f97316' : pdf ? '#ef4444' : 'var(--muted-foreground)', flexShrink: 0 }} />
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-[11px] font-medium" style={{ color: 'var(--foreground)' }} title={att.fileName}>
                               {att.fileName}
                             </p>
                             <div className="mt-0.5 flex items-center gap-1.5">
                               {zip && (
-                                <span className="rounded px-1 py-0.5 text-[9px] font-semibold" style={{ backgroundColor: 'color-mix(in srgb, var(--amber) 15%, transparent)', color: 'var(--amber)' }}>ZIP</span>
+                                <span className="rounded px-1 py-0.5 text-[9px] font-semibold" style={{ backgroundColor: 'rgba(249,115,22,0.15)', color: '#f97316' }}>ZIP</span>
                               )}
                               {pdf && (
-                                <span className="rounded px-1 py-0.5 text-[9px] font-semibold" style={{ backgroundColor: 'color-mix(in srgb, var(--destructive) 15%, transparent)', color: 'var(--destructive)' }}>PDF</span>
+                                <span className="rounded px-1 py-0.5 text-[9px] font-semibold" style={{ backgroundColor: 'rgba(239,68,68,0.15)', color: '#ef4444' }}>PDF</span>
                               )}
                               <span className="rounded px-1 py-0.5 text-[9px] font-medium"
                                 style={{
@@ -471,7 +465,7 @@ export default function InvestigationSetupModal({ ticketId, onConfirm, onCancel 
                   <Globe size={11} className="inline mr-1 text-[var(--muted-foreground)]" />
                   Customer timezone
                   {(ticket.requesterTimezone || ticket.orgTimezone) && (
-                    <span className="ml-2 rounded bg-[var(--mint-deep)] px-1 py-0.5 text-[9px] text-mint">from Zendesk</span>
+                    <span className="ml-2 rounded bg-green-500/15 px-1 py-0.5 text-[9px] text-green-400">from Zendesk</span>
                   )}
                 </label>
                 <select value={timezone} onChange={e => setTimezone(e.target.value)} className={INPUT}>
@@ -499,13 +493,13 @@ export default function InvestigationSetupModal({ ticketId, onConfirm, onCancel 
                   style={{ backgroundColor: 'var(--muted)' }}
                 >
                   <div className="flex items-center gap-2">
-                    <Database size={13} style={{ color: ddEnabled && hasDdCreds ? 'var(--cyan)' : 'var(--muted-foreground)' }} />
+                    <Database size={13} style={{ color: ddEnabled && hasDdCreds ? '#60a5fa' : 'var(--muted-foreground)' }} />
                     <span className="text-[12px] font-medium" style={{ color: 'var(--foreground)' }}>Datadog Enrichment</span>
                     {ddEnabled && hasDdCreds && (
-                      <span className="rounded px-1.5 py-0.5 text-[9px] font-semibold text-cyan" style={{ backgroundColor: 'color-mix(in srgb, var(--cyan) 15%, transparent)' }}>ON</span>
+                      <span className="rounded bg-blue-500/15 px-1.5 py-0.5 text-[9px] font-semibold text-blue-400">ON</span>
                     )}
                     {(detectedCnc || manualCnc.trim()) && ddEnabled && hasDdCreds && (
-                      <span className="rounded px-1.5 py-0.5 text-[9px] font-semibold text-violet" style={{ backgroundColor: 'color-mix(in srgb, var(--violet) 15%, transparent)' }}>
+                      <span className="rounded bg-violet-500/15 px-1.5 py-0.5 text-[9px] font-semibold text-violet-400">
                         {manualCnc.trim() || detectedCnc}
                       </span>
                     )}
@@ -524,9 +518,9 @@ export default function InvestigationSetupModal({ ticketId, onConfirm, onCancel 
                         onClick={() => hasDdCreds && setDdEnabled(v => !v)}
                         role="button"
                         tabIndex={hasDdCreds ? 0 : -1}
-                        className={`relative h-4 w-7 rounded-full transition-colors ${ddEnabled && hasDdCreds ? 'bg-cyan' : 'bg-[var(--border)]'} ${!hasDdCreds ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+                        className={`relative h-4 w-7 rounded-full transition-colors ${ddEnabled && hasDdCreds ? 'bg-blue-500' : 'bg-[var(--border)]'} ${!hasDdCreds ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
                       >
-                        <div className={`absolute top-0.5 h-3 w-3 rounded-full bg-ink-0 shadow transition-transform ${ddEnabled && hasDdCreds ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+                        <div className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform ${ddEnabled && hasDdCreds ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
                       </div>
                       <span className="text-[12px]" style={{ color: 'var(--foreground)' }}>Pull live Datadog logs for this investigation</span>
                     </label>
@@ -551,7 +545,7 @@ export default function InvestigationSetupModal({ ticketId, onConfirm, onCancel 
                           Test Connection
                         </button>
                         {ddTestResult && (
-                          <span className={`text-[10px] ${ddTestResult.valid ? 'text-mint' : 'text-red'}`}>
+                          <span className={`text-[10px] ${ddTestResult.valid ? 'text-green-400' : 'text-red-400'}`}>
                             {ddTestResult.valid ? '✓' : '✗'} {ddTestResult.message}
                           </span>
                         )}
@@ -565,7 +559,7 @@ export default function InvestigationSetupModal({ ticketId, onConfirm, onCancel 
                           <label className={LABEL}>
                             Call Center Name (CNC)
                             {detectedCnc && (
-                              <span className="ml-2 rounded px-1 py-0.5 text-[9px] text-violet" style={{ backgroundColor: 'color-mix(in srgb, var(--violet) 15%, transparent)' }}>
+                              <span className="ml-2 rounded bg-violet-500/15 px-1 py-0.5 text-[9px] text-violet-400">
                                 detected from PDF
                               </span>
                             )}
@@ -592,8 +586,8 @@ export default function InvestigationSetupModal({ ticketId, onConfirm, onCancel 
                                 }
                               }}
                               disabled={discoveringStations || (!(manualCnc.trim()) && !detectedCnc)}
-                              className="flex items-center gap-1.5 whitespace-nowrap rounded border px-3 py-1.5 text-[11px] font-medium text-cyan transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
-                              style={{ borderColor: 'color-mix(in srgb, var(--cyan) 40%, transparent)' }}
+                              className="flex items-center gap-1.5 whitespace-nowrap rounded border px-3 py-1.5 text-[11px] font-medium text-blue-400 transition-colors hover:bg-blue-500/10 disabled:opacity-40 disabled:hover:bg-transparent"
+                              style={{ borderColor: 'color-mix(in srgb, #60a5fa 40%, transparent)' }}
                             >
                               {discoveringStations ? <Spinner size={11} label="Discovering" /> : <Search size={11} />}
                               Discover Stations
@@ -616,7 +610,7 @@ export default function InvestigationSetupModal({ ticketId, onConfirm, onCancel 
                           {/* Station Discovery */}
                           {discoveringStations && (
                             <div className="mt-2 flex items-center gap-2 rounded border px-2.5 py-2" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--muted)' }}>
-                              <Spinner size={11} className="text-cyan" label="Searching" />
+                              <Spinner size={11} className="text-blue-400" label="Searching" />
                               <span className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
                                 Searching Datadog for stations in <span className="font-mono font-semibold">{manualCnc.trim() || detectedCnc || 'CNC'}</span>…
                               </span>
@@ -624,20 +618,20 @@ export default function InvestigationSetupModal({ ticketId, onConfirm, onCancel 
                           )}
 
                           {stationDiscoveryError && (
-                            <div className="mt-2 rounded border px-2.5 py-1.5 text-[10px] text-red" style={{ borderColor: 'color-mix(in srgb, var(--destructive) 20%, transparent)', backgroundColor: 'color-mix(in srgb, var(--destructive) 5%, transparent)' }}>
+                            <div className="mt-2 rounded border border-red-500/20 bg-red-500/5 px-2.5 py-1.5 text-[10px] text-red-400">
                               Station discovery failed: {stationDiscoveryError}
                             </div>
                           )}
 
                           {!discoveringStations && discoveredStations.length > 0 && (
-                            <div className="mt-2 rounded border" style={{ borderColor: 'color-mix(in srgb, var(--cyan) 30%, transparent)' }}>
-                              <div className="flex items-center justify-between px-2.5 py-1.5" style={{ backgroundColor: 'color-mix(in srgb, var(--cyan) 8%, transparent)', borderBottom: '1px solid color-mix(in srgb, var(--cyan) 15%, transparent)' }}>
-                                <span className="text-[10px] font-semibold text-cyan">
+                            <div className="mt-2 rounded border" style={{ borderColor: 'color-mix(in srgb, #60a5fa 30%, transparent)' }}>
+                              <div className="flex items-center justify-between px-2.5 py-1.5" style={{ backgroundColor: 'color-mix(in srgb, #60a5fa 8%, transparent)', borderBottom: '1px solid color-mix(in srgb, #60a5fa 15%, transparent)' }}>
+                                <span className="text-[10px] font-semibold text-blue-400">
                                   {discoveredStations.length} station{discoveredStations.length !== 1 ? 's' : ''} found in Datadog
                                 </span>
                                 <div className="flex gap-2">
                                   <button type="button" onClick={() => { const all = new Set(discoveredStations.map(s => s.name)); setSelectedStations(all); setDdHosts([...all].join(', ')); }}
-                                    className="text-[9px] text-cyan hover:underline">all</button>
+                                    className="text-[9px] text-blue-400 hover:underline">all</button>
                                   <button type="button" onClick={() => { setSelectedStations(new Set()); setDdHosts(''); }}
                                     className="text-[9px]" style={{ color: 'var(--muted-foreground)' }}>none</button>
                                 </div>
@@ -653,7 +647,7 @@ export default function InvestigationSetupModal({ ticketId, onConfirm, onCancel 
                                       type="checkbox"
                                       checked={selectedStations.has(s.name)}
                                       onChange={() => toggleStation(s.name)}
-                                      className="accent-cyan"
+                                      className="accent-blue-500"
                                     />
                                     <span className="flex-1 truncate font-mono text-[11px]" style={{ color: 'var(--foreground)' }} title={s.name}>
                                       {s.name}
@@ -685,12 +679,12 @@ export default function InvestigationSetupModal({ ticketId, onConfirm, onCancel 
                           <label className={LABEL}>
                             Query / Filter
                             {detectedCnc && (
-                              <span className="ml-2 rounded px-1 py-0.5 text-[9px] text-violet" style={{ backgroundColor: 'color-mix(in srgb, var(--violet) 15%, transparent)' }}>
+                              <span className="ml-2 rounded bg-violet-500/15 px-1 py-0.5 text-[9px] text-violet-400">
                                 from PDF
                               </span>
                             )}
                             {ddSuggested && ddFilter !== ddSuggested && !detectedCnc && (
-                              <button type="button" onClick={() => setDdFilter(ddSuggested)} className="ml-2 text-[10px] text-cyan hover:underline">
+                              <button type="button" onClick={() => setDdFilter(ddSuggested)} className="ml-2 text-[10px] text-blue-400 hover:underline">
                                 use suggested
                               </button>
                             )}
@@ -743,7 +737,7 @@ export default function InvestigationSetupModal({ ticketId, onConfirm, onCancel 
                 <div className="flex flex-col gap-1.5 px-3 py-2.5">
                   {/* Attachments */}
                   <div className="flex items-start gap-2 text-[11px]">
-                    <span style={{ color: selectedIds.size > 0 ? 'var(--mint)' : 'var(--muted-foreground)' }}>
+                    <span style={{ color: selectedIds.size > 0 ? '#22c55e' : 'var(--muted-foreground)' }}>
                       {selectedIds.size > 0 ? '✓' : '○'}
                     </span>
                     <span style={{ color: 'var(--muted-foreground)' }}>
@@ -758,13 +752,13 @@ export default function InvestigationSetupModal({ ticketId, onConfirm, onCancel 
                   {/* APEX Event ID correlation */}
                   {apexEvents.length > 0 && (
                     <div className="flex items-start gap-2 text-[11px]">
-                      <span style={{ color: 'var(--mint)' }}>✓</span>
+                      <span style={{ color: '#22c55e' }}>✓</span>
                       <span style={{ color: 'var(--muted-foreground)' }}>
                         Search Datadog by Event ID{apexEvents.length > 1 ? 's' : ''}:{' '}
                         {apexEvents.map((ev, i) => (
                           <span key={i}>
                             {i > 0 && ', '}
-                            <span className="font-mono font-semibold" style={{ color: 'var(--cyan)' }}>#{ev.eventId}</span>
+                            <span className="font-mono font-semibold" style={{ color: '#60a5fa' }}>#{ev.eventId}</span>
                           </span>
                         ))}
                       </span>
@@ -774,10 +768,10 @@ export default function InvestigationSetupModal({ ticketId, onConfirm, onCancel 
                   {/* CNC / Station */}
                   {(detectedCnc || manualCnc.trim()) && (
                     <div className="flex items-start gap-2 text-[11px]">
-                      <span style={{ color: 'var(--mint)' }}>✓</span>
+                      <span style={{ color: '#22c55e' }}>✓</span>
                       <span style={{ color: 'var(--muted-foreground)' }}>
                         Search CNC:{' '}
-                        <span className="font-mono font-semibold" style={{ color: 'var(--violet)' }}>{manualCnc.trim() || detectedCnc}</span>
+                        <span className="font-mono font-semibold" style={{ color: '#a78bfa' }}>{manualCnc.trim() || detectedCnc}</span>
                         {apexEvents[0]?.station && apexEvents[0].station !== 'N/A' && (
                           <> · Physical station: <span className="font-semibold" style={{ color: 'var(--foreground)' }}>{apexEvents[0].station}</span></>
                         )}
@@ -787,7 +781,7 @@ export default function InvestigationSetupModal({ ticketId, onConfirm, onCancel 
 
                   {/* Datadog */}
                   <div className="flex items-start gap-2 text-[11px]">
-                    <span style={{ color: ddEnabled && hasDdCreds ? 'var(--mint)' : 'var(--muted-foreground)' }}>
+                    <span style={{ color: ddEnabled && hasDdCreds ? '#22c55e' : 'var(--muted-foreground)' }}>
                       {ddEnabled && hasDdCreds ? '✓' : '○'}
                     </span>
                     <span style={{ color: 'var(--muted-foreground)' }}>
@@ -800,13 +794,13 @@ export default function InvestigationSetupModal({ ticketId, onConfirm, onCancel 
                   {/* Selected stations */}
                   {ddEnabled && hasDdCreds && ddHosts.trim() && (
                     <div className="flex items-start gap-2 text-[11px]">
-                      <span style={{ color: 'var(--mint)' }}>✓</span>
+                      <span style={{ color: '#22c55e' }}>✓</span>
                       <span style={{ color: 'var(--muted-foreground)' }}>
                         Filtering to station{ddHosts.split(',').filter(h => h.trim()).length !== 1 ? 's' : ''}:{' '}
                         {ddHosts.split(',').filter(h => h.trim()).map((h, i) => (
                           <span key={i}>
                             {i > 0 && ', '}
-                            <span className="font-mono font-semibold" style={{ color: 'var(--cyan)' }}>{h.trim()}</span>
+                            <span className="font-mono font-semibold" style={{ color: '#60a5fa' }}>{h.trim()}</span>
                           </span>
                         ))}
                       </span>
@@ -815,14 +809,14 @@ export default function InvestigationSetupModal({ ticketId, onConfirm, onCancel 
 
                   {/* Operator name hint — only if no stations selected and discovery hasn't run */}
                   {detectedCnc && ddEnabled && hasDdCreds && !ddHosts.trim() && discoveredStations.length === 0 && !discoveringStations && (
-                    <div className="mt-1 rounded border px-2.5 py-1.5 text-[10px]" style={{ borderColor: 'color-mix(in srgb, var(--warning) 20%, transparent)', backgroundColor: 'color-mix(in srgb, var(--warning) 5%, transparent)', color: 'var(--warning)' }}>
+                    <div className="mt-1 rounded border border-amber-500/20 bg-amber-500/5 px-2.5 py-1.5 text-[10px]" style={{ color: 'var(--warning)' }}>
                       💡 Select specific stations above for more precise Datadog results, or leave blank to search the entire CNC.
                     </div>
                   )}
 
                   {/* Timezone */}
                   <div className="flex items-start gap-2 text-[11px]">
-                    <span style={{ color: 'var(--mint)' }}>✓</span>
+                    <span style={{ color: '#22c55e' }}>✓</span>
                     <span style={{ color: 'var(--muted-foreground)' }}>
                       Timezone: <span style={{ color: 'var(--foreground)' }}>{timezone}</span>
                     </span>
@@ -830,7 +824,7 @@ export default function InvestigationSetupModal({ ticketId, onConfirm, onCancel 
 
                   {/* AI analysis */}
                   <div className="flex items-start gap-2 text-[11px]">
-                    <span style={{ color: 'var(--violet)' }}>⟶</span>
+                    <span style={{ color: '#a78bfa' }}>⟶</span>
                     <span style={{ color: 'var(--muted-foreground)' }}>
                       Run <span style={{ color: 'var(--foreground)' }}>Unleashed AI</span> to correlate all sources and generate internal note draft
                     </span>
@@ -838,7 +832,7 @@ export default function InvestigationSetupModal({ ticketId, onConfirm, onCancel 
 
                   {/* No sources warning */}
                   {selectedIds.size === 0 && !(ddEnabled && hasDdCreds) && (
-                    <div className="mt-1 text-[11px] text-amber">
+                    <div className="mt-1 text-[11px] text-amber-400">
                       ⚠ No data sources selected — pick at least one attachment or enable Datadog.
                     </div>
                   )}
@@ -865,7 +859,8 @@ export default function InvestigationSetupModal({ ticketId, onConfirm, onCancel 
             type="button"
             onClick={handleStart}
             disabled={!canStart}
-            className="flex items-center gap-2 rounded bg-violet px-5 py-2 text-[12px] font-semibold text-ink-0 transition-opacity disabled:opacity-40"
+            className="flex items-center gap-2 rounded px-5 py-2 text-[12px] font-semibold text-white transition-opacity disabled:opacity-40"
+            style={{ backgroundColor: '#7c3aed' }}
           >
             {!ticket || scanningPdfs ? <Spinner size={13} label="Starting" /> : <Zap size={13} />}
             Start Investigation

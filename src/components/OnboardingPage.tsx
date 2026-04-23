@@ -208,7 +208,7 @@ export default function OnboardingPage({ onOpenSettings, onComplete, onSkip }: O
               <ul className="text-left w-full space-y-3 mb-6">
                 <li className="flex items-center gap-3 text-sm text-[var(--text-secondary)]">
                   {apiKeyConfigured ? (
-                    <CheckCircle2 className="w-5 h-5 text-mint flex-shrink-0" />
+                    <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" />
                   ) : (
                     <span className="w-5 h-5 rounded-full border-2 border-[var(--border-color)] flex-shrink-0" />
                   )}
@@ -216,7 +216,7 @@ export default function OnboardingPage({ onOpenSettings, onComplete, onSkip }: O
                 </li>
                 <li className="flex items-center gap-3 text-sm text-[var(--text-secondary)]">
                   {isEnabled ? (
-                    <CheckCircle2 className="w-5 h-5 text-mint flex-shrink-0" />
+                    <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" />
                   ) : (
                     <span className="w-5 h-5 rounded-full border-2 border-[var(--border-color)] flex-shrink-0" />
                   )}
@@ -233,7 +233,7 @@ export default function OnboardingPage({ onOpenSettings, onComplete, onSkip }: O
                 <button
                   type="button"
                   onClick={onOpenSettings}
-                  className="w-full px-4 py-3 rounded-lg bg-cyan text-ink-0 font-medium flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
+                  className="w-full px-4 py-3 rounded-lg bg-[var(--accent-blue)] text-white font-medium flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
                 >
                   <Settings size={18} />
                   Open AI Settings
@@ -272,7 +272,7 @@ export default function OnboardingPage({ onOpenSettings, onComplete, onSkip }: O
                   <button
                     type="button"
                     onClick={() => setStep((s) => s + 1)}
-                    className="flex-1 px-4 py-2.5 rounded-lg bg-cyan text-ink-0 font-medium flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
+                    className="flex-1 px-4 py-2.5 rounded-lg bg-[var(--accent-blue)] text-white font-medium flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
                   >
                     {step === 3 ? 'Next: Configure' : 'Next'}
                     <ArrowRight size={18} />

@@ -374,7 +374,7 @@ export function WorkspaceImportPanel({ onComplete, onInvestigationReady }: Works
                 if (id) onInvestigationReady(id);
               }}
               className="flex shrink-0 items-center gap-1.5 rounded border px-3 py-2 text-[11px] font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              style={{ borderColor: 'var(--violet)', backgroundColor: 'var(--violet)', color: 'var(--ink-0)' }}
+              style={{ borderColor: '#7c3aed', backgroundColor: '#7c3aed', color: '#fff' }}
               title="Open in Diagnose tab — no log file required"
             >
               <Stethoscope size={13} />

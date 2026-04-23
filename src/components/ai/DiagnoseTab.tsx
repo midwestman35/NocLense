@@ -467,7 +467,7 @@ export default function DiagnoseTab({
           <StepBar current={1} />
         )}
         {scanError && (
-          <div className="mx-3 mt-2 rounded border border-red/30 bg-red/10 px-3 py-2 text-[11px] text-red">
+          <div className="mx-3 mt-2 rounded border border-red-500/30 bg-red-500/10 px-3 py-2 text-[11px] text-red-400">
             {scanError}
           </div>
         )}
@@ -589,8 +589,8 @@ function StepBar({ current }: { current: 1 | 2 | 3 }) {
             <div
               className="flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-bold shrink-0"
               style={{
-                backgroundColor: s.n <= current ? 'var(--violet)' : 'var(--border)',
-                color: s.n <= current ? 'var(--ink-0)' : 'var(--muted-foreground)',
+                backgroundColor: s.n <= current ? '#7c3aed' : 'var(--border)',
+                color: s.n <= current ? '#fff' : 'var(--muted-foreground)',
               }}
             >
               {s.n}

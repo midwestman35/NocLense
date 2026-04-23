@@ -26,7 +26,7 @@ export default function AiSettingsModal({ isOpen, onClose, onSave }: Props) {
     <div
       onClick={onClose}
       style={{
-        position: 'fixed', inset: 0, backgroundColor: 'color-mix(in srgb, var(--bg-0) 78%, transparent)',
+        position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)',
         display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: '24px',
       }}
     >
@@ -35,7 +35,7 @@ export default function AiSettingsModal({ isOpen, onClose, onSave }: Props) {
         style={{
           backgroundColor: 'var(--card)', borderRadius: '12px', padding: '24px',
           width: '100%', maxWidth: '480px', border: '1px solid var(--border)',
-          boxShadow: 'var(--shadow-floating)',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
         }}
       >
         {/* Header */}
@@ -409,7 +409,7 @@ export default function AiSettingsModal({ isOpen, onClose, onSave }: Props) {
             onClick={handleSave}
             style={{
               padding: '8px 16px', borderRadius: '8px', fontSize: '13px', fontWeight: '600',
-              backgroundColor: 'var(--success)', border: 'none', color: 'var(--ink-0)', cursor: 'pointer',
+              backgroundColor: 'var(--success)', border: 'none', color: '#fff', cursor: 'pointer',
             }}
           >
             Save Settings

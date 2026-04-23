@@ -93,7 +93,7 @@ export function ZendeskPanel() {
             style={{
               padding: '6px 10px', borderRadius: '6px', border: 'none',
               backgroundColor: query.trim() && !fetching && hasZendesk ? 'var(--success)' : 'var(--muted)',
-              color: query.trim() && !fetching && hasZendesk ? 'var(--ink-0)' : 'var(--muted-foreground)',
+              color: query.trim() && !fetching && hasZendesk ? '#fff' : 'var(--muted-foreground)',
               cursor: query.trim() && !fetching && hasZendesk ? 'pointer' : 'not-allowed',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               transition: 'all 0.15s',
@@ -192,7 +192,7 @@ export function ZendeskPanel() {
               width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid var(--border)',
               cursor: !hasLogs || analyzing ? 'not-allowed' : 'pointer',
               backgroundColor: !hasLogs || analyzing ? 'var(--muted)' : 'var(--success)',
-              color: !hasLogs || analyzing ? 'var(--muted-foreground)' : 'var(--ink-0)',
+              color: !hasLogs || analyzing ? 'var(--muted-foreground)' : '#fff',
               fontSize: '12px', fontWeight: '600', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
               transition: 'all 0.15s',
             }}
@@ -208,7 +208,7 @@ export function ZendeskPanel() {
           )}
 
           {analysisError && (
-            <div style={{ fontSize: '11px', color: 'var(--destructive)', backgroundColor: 'color-mix(in srgb, var(--destructive) 8%, transparent)', padding: '8px 10px', borderRadius: '6px', border: '1px solid color-mix(in srgb, var(--destructive) 25%, transparent)' }}>
+            <div style={{ fontSize: '11px', color: 'var(--destructive)', backgroundColor: 'rgba(239,68,68,0.08)', padding: '8px 10px', borderRadius: '6px', border: '1px solid rgba(239,68,68,0.25)' }}>
               {analysisError}
             </div>
           )}

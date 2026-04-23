@@ -331,14 +331,14 @@ export default function DiagnosePhase1({
                 <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
                   {fetchedTicket.attachments.map(att => (
                     <div key={att.id} className="flex items-center gap-2 px-3 py-2">
-                      <FileText size={12} style={{ color: isZipFile(att.fileName, att.contentType) ? 'var(--amber)' : 'var(--muted-foreground)', flexShrink: 0 }} />
+                      <FileText size={12} style={{ color: isZipFile(att.fileName, att.contentType) ? '#f97316' : 'var(--muted-foreground)', flexShrink: 0 }} />
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-[11px] font-medium" style={{ color: 'var(--foreground)' }} title={att.fileName}>
                           {att.fileName}
                         </p>
                         <div className="flex items-center gap-1.5 mt-0.5">
                           {isZipFile(att.fileName, att.contentType) && (
-                            <span className="rounded px-1 py-0.5 text-[9px] font-semibold" style={{ backgroundColor: 'color-mix(in srgb, var(--amber) 15%, transparent)', color: 'var(--amber)' }}>
+                            <span className="rounded px-1 py-0.5 text-[9px] font-semibold" style={{ backgroundColor: 'rgba(249,115,22,0.15)', color: '#f97316' }}>
                               ZIP
                             </span>
                           )}
@@ -359,7 +359,7 @@ export default function DiagnosePhase1({
                               : `${Math.round(att.size / 1024)} KB`}
                           </span>
                           {attErrors.get(att.id) && (
-                            <span className="truncate text-[10px] text-red" title={attErrors.get(att.id)}>
+                            <span className="truncate text-[10px] text-red-400" title={attErrors.get(att.id)}>
                               {attErrors.get(att.id)}
                             </span>
                           )}
@@ -430,7 +430,7 @@ export default function DiagnosePhase1({
                   {zdFetching ? 'Fetching…' : 'Fetch'}
                 </button>
               </div>
-              {zdError && <p className="mt-1.5 text-[11px] text-red">{zdError}</p>}
+              {zdError && <p className="mt-1.5 text-[11px] text-red-400">{zdError}</p>}
               {!settings.zendeskToken && (
                 <p className="mt-1 text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
                   Configure Zendesk credentials in settings to enable auto-fetch.
@@ -458,11 +458,11 @@ export default function DiagnosePhase1({
           ) : (
             <>
               <div>
-                <label className={LABEL}>Subject <span className="text-red">*</span></label>
+                <label className={LABEL}>Subject <span className="text-red-400">*</span></label>
                 <input type="text" value={createSubject} onChange={e => setCreateSubject(e.target.value)} placeholder="Brief description of the issue" className={INPUT} />
               </div>
               <div>
-                <label className={LABEL}>Description <span className="text-red">*</span></label>
+                <label className={LABEL}>Description <span className="text-red-400">*</span></label>
                 <textarea
                   value={createDescription}
                   onChange={e => setCreateDescription(e.target.value)}
@@ -475,7 +475,7 @@ export default function DiagnosePhase1({
                 <label className={LABEL}>Requester Email <span style={{ color: 'var(--muted-foreground)' }}>(optional)</span></label>
                 <input type="email" value={createEmail} onChange={e => setCreateEmail(e.target.value)} placeholder="customer@example.com" className={INPUT} />
               </div>
-              {createError && <p className="text-[11px] text-red">{createError}</p>}
+              {createError && <p className="text-[11px] text-red-400">{createError}</p>}
               <button
                 type="button"
                 onClick={doCreateTicket}
@@ -509,7 +509,7 @@ export default function DiagnosePhase1({
         <label className={LABEL}>
           Customer timezone
           {fetchedTicket?.requesterTimezone || fetchedTicket?.orgTimezone
-            ? <span className="ml-1.5 rounded bg-mint/15 px-1 py-0.5 text-[9px] text-mint">from Zendesk</span>
+            ? <span className="ml-1.5 rounded bg-green-500/15 px-1 py-0.5 text-[9px] text-green-400">from Zendesk</span>
             : null}
         </label>
         <select
@@ -543,12 +543,12 @@ export default function DiagnosePhase1({
           style={{ backgroundColor: 'var(--muted)' }}
         >
           <div className="flex items-center gap-2">
-            <Database size={12} style={{ color: ddEnabled && hasDdCreds ? 'var(--cyan)' : 'var(--muted-foreground)' }} />
+            <Database size={12} style={{ color: ddEnabled && hasDdCreds ? '#60a5fa' : 'var(--muted-foreground)' }} />
             <span className="text-[11px] font-medium" style={{ color: 'var(--foreground)' }}>
               Datadog Enrichment
             </span>
             {ddEnabled && hasDdCreds && (
-              <span className="rounded bg-cyan/15 px-1.5 py-0.5 text-[9px] font-semibold text-cyan">ON</span>
+              <span className="rounded bg-blue-500/15 px-1.5 py-0.5 text-[9px] font-semibold text-blue-400">ON</span>
             )}
             {!hasDdCreds && (
               <span className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>— configure in ⚙ Settings</span>
@@ -565,9 +565,9 @@ export default function DiagnosePhase1({
                 onClick={() => hasDdCreds && setDdEnabled(v => !v)}
                 role="button"
                 tabIndex={hasDdCreds ? 0 : -1}
-                className={`relative h-4 w-7 rounded-full transition-colors ${ddEnabled && hasDdCreds ? 'bg-cyan' : 'bg-[var(--border)]'} ${!hasDdCreds ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+                className={`relative h-4 w-7 rounded-full transition-colors ${ddEnabled && hasDdCreds ? 'bg-blue-500' : 'bg-[var(--border)]'} ${!hasDdCreds ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
               >
-                <div className={`absolute top-0.5 h-3 w-3 rounded-full bg-ink-0 shadow transition-transform ${ddEnabled && hasDdCreds ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+                <div className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform ${ddEnabled && hasDdCreds ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
               </div>
               <span className="text-[11px]" style={{ color: 'var(--foreground)' }}>
                 Enrich scan with live Datadog logs
@@ -612,7 +612,7 @@ export default function DiagnosePhase1({
                     Query / Filter
                     {ddSuggestedFilter && ddFilter !== ddSuggestedFilter && (
                       <button type="button" onClick={() => setDdFilter(ddSuggestedFilter)}
-                        className="ml-2 text-[10px] text-cyan hover:underline">use suggested</button>
+                        className="ml-2 text-[10px] text-blue-400 hover:underline">use suggested</button>
                     )}
                   </label>
                   <input
@@ -658,8 +658,8 @@ export default function DiagnosePhase1({
         type="button"
         onClick={handleScan}
         disabled={!canScan}
-        className="flex items-center justify-center gap-2 rounded py-2.5 text-[12px] font-semibold text-ink-0 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-        style={{ backgroundColor: canScan ? 'var(--violet)' : undefined, opacity: canScan ? 1 : undefined }}
+        className="flex items-center justify-center gap-2 rounded py-2.5 text-[12px] font-semibold text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        style={{ backgroundColor: canScan ? '#7c3aed' : undefined, opacity: canScan ? 1 : undefined }}
       >
         <Stethoscope size={15} />
         {mode === 'skip' ? 'Scan Logs' : 'Scan Logs Against Ticket'}

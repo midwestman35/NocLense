@@ -137,16 +137,16 @@ const CorrelationItemList = ({
                                     "opacity-0 group-hover:opacity-100 transition-opacity px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border",
                                     isOnlyFilter
                                         ? "bg-[var(--foreground)] text-[var(--muted)] border-[var(--foreground)] opacity-100"
-                                        : "bg-transparent text-[var(--muted-foreground)] border-[var(--border)] hover:bg-[var(--foreground)] hover:text-ink-0 hover:border-[var(--foreground)]"
+                                        : "bg-transparent text-[var(--muted-foreground)] border-[var(--border)] hover:bg-[var(--foreground)] hover:text-white hover:border-[var(--foreground)]"
                                 )}
                             >
                                 {isOnlyFilter ? 'ALL' : 'ONLY'}
                             </button>
 
                             <span className={clsx(
-                                "text-[10px] px-1.5 py-0.5 rounded-full min-w-[20px] text-center transition-colors font-display",
+                                "text-[10px] px-1.5 py-0.5 rounded-full min-w-[20px] text-center transition-colors font-sans",
                                 isActive
-                                    ? "bg-[var(--foreground)] text-ink-0"
+                                    ? "bg-[var(--foreground)] text-white"
                                     : "bg-[var(--border)] text-[var(--muted-foreground)] group-hover:bg-[var(--muted-foreground)] group-hover:text-[var(--card)]"
                             )}>
                                 {count}
@@ -250,7 +250,7 @@ const CorrelationSidebar = () => {
 
     return (
         <div
-            className="h-full flex flex-col bg-[var(--card)] text-[var(--foreground)] font-display relative border-r border-[var(--border)]"
+            className="h-full flex flex-col bg-[var(--card)] text-[var(--foreground)] font-sans relative border-r border-[var(--border)]"
             style={{ width: sidebarWidth }}
         >
             {/* Resize Handle */}

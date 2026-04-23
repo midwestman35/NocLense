@@ -211,7 +211,7 @@ export default function AIButton({
 
   // Variant classes
   const variantClasses = {
-    primary: 'bg-[var(--foreground)] text-ink-0 hover:bg-[var(--foreground)]/90',
+    primary: 'bg-[var(--foreground)] text-white hover:bg-[var(--foreground)]/90',
     secondary: 'bg-[var(--muted)] border border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--muted)]/80',
     icon: 'p-2 bg-[var(--muted)] border border-[var(--border)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--muted)]/80',
   };
@@ -262,7 +262,7 @@ export default function AIButton({
 
       {/* Inline AI result panel */}
       {isPanelOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg-0/50" onClick={handleClose}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={handleClose}>
           <div
             className="w-full max-w-2xl max-h-[80vh] m-4 rounded-lg shadow-[var(--shadow-floating)] flex flex-col"
             style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}
@@ -293,7 +293,7 @@ export default function AIButton({
                 </div>
               )}
               {aiError && (
-                <div style={{ fontSize: '12px', color: 'var(--destructive)', backgroundColor: 'color-mix(in srgb, var(--destructive) 10%, transparent)', padding: '10px 12px', borderRadius: '8px', border: '1px solid color-mix(in srgb, var(--destructive) 30%, transparent)' }}>
+                <div style={{ fontSize: '12px', color: 'var(--destructive)', backgroundColor: 'rgba(239,68,68,0.08)', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(239,68,68,0.25)' }}>
                   {aiError}
                 </div>
               )}
@@ -320,7 +320,7 @@ export default function AIButton({
                 <button
                   onClick={() => void handleFollowUp()}
                   disabled={!chatInput.trim() || aiLoading}
-                  style={{ padding: '7px 12px', borderRadius: '8px', border: 'none', cursor: 'pointer', backgroundColor: chatInput.trim() && !aiLoading ? 'var(--success)' : 'var(--muted)', color: chatInput.trim() && !aiLoading ? 'var(--ink-0)' : 'var(--muted-foreground)' }}
+                  style={{ padding: '7px 12px', borderRadius: '8px', border: 'none', cursor: 'pointer', backgroundColor: chatInput.trim() && !aiLoading ? 'var(--success)' : 'var(--muted)', color: chatInput.trim() && !aiLoading ? '#fff' : 'var(--muted-foreground)' }}
                 >
                   <Send size={13} />
                 </button>

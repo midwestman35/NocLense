@@ -2,12 +2,12 @@ import { useState, useRef, useEffect } from 'react';
 import { Database, X, Check } from 'lucide-react';
 
 const SOURCE_COLORS: Record<string, string> = {
-  'Datadog': 'bg-violet/20 text-violet border-violet/30',
-  'Homer SIP': 'bg-cyan/20 text-cyan border-cyan/30',
-  'Call Log': 'bg-amber/20 text-amber border-amber/30',
-  'FDX': 'bg-cyan/20 text-cyan border-cyan/30',
-  'CCS/PBX': 'bg-mint/20 text-mint border-mint/30',
-  'APEX Local': 'bg-amber/20 text-amber border-amber/30',
+  'Datadog': 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+  'Homer SIP': 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30',
+  'Call Log': 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+  'FDX': 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+  'CCS/PBX': 'bg-green-500/20 text-green-400 border-green-500/30',
+  'APEX Local': 'bg-orange-500/20 text-orange-400 border-orange-500/30',
 };
 
 interface SourceFilterDropdownProps {
@@ -74,7 +74,7 @@ export default function SourceFilterDropdown({ sources, selected, onSelect }: So
               style={{ color: src === selected ? 'var(--foreground)' : 'var(--muted-foreground)' }}
             >
               <span className={`w-2 h-2 rounded-full shrink-0 ${
-                SOURCE_COLORS[src]?.split(' ')[0] || 'bg-ink-3'
+                SOURCE_COLORS[src]?.split(' ')[0] || 'bg-gray-500/30'
               }`} />
               {src}
               {src === selected && <Check size={12} className="ml-auto" />}

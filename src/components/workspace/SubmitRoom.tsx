@@ -61,13 +61,13 @@ function ClosureNoteCard({
       id="closure-note"
       title="Closure Note"
       icon={<FileText size={14} />}
-      accentColor="var(--mint)"
+      accentColor="#76ce40"
       className="w-[420px]"
     >
       <div className="flex flex-col gap-[var(--space-3)] p-[var(--space-4)]">
         {isDraft && (
           <div role="status" aria-label="Closure note is a draft">
-            <Badge variant="outline" className="bg-amber/10 border-amber/40 text-amber">
+            <Badge variant="outline" className="border-amber-500/40 text-amber-500">
               Draft - no confirmed hypothesis
             </Badge>
           </div>
@@ -143,7 +143,7 @@ function EvidenceSummaryCard({
       id="evidence-summary"
       title="Evidence Summary"
       icon={<Bookmark size={14} />}
-      accentColor="var(--amber)"
+      accentColor="#f59e0b"
       className="w-[320px]"
     >
       <div className="flex flex-col gap-[var(--space-3)] p-[var(--space-4)]">

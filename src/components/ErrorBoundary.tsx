@@ -78,7 +78,7 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
           <div className="flex gap-2">
             <button
               onClick={this.handleRetry}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded bg-[var(--foreground)] text-ink-0 hover:bg-[var(--foreground)]/90"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded bg-[var(--foreground)] text-white hover:bg-[var(--foreground)]/90"
             >
               <RefreshCw size={14} />
               Try Again

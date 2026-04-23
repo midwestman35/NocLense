@@ -163,7 +163,7 @@ export default function DiagnosePhase3({
   if (submitSuccess) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
-        <CheckCircle size={40} className={attachmentFailed ? 'text-amber' : 'text-[var(--success)]'} />
+        <CheckCircle size={40} className={attachmentFailed ? 'text-amber-400' : 'text-[var(--success)]'} />
         <div>
           <p className="text-[14px] font-semibold" style={{ color: 'var(--foreground)' }}>
             {attachmentFailed ? 'Note posted — attachment failed' : 'Internal note posted!'}
@@ -178,18 +178,18 @@ export default function DiagnosePhase3({
           )}
         </div>
         {attachmentFailed && (
-          <div className="rounded border border-amber/30 bg-amber/10 px-4 py-2.5">
-            <p className="text-[11px] text-amber font-medium">
+          <div className="rounded border border-amber-500/30 bg-amber-500/10 px-4 py-2.5">
+            <p className="text-[11px] text-amber-400 font-medium">
               The log archive could not be uploaded to Zendesk. The internal note was posted without the attachment.
             </p>
             {submitError && (
-              <p className="mt-1 text-[10px] text-red">{submitError}</p>
+              <p className="mt-1 text-[10px] text-red-400">{submitError}</p>
             )}
             <button
               type="button"
               onClick={() => handleRetryAttachment(submitSuccess.ticketId)}
               disabled={retryingAttachment}
-              className="mt-2 flex items-center gap-1.5 rounded border px-3 py-1 text-[11px] font-medium transition-colors hover:bg-amber/10 disabled:opacity-50"
+              className="mt-2 flex items-center gap-1.5 rounded border px-3 py-1 text-[11px] font-medium transition-colors hover:bg-amber-500/10 disabled:opacity-50"
               style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}
             >
               {retryingAttachment ? <Spinner size={11} label="Retrying" /> : <Paperclip size={11} />}
@@ -200,7 +200,7 @@ export default function DiagnosePhase3({
         {confluenceResult && (
           <p className="text-[11px]" style={{ color: 'var(--muted-foreground)' }}>
             Investigation saved to{' '}
-            <a href={confluenceResult.url} target="_blank" rel="noreferrer" className="text-violet hover:text-ink-0 underline">
+            <a href={confluenceResult.url} target="_blank" rel="noreferrer" className="text-violet-400 hover:text-violet-300 underline">
               Confluence
             </a>
           </p>
@@ -220,11 +220,11 @@ export default function DiagnosePhase3({
           <button
             type="button"
             onClick={onDone}
-              className="rounded px-3 py-1.5 text-[11px] font-medium text-ink-0"
-              style={{ backgroundColor: 'var(--success)' }}
-            >
-              New Diagnosis
-            </button>
+            className="rounded px-3 py-1.5 text-[11px] font-medium text-white"
+            style={{ backgroundColor: 'var(--success)' }}
+          >
+            New Diagnosis
+          </button>
         </div>
       </div>
     );
@@ -273,7 +273,7 @@ export default function DiagnosePhase3({
               type="checkbox"
               checked={includeArchive}
               onChange={e => setIncludeArchive(e.target.checked)}
-              className="accent-violet"
+              className="accent-violet-500"
             />
             <Archive size={13} style={{ color: 'var(--muted-foreground)' }} />
             <span className="text-[12px] font-medium" style={{ color: 'var(--foreground)' }}>
@@ -304,7 +304,7 @@ export default function DiagnosePhase3({
                   type="checkbox"
                   checked={downloadLocal}
                   onChange={e => setDownloadLocal(e.target.checked)}
-                  className="accent-violet"
+                  className="accent-violet-500"
                 />
                 <Download size={11} style={{ color: 'var(--muted-foreground)' }} />
                 Download to my computer
@@ -316,7 +316,7 @@ export default function DiagnosePhase3({
                     type="checkbox"
                     checked={attachToZd}
                     onChange={e => setAttachToZd(e.target.checked)}
-                    className="accent-violet"
+                    className="accent-violet-500"
                   />
                   <Paperclip size={11} style={{ color: 'var(--muted-foreground)' }} />
                   Attach to Zendesk ticket #{ticket?.id}
@@ -328,7 +328,7 @@ export default function DiagnosePhase3({
 
         {/* Actions */}
         {submitError && (
-          <p className="rounded border border-red/30 bg-red/10 px-3 py-2 text-[11px] text-red">
+          <p className="rounded border border-red-500/30 bg-red-500/10 px-3 py-2 text-[11px] text-red-400">
             {submitError}
           </p>
         )}
@@ -339,7 +339,7 @@ export default function DiagnosePhase3({
             type="button"
             onClick={() => handleSubmit(ticket)}
             disabled={submitting || !internalNote.trim()}
-            className="flex items-center justify-center gap-2 rounded py-2.5 text-[12px] font-semibold text-ink-0 disabled:opacity-50"
+            className="flex items-center justify-center gap-2 rounded py-2.5 text-[12px] font-semibold text-white disabled:opacity-50"
             style={{ backgroundColor: 'var(--success)' }}
           >
             {submitting ? <Spinner size="md" label="Posting" /> : <CheckCircle size={14} />}
@@ -395,7 +395,7 @@ export default function DiagnosePhase3({
                 </p>
                 <div className="flex flex-col gap-2">
                   <div>
-                    <label className={LABEL}>Subject <span className="text-red">*</span></label>
+                    <label className={LABEL}>Subject <span className="text-red-400">*</span></label>
                     <input type="text" value={newSubject} onChange={e => setNewSubject(e.target.value)} placeholder="Brief issue summary" className={INPUT} />
                   </div>
                   <div>
@@ -405,12 +405,12 @@ export default function DiagnosePhase3({
                   <p className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
                     The internal note above will be posted as a private comment on the new ticket.
                   </p>
-                  {createError && <p className="text-[11px] text-red">{createError}</p>}
+                  {createError && <p className="text-[11px] text-red-400">{createError}</p>}
                   <button
                     type="button"
                     onClick={handleCreateAndPost}
                     disabled={creating || !newSubject.trim()}
-                    className="flex items-center justify-center gap-2 rounded py-2 text-[12px] font-semibold text-ink-0 disabled:opacity-50"
+                    className="flex items-center justify-center gap-2 rounded py-2 text-[12px] font-semibold text-white disabled:opacity-50"
                     style={{ backgroundColor: 'var(--success)' }}
                   >
                     {creating ? <Spinner size="md" label="Creating" /> : <CheckCircle size={14} />}
