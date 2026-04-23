@@ -15,6 +15,7 @@ interface RoomRouterProps {
   /** Action buttons for the header (Import, Export, Clear, etc.) */
   headerActions?: ReactNode;
   importContent: ReactNode;
+  setupContent: ReactNode;
   investigateContent: ReactNode;
   submitContent: ReactNode;
 }
@@ -27,6 +28,7 @@ export function RoomRouter({
   statusLabel,
   headerActions,
   importContent,
+  setupContent,
   investigateContent,
   submitContent,
 }: RoomRouterProps) {
@@ -54,6 +56,7 @@ export function RoomRouter({
 
   const roomContent: Record<Phase, ReactNode> = {
     import: importContent,
+    setup: setupContent,
     investigate: investigateContent,
     submit: submitContent,
   };

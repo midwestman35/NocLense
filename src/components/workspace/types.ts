@@ -1,4 +1,4 @@
-export type Phase = 'import' | 'investigate' | 'submit';
+export type Phase = 'import' | 'setup' | 'investigate' | 'submit';
 
 export type CardId =
   | 'log-stream'
@@ -13,10 +13,11 @@ export interface CardState {
   expanded: boolean;
 }
 
-export const PHASE_ORDER: Phase[] = ['import', 'investigate', 'submit'];
+export const PHASE_ORDER: Phase[] = ['import', 'setup', 'investigate', 'submit'];
 
 export const PHASE_LABELS: Record<Phase, string> = {
   import: 'Import',
+  setup: 'Setup',
   investigate: 'Investigate',
   submit: 'Submit',
 };

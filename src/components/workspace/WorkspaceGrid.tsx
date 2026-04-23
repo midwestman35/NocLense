@@ -133,13 +133,13 @@ export function WorkspaceGrid({ layout, children, className }: WorkspaceGridProp
     );
   }
 
-  if (layout === 'import') {
+  if (layout === 'import' || layout === 'setup') {
     return (
       <div
-        data-room="import"
+        data-room={layout}
         className={clsx(
           'h-full min-h-0 overflow-hidden transition-[background-color,opacity] duration-[var(--room-transition-duration,200ms)]',
-          'flex items-center justify-center',
+          layout === 'setup' ? 'block' : 'flex items-center justify-center',
           className,
         )}
         style={{

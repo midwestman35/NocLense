@@ -23,6 +23,7 @@ import LogViewer, { type LogViewerHandle } from '../LogViewer';
 import LogTimeline from '../timeline/LogTimeline';
 import { AISidebar } from '../AISidebar';
 import { ImportRoom } from '../rooms/import/ImportRoom';
+import { SetupRoom } from '../rooms/setup/SetupRoom';
 import LogDetailsPanel from '../log/LogDetailsPanel';
 import { CaseHeader } from '../case/CaseHeader';
 import { Dialog } from '../ui/Dialog';
@@ -156,7 +157,7 @@ export function NewWorkspaceLayout() {
   // When logs are loaded, auto-advance to investigate
   const handleImportComplete = useCallback(() => {
     setActiveTicket(null);
-    setExplicitPhase('investigate');
+    setExplicitPhase('setup');
   }, []);
 
   const handleInvestigationReady = useCallback((ticketId: string) => {
@@ -171,6 +172,13 @@ export function NewWorkspaceLayout() {
       onInvestigationReady={handleInvestigationReady}
     />
   ), [handleImportComplete, handleInvestigationReady]);
+
+  const setupContent = useMemo(() => (
+    <SetupRoom
+      onBack={() => setExplicitPhase('import')}
+      onContinue={() => setExplicitPhase('investigate')}
+    />
+  ), []);
 
   // ── Investigate Room ───────────────────────────────────────────
   const investigateContent = useMemo(() => (
@@ -378,6 +386,7 @@ export function NewWorkspaceLayout() {
           </>
         ) : undefined}
         importContent={importContent}
+        setupContent={setupContent}
         investigateContent={investigateContent}
         submitContent={submitContent}
       />
