@@ -11,8 +11,33 @@
     "dialog:allow-open",
     "dialog:allow-save",
     "fs:default",
+    "fs:allow-open",
     "fs:allow-read-file",
     "fs:allow-read-text-file",
+    "fs:allow-stat",
+    {
+      "identifier": "fs:scope",
+      "allow": [
+        {
+          "path": "$DESKTOP/**/*"
+        },
+        {
+          "path": "$DOCUMENT/**/*"
+        },
+        {
+          "path": "$DOWNLOAD/**/*"
+        },
+        {
+          "path": "$HOME/**/*"
+        },
+        {
+          "path": "$PUBLIC/**/*"
+        },
+        {
+          "path": "$TEMP/**/*"
+        }
+      ]
+    },
     "http:default",
     {
       "identifier": "http:allow-fetch",
