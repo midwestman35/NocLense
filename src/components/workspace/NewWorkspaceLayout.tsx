@@ -16,6 +16,7 @@ import type { LogViewerHandle } from '../LogViewer';
 import { ImportRoom } from '../rooms/import/ImportRoom';
 import { SetupRoom } from '../rooms/setup/SetupRoom';
 import { InvestigateRoom } from '../rooms/investigate/InvestigateRoom';
+import { useCitationJumpHandler } from '../rooms/investigate/CitationJumpHandler';
 import { Dialog } from '../ui/Dialog';
 import { Button } from '../ui';
 // ServerSettingsPanel — kept in codebase but removed from UI until backend plans are decided
@@ -29,9 +30,7 @@ import { CaseStateBridge } from '../case/CaseStateBridge';
 import { FolderPlus, Download, Trash2 } from 'lucide-react';
 import type { InvestigationSetup } from '../../types/investigation';
 import type { ZendeskTicket } from '../../services/zendeskService';
-import { loadAiSettings } from '../../store/aiSettings';
 import { useEvidence } from '../../contexts/EvidenceContext';
-import type { Citation, CitationId } from '../../types/canonical';
 
 function formatTicketLabel(value: string | null | undefined): string | undefined {
   if (!value) return undefined;
@@ -41,40 +40,6 @@ function formatTicketLabel(value: string | null | undefined): string | undefined
     .filter(Boolean)
     .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1).toLowerCase())
     .join(' ');
-}
-
-function buildCitationUrl(citation: Citation): string | null {
-  const settings = loadAiSettings();
-
-  switch (citation.source.kind) {
-    case 'jira':
-      return settings.jiraSubdomain
-        ? `https://${settings.jiraSubdomain}/browse/${citation.source.key}`
-        : null;
-    case 'zendesk':
-      return settings.zendeskSubdomain
-        ? `https://${settings.zendeskSubdomain}.zendesk.com/agent/tickets/${citation.source.ticketId}`
-        : null;
-    case 'confluence':
-      return settings.jiraSubdomain
-        ? `https://${settings.jiraSubdomain}/wiki/spaces/${citation.source.spaceKey}/pages/${citation.source.pageId}`
-        : null;
-    case 'slack':
-      return citation.source.messageTs
-        ? `https://${citation.source.workspace}.slack.com/archives/${citation.source.channelId}/p${citation.source.messageTs.replace('.', '')}`
-        : `https://${citation.source.workspace}.slack.com/archives/${citation.source.channelId}`;
-    case 'datadog': {
-      const params = new URLSearchParams({
-        query: citation.source.query,
-        from_ts: String(citation.source.startMs),
-        to_ts: String(citation.source.endMs),
-        live: 'false',
-      });
-      return `https://app.${settings.datadogSite}/logs?${params.toString()}`;
-    }
-    default:
-      return null;
-  }
 }
 
 export function NewWorkspaceLayout() {
@@ -95,6 +60,7 @@ export function NewWorkspaceLayout() {
   const { similarPastTickets } = useAI();
   const { evidenceSet, investigation } = useEvidence();
   const logViewerRef = useRef<LogViewerHandle>(null);
+  const handleCitationClick = useCitationJumpHandler({ investigation, logViewerRef });
 
   const [explicitPhase, setExplicitPhase] = useState<Phase | null>(null);
   const [showOnboardingWizard, setShowOnboardingWizard] = useState(false);
@@ -111,21 +77,6 @@ export function NewWorkspaceLayout() {
     ? filteredLogs.find((e) => e.id === selectedLogId) ?? logs.find((e) => e.id === selectedLogId) ?? null
     : null;
   const parseProgress = parsingProgress > 0 && parsingProgress < 1 ? parsingProgress * 100 : null;
-
-  const handleCitationClick = useCallback((citationId: CitationId) => {
-    const citation = investigation?.citations[citationId];
-    if (!citation) return;
-
-    if (citation.source.kind === 'log') {
-      logViewerRef.current?.jumpToCitation(citation.source.fileName, citation.source.byteOffset);
-      return;
-    }
-
-    const url = buildCitationUrl(citation);
-    if (url) {
-      window.open(url, '_blank', 'noopener,noreferrer');
-    }
-  }, [investigation]);
 
   // Phase dot navigation — user clicks a completed phase dot
   const handlePhaseChange = useCallback((next: Phase) => {
