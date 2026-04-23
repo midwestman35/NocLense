@@ -350,7 +350,7 @@ export function CorrelationGraph(): JSX.Element {
       {tooltip && (
         <div
           data-testid="correlation-graph-tooltip"
-          className="pointer-events-none absolute z-10 max-w-[220px] rounded-md border border-[var(--border)]/80 bg-[color:rgba(20,24,18,0.94)] px-3 py-2 shadow-[0_14px_34px_rgba(0,0,0,0.34)] backdrop-blur-sm"
+          className="pointer-events-none absolute z-10 max-w-[220px] rounded-md border border-line-2 bg-bg-2/95 px-3 py-2 shadow-[var(--shadow-floating)] backdrop-blur-sm"
           style={{
             left: tooltip.x,
             top: tooltip.y,

@@ -49,7 +49,7 @@ function severityBadgeClassName(severity: CaseSeverity): string {
     case 'high':
       return 'border-[var(--warning)]/30 bg-[var(--warning)]/10 text-[var(--warning)]';
     case 'medium':
-      return 'border-[#60a5fa]/30 bg-[#60a5fa]/10 text-[#60a5fa]';
+      return 'border-cyan/30 bg-cyan/10 text-cyan';
     case 'low':
     default:
       return 'border-[var(--border)] bg-[var(--muted)] text-[var(--muted-foreground)]';

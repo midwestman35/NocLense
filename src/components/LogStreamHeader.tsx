@@ -5,9 +5,9 @@ import { useLogContext } from '../contexts/LogContext';
 import { useAnimeStagger, useAnimeValue } from '../utils/anime';
 
 const LEVEL_BADGE: Record<string, { bg: string; text: string; label: string }> = {
-  ERROR: { bg: 'bg-red-500/15', text: 'text-red-400', label: 'ERR' },
-  WARN: { bg: 'bg-amber-500/15', text: 'text-amber-400', label: 'WRN' },
-  INFO: { bg: 'bg-blue-500/15', text: 'text-blue-400', label: 'INF' },
+  ERROR: { bg: 'bg-red/15', text: 'text-red', label: 'ERR' },
+  WARN: { bg: 'bg-amber/15', text: 'text-amber', label: 'WRN' },
+  INFO: { bg: 'bg-cyan/15', text: 'text-cyan', label: 'INF' },
   DEBUG: { bg: 'bg-[var(--muted)]', text: 'text-[var(--muted-foreground)]', label: 'DBG' },
 };
 

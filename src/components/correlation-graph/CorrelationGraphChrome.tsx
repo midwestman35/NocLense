@@ -39,7 +39,7 @@ export function CorrelationGraphControls({
   onZoomOut,
 }: CorrelationGraphControlsProps): JSX.Element {
   return (
-    <div className="absolute right-3 top-3 z-10 flex items-center gap-1 rounded-[var(--radius-md)] border border-[var(--border)]/70 bg-[color:rgba(15,18,13,0.86)] p-1 shadow-[0_10px_28px_rgba(0,0,0,0.22)] backdrop-blur-sm">
+    <div className="absolute right-3 top-3 z-10 flex items-center gap-1 rounded-[var(--radius-md)] border border-line-2 bg-bg-2/85 p-1 shadow-[var(--shadow-raised)] backdrop-blur-sm">
       <Button type="button" variant="icon" size="sm" aria-label="Zoom in" onClick={onZoomIn}>
         <Plus className="h-3.5 w-3.5" />
       </Button>
@@ -84,9 +84,9 @@ export function LargeGraphOverlay({
       aria-labelledby={headingId}
       aria-describedby={`${headingId}-description`}
       onKeyDown={handleKeyDown}
-      className="absolute inset-0 z-20 flex items-center justify-center bg-[color:rgba(6,8,6,0.68)] px-4 backdrop-blur-[2px]"
+      className="absolute inset-0 z-20 flex items-center justify-center bg-bg-0/70 px-4 backdrop-blur-[2px]"
     >
-      <div className="w-full max-w-[320px] rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--card)] p-4 shadow-[0_18px_44px_rgba(0,0,0,0.28)]">
+      <div className="w-full max-w-[320px] rounded-[var(--radius-lg)] border border-line-2 bg-[var(--card)] p-4 shadow-[var(--shadow-floating)]">
         <h3 id={headingId} className="text-sm font-semibold text-[var(--foreground)]">
           Large graph detected
         </h3>

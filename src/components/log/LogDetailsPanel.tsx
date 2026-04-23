@@ -136,10 +136,10 @@ export default function LogDetailsPanel({ log, onClose, onJumpToLog }: { log: Lo
       <div className="p-4 overflow-auto font-mono text-xs text-[var(--foreground)] h-full bg-[var(--card)]">
         {/* AI Diagnosis Reason */}
         {aiHighlightedLogIds.has(log.id) && (
-          <div className="mb-4 rounded border border-violet-500/30 bg-violet-500/8 px-3 py-2.5">
+          <div className="mb-4 rounded border border-violet/30 bg-violet/10 px-3 py-2.5">
             <div className="flex items-center gap-1.5 mb-1">
-              <Sparkles size={11} className="text-violet-400 shrink-0" />
-              <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-violet-400">AI Diagnosis</span>
+              <Sparkles size={11} className="text-violet shrink-0" />
+              <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-violet">AI Diagnosis</span>
             </div>
             <p className="text-[11px] leading-relaxed text-[var(--foreground)]">
               {aiHighlightReasons.get(log.id) ?? 'This log was correlated with the active Zendesk ticket.'}

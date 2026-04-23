@@ -196,7 +196,7 @@ export function NewWorkspaceLayout() {
         id="log-stream"
         title="Log Stream"
         icon={<FileText size={14} />}
-        accentColor="#76ce40"
+        accentColor="var(--mint)"
         meta={<span>{filteredLogs.length.toLocaleString()} events</span>}
         className={CARD_GRID_CLASSES['log-stream']}
       >
@@ -238,7 +238,7 @@ export function NewWorkspaceLayout() {
         id="ai-assistant"
         title="AI Assistant"
         icon={<Sparkles size={14} />}
-        accentColor="#76ce40"
+        accentColor="var(--mint)"
         badge={
           <span className="px-2 py-0.5 rounded-full text-[9px] font-semibold bg-[var(--success)]/10 text-[var(--success)]">
             Unleashed
@@ -261,7 +261,7 @@ export function NewWorkspaceLayout() {
         id="evidence"
         title="Evidence"
         icon={<Bookmark size={14} />}
-        accentColor="#f59e0b"
+        accentColor="var(--amber)"
         badge={<EvidenceBadge evidenceSet={evidenceSet} />}
         className={CARD_GRID_CLASSES['evidence']}
       >
@@ -273,7 +273,7 @@ export function NewWorkspaceLayout() {
         id="similar-tickets"
         title="Similar"
         icon={<Search size={14} />}
-        accentColor="#60a5fa"
+        accentColor="var(--cyan)"
         defaultExpanded={similarPastTickets.length > 0}
         meta={<span>{similarPastTickets.length} tickets {similarCaseCount} cases</span>}
         className={CARD_GRID_CLASSES['similar-tickets']}
@@ -317,7 +317,7 @@ export function NewWorkspaceLayout() {
                             href={zdUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-[9px] text-blue-400 hover:text-blue-300 flex items-center gap-0.5 ml-auto"
+                            className="ml-auto flex items-center gap-0.5 text-[9px] text-cyan hover:text-ink-0"
                           >
                             <ExternalLink size={8} />
                             Open
@@ -471,7 +471,7 @@ function tierToAccent(tier: GlowTier): string {
       return 'var(--destructive)';
     case 'live':
     case 'ready':
-      return '#a855f7'; // original purple accent preserved for the live/ready path
+      return 'var(--violet)';
     case 'idle':
     default:
       return 'var(--muted-foreground)';

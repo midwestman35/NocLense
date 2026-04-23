@@ -12,21 +12,21 @@ export const MIN_GRAPH_WIDTH = 320;
 export const MIN_GRAPH_HEIGHT = 260;
 
 const TOKEN_FALLBACKS: Record<string, string> = {
-  '--correlation-call-id': '#76ce40',
-  '--correlation-report-id': '#f59e0b',
-  '--correlation-operator-id': '#60a5fa',
-  '--correlation-extension-id': '#a78bfa',
-  '--correlation-station-id': '#2dd4bf',
-  '--correlation-file-name': '#fb7185',
-  '--correlation-cnc-id': '#f97316',
-  '--correlation-message-id': '#22d3ee',
-  '--correlation-graph-edge': 'rgba(150, 152, 140, 0.34)',
-  '--correlation-graph-cluster-edge': 'rgba(118, 206, 64, 0.4)',
-  '--correlation-graph-label': '#e5eadf',
-  '--correlation-graph-muted-label': '#96988c',
-  '--correlation-graph-node-stroke': '#2a2e26',
-  '--correlation-graph-active-ring': '#d0fdbf',
-  '--ring': '#a3a3a3',
+  '--correlation-call-id': '#8ef0b7',
+  '--correlation-report-id': '#f7b955',
+  '--correlation-operator-id': '#8be5ff',
+  '--correlation-extension-id': '#a58cff',
+  '--correlation-station-id': '#4fb987',
+  '--correlation-file-name': '#ff6b7a',
+  '--correlation-cnc-id': '#f7b955',
+  '--correlation-message-id': '#8be5ff',
+  '--correlation-graph-edge': 'rgba(255, 255, 255, 0.06)',
+  '--correlation-graph-cluster-edge': 'rgba(142, 240, 183, 0.4)',
+  '--correlation-graph-label': '#f3f5f7',
+  '--correlation-graph-muted-label': '#8a93a1',
+  '--correlation-graph-node-stroke': 'rgba(255, 255, 255, 0.10)',
+  '--correlation-graph-active-ring': '#8ef0b7',
+  '--ring': '#8ef0b7',
 };
 
 export interface GraphThemeTokens {
