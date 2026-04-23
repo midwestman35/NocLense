@@ -18,25 +18,35 @@ describe('theme utility', () => {
     });
   });
 
-  it('returns "light" as default theme', () => {
-    expect(getTheme()).toBe('light');
+  it('returns "dark" as the forced theme', () => {
+    expect(getTheme()).toBe('dark');
   });
 
-  it('sets theme on document and localStorage', () => {
+  it('sets dark theme on document and localStorage', () => {
     setTheme('dark');
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
     expect(localStorage.setItem).toHaveBeenCalledWith('noclense-theme', 'dark');
   });
 
-  it('toggles between light and dark', () => {
+  it('ignores light requests and keeps the app dark', () => {
     setTheme('light');
-    toggleTheme();
-    expect(getTheme()).toBe('dark');
-    toggleTheme();
-    expect(getTheme()).toBe('light');
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+    expect(localStorage.setItem).toHaveBeenCalledWith('noclense-theme', 'dark');
   });
 
-  it('reads persisted theme from localStorage', () => {
+  it('toggleTheme preserves the dark lock', () => {
+    toggleTheme();
+    expect(getTheme()).toBe('dark');
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+    expect(localStorage.setItem).toHaveBeenCalledWith('noclense-theme', 'dark');
+  });
+
+  it('ignores persisted light-mode values', () => {
+    store['noclense-theme'] = 'light';
+    expect(getTheme()).toBe('dark');
+  });
+
+  it('reads persisted dark-mode values as dark', () => {
     store['noclense-theme'] = 'dark';
     expect(getTheme()).toBe('dark');
   });

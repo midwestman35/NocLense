@@ -24,8 +24,9 @@
   "dependencies": {
     "@antv/g-webgl": "^2.0.52",
     "@antv/g6": "^5.1.0",
-    "@fontsource/dm-sans": "^5.2.8",
-    "@fontsource/jetbrains-mono": "^5.2.8",
+    "@fontsource/geist-mono": "^5.2.7",
+    "@fontsource/instrument-serif": "^5.2.8",
+    "@fontsource/inter-tight": "^5.2.7",
     "@google/generative-ai": "^0.24.1",
     "@tanstack/react-virtual": "^3.13.21",
     "@types/jszip": "^3.4.0",
