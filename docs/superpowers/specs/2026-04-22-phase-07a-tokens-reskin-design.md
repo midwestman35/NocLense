@@ -64,8 +64,59 @@ const hashBuffer = await crypto.subtle.digest('SHA-256', bytes as BufferSource);
 If that cast does not resolve the error on the local TS version, fall back to
 `new Uint8Array(bytes).buffer` — but try the cast first.
 
-**Gate for §2.1:** `npm run build` green (no new warnings), `npm run test:run`
-green, `npm run lint` green. Zero logic changes.
+**Blocker D — Vitest picks up duplicate test files from out-of-scope paths.**
+`vite.config.ts` has no `test.exclude`, so vitest's default globs discover:
+
+- `.worktrees/ui-overhaul/**` — separate git worktree, unrelated branch
+- `.worktrees/ui-overhaul/.codex-beta-push/**` — scratch dir inside that worktree
+- `.tmp-daily-bug-scan-20260422-090152/**` — extracted tarball, orphaned
+
+These duplicates inflate the failure count by ~16 and add noise. Add an
+explicit `exclude` block to `vite.config.ts` under `test`:
+
+```ts
+test: {
+  globals: true,
+  environment: 'jsdom',
+  setupFiles: './src/test/setup.ts',
+  css: true,
+  exclude: [
+    '**/node_modules/**',
+    '**/dist/**',
+    '**/.worktrees/**',
+    '**/.tmp-daily-bug-scan-*/**',
+    '**/.codex-beta-push/**',
+  ],
+  coverage: { /* existing */ },
+},
+```
+
+**Gate for §2.1:** `npm run build` green (no new warnings); `npm run lint`
+green; `npm run test:run` matches the documented baseline red set below (no
+*new* failures introduced). Zero logic changes in src/.
+
+### 2.1.1 Baseline red set (documented known-failures as of 2026-04-22)
+
+These tests fail on baseline `april-redesign` HEAD before Phase 07 starts.
+They are pre-existing Phase 06-era tech debt, explicitly out of 07A scope,
+and do NOT block Phase 07 progress. Per HANDOFF lightweight review policy,
+they are logged as known-limitations (YELLOW), not blockers.
+
+| Test file | # failing | Symptom | Root cause (diagnosis) |
+|---|---|---|---|
+| `src/contexts/__tests__/EvidenceContext.test.tsx` | 14 | `TypeError: window.localStorage.clear is not a function` | Test-ordering pollution: `AIContext.test.tsx:148` and `theme.test.ts:10` reassign `window.localStorage` via `Object.defineProperty` with an incomplete mock, leaking into later tests. Pre-existing; listed in HANDOFF.md §"Pre-existing tech debt." |
+| `src/store/__tests__/caseContext.test.tsx` | 4 | Same `localStorage.clear` | Same root cause as above. Phase 06C oversight; add to HANDOFF pre-existing list. |
+| `.worktrees/ui-overhaul/src/services/__tests__/llmService.test.ts` | 2 | `ReferenceError: sharedCacheManagerMock is not defined` | Out-of-scope path; excluded by §2.1 Blocker D fix. |
+
+**Regression rule:** after any Step 0 / Step 1 / 07A.N commit, `npm run test:run`
+should fail with exactly the 18 known baseline failures above (EvidenceContext +
+caseContext). Any *new* failure or any change in the red set is a regression →
+halt and surface to Claude.
+
+**Snapshot note:** if vitest writes updates to
+`src/hooks/__tests__/__snapshots__/useCuteLoadingLabel.test.ts.snap` during a
+run, review the diff. If it's a cosmetic change unrelated to our edits, revert
+it; if it's a real regression, halt.
 
 ### 2.2 File-size split (narrowed scope)
 
