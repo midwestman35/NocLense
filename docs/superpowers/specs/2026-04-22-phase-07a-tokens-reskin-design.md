@@ -14,23 +14,77 @@ v5.1 obsidian + phosphor dark-only system. No behavior changes. No new screens
 (Auth + Dashboard land in 07B). When 07A closes, Investigate Room and Submit Room
 look like the v5.1 deck.
 
-## 2. Pre-work commit (runs BEFORE slice 1)
+## 2. Pre-work commits (run BEFORE slice 1)
 
-Per master plan §5 and HANDOFF.md Phase 06C tech-debt:
+### 2.1 Unblocker commit — clear baseline `tsc` errors
 
-**Commit:** `refactor(phase-07-prep): split oversize files before 07A reskin`
+**Commit:** `fix(phase-07-prep): clear baseline tsc errors before 07A dispatch`
 
-Split each by responsibility, no logic changes. Target <500 lines per resulting file.
+Codex's initial baseline `npm run build` (2026-04-22) surfaced three blockers
+that predate this plan. All are small, logic-preserving fixes.
 
-| File | Lines | Suggested split |
+**Blocker A — React 19 dropped the global `JSX` namespace.** 5 sites across 3 files
+reference `JSX.Element` which no longer resolves. Fix by importing the type from
+React:
+
+| File | Existing import line | Change |
 |---|---|---|
-| `src/components/correlation-graph/CorrelationGraph.tsx` | 601 | extract graph effect wiring + toolbar into siblings |
-| `src/components/correlation-graph/graphPresentation.tsx` | 517 | extract node/edge style helpers |
-| `src/components/workspace/NewWorkspaceLayout.tsx` | 504 | extract phase-state reducer + room-transition hook |
+| `src/components/correlation-graph/CorrelationGraph.tsx` | `import { type FocusEvent, type KeyboardEvent, ... } from 'react'` | add `type JSX` to the named imports |
+| `src/components/correlation-graph/CorrelationGraphChrome.tsx` | `import type { KeyboardEvent, MutableRefObject } from 'react'` | add `JSX` to the named imports |
+| `src/components/correlation-graph/graphPresentation.tsx` | `import type { Dispatch, SetStateAction } from 'react'` | add `JSX` to the named imports |
 
-**Gate for pre-work:** `npm run build` + `npm run test:run` green. No visual diff (logic unchanged). Claude reviews the split.
+Leave the 5 `JSX.Element` return-type annotations as-is; the import now provides
+the namespace.
 
-Pre-work lands before any 07A slice. If Codex's split introduces any behavior regression, halt 07A until fixed.
+**Blocker B — Untracked `src/contexts/logContextObject.ts` is a half-done
+refactor.** It imports `LogContextType` from `LogContext.tsx:48`, but that
+interface is not exported. The WIP file has **zero consumers** (grep confirmed;
+the only reference is its own `useLogContext.ts` sibling, also untracked and
+also unreferenced). The cleanest unblocker is to **export the type** so the WIP
+file type-checks as dead code until its author finishes the refactor:
+
+- `src/contexts/LogContext.tsx:48` — change `interface LogContextType extends LogState {` → `export interface LogContextType extends LogState {`
+
+Do NOT delete the untracked WIP files. They represent in-flight author work
+from a prior session; preserve them for the author to finish or discard.
+
+**Blocker C — `src/services/investigationExporter.ts:55` crypto.subtle.digest
+typing.** Pre-existing per HANDOFF.md §"Pre-existing tech debt." The call is:
+
+```ts
+const hashBuffer = await crypto.subtle.digest('SHA-256', bytes);
+```
+
+Newer `lib.dom` typings tightened `BufferSource` variance. Cast the argument:
+
+```ts
+const hashBuffer = await crypto.subtle.digest('SHA-256', bytes as BufferSource);
+```
+
+If that cast does not resolve the error on the local TS version, fall back to
+`new Uint8Array(bytes).buffer` — but try the cast first.
+
+**Gate for §2.1:** `npm run build` green (no new warnings), `npm run test:run`
+green, `npm run lint` green. Zero logic changes.
+
+### 2.2 File-size split (narrowed scope)
+
+**Commit:** `refactor(phase-07-prep): split CorrelationGraph.tsx before 07A reskin`
+
+Current file sizes measured on `april-redesign` HEAD 2026-04-22:
+
+| File | Lines | Action |
+|---|---|---|
+| `src/components/correlation-graph/CorrelationGraph.tsx` | 601 | **split** — extract graph effect wiring and/or toolbar into siblings; target <500 lines |
+| `src/components/correlation-graph/graphPresentation.tsx` | 445 | no action (already under 500; HANDOFF snapshot was stale) |
+| `src/components/workspace/NewWorkspaceLayout.tsx` | 468 | no action (already under 500; HANDOFF snapshot was stale) |
+
+Split by responsibility, no logic changes.
+
+**Gate for §2.2:** `npm run build` + `npm run test:run` green. No visual diff
+(logic unchanged). Claude reviews the split before any 07A slice begins.
+
+If Codex's split introduces any behavior regression, halt 07A until fixed.
 
 ## 3. Slicing
 
