@@ -22,7 +22,7 @@ import FilterBar from '../FilterBar';
 import LogViewer, { type LogViewerHandle } from '../LogViewer';
 import LogTimeline from '../timeline/LogTimeline';
 import { AISidebar } from '../AISidebar';
-import { WorkspaceImportPanel } from '../import/WorkspaceImportPanel';
+import { ImportRoom } from '../rooms/import/ImportRoom';
 import LogDetailsPanel from '../log/LogDetailsPanel';
 import { CaseHeader } from '../case/CaseHeader';
 import { Dialog } from '../ui/Dialog';
@@ -166,26 +166,10 @@ export function NewWorkspaceLayout() {
 
   // ── Import Room ────────────────────────────────────────────────
   const importContent = useMemo(() => (
-    <div className="w-full max-w-xl">
-      <WorkspaceCard
-        id="import"
-        title="Import"
-        icon={<FileText size={14} />}
-        accentColor="var(--phase-dot-active)"
-        collapsible={false}
-      >
-        <div className="p-5">
-          <h2 className="text-sm font-semibold text-[var(--foreground)] mb-1">Start an Investigation</h2>
-          <p className="text-xs text-[var(--muted-foreground)] mb-4">
-            Drop log files or enter a Zendesk ticket to begin. NocLense will parse, correlate, and prepare your workspace.
-          </p>
-          <WorkspaceImportPanel
-            onComplete={handleImportComplete}
-            onInvestigationReady={handleInvestigationReady}
-          />
-        </div>
-      </WorkspaceCard>
-    </div>
+    <ImportRoom
+      onComplete={handleImportComplete}
+      onInvestigationReady={handleInvestigationReady}
+    />
   ), [handleImportComplete, handleInvestigationReady]);
 
   // ── Investigate Room ───────────────────────────────────────────
@@ -413,7 +397,8 @@ export function NewWorkspaceLayout() {
       )}
 
       <Dialog open={showImportDialog} onClose={() => setShowImportDialog(false)} title="Import Incident Data">
-        <WorkspaceImportPanel
+        <ImportRoom
+          embedded
           onComplete={() => { setShowImportDialog(false); handleImportComplete(); }}
           onInvestigationReady={(id) => { setShowImportDialog(false); handleInvestigationReady(id); }}
         />

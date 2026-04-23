@@ -1,7 +1,7 @@
-import { WorkspaceImportPanel } from './import/WorkspaceImportPanel';
+import { ImportRoom } from './rooms/import/ImportRoom';
 
 const FileUploader = () => {
-  return <WorkspaceImportPanel />;
+  return <ImportRoom embedded />;
 };
 
 export default FileUploader;
