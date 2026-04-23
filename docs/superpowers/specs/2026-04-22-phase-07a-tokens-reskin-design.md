@@ -13,7 +13,8 @@
 | v1.1 | 2026-04-22 | Add baseline tsc unblocker; narrow pre-work file-split to only `CorrelationGraph.tsx`. |
 | v1.2 | 2026-04-22 | Add vitest exclude for worktree/bug-scan dirs; document baseline red test set. |
 | v1.3 | 2026-04-22 | Add lint baseline (419 problems) + count-based regression gate. |
-| **v2** | **2026-04-22** | **Incorporate Gemini audit: (1) defer CorrelationGraph.tsx split out of 07A; (2) bridge legacy semantic CSS vars with aliases so ui/* primitives survive; (3) switch 07A.3 from tailwind.config.js to Tailwind v4 `@theme` in tokens.css; (4) remove Google Fonts CDN fallback in 07A.1 (vendor locally or stop); (5) add boot-time `data-theme="dark"` lock + `noclense-theme` localStorage scrub to 07A.1.** |
+| v2 | 2026-04-22 | Incorporate Gemini audit: (1) defer CorrelationGraph.tsx split out of 07A; (2) bridge legacy semantic CSS vars with aliases so ui/* primitives survive; (3) switch 07A.3 from tailwind.config.js to Tailwind v4 `@theme` in tokens.css; (4) remove Google Fonts CDN fallback in 07A.1 (vendor locally or stop); (5) add boot-time `data-theme="dark"` lock + `noclense-theme` localStorage scrub to 07A.1. |
+| **v2.1** | **2026-04-22** | **Reverse §2.2 deferral: split already executed at `ab1f9b8` under v1.3 before v2 landed. Clean extraction to `useCorrelationGraphCanvas.ts`; regression isolation preserved by commit ordering. Keep the split; proceed to 07A.1. Remaining v2 changes (items 2–5) unchanged.** |
 
 **If previously read v1.x, pay attention to §2.2 (deferred), §3 Slice 07A.1 (theme lock added; no CDN fallback), §3 Slice 07A.2 (bridge aliases — don't delete semantic vars), and §3 Slice 07A.3 (Tailwind v4 @theme in CSS, not tailwind.config.js).**
 
@@ -171,24 +172,29 @@ lines 117, 118, 188, 246, 358, 510; 3 warnings at lines 322, 1123, 1456 — all
 Any error on LogContext.tsx at line 48 (where we added `export`) — or any new
 error on any of the six files — is a regression.
 
-### 2.2 File-size split — DEFERRED (rev v2)
+### 2.2 File-size split — EXECUTED in `ab1f9b8` (rev v2.1)
 
-**Status:** removed from 07A pre-work.
+**Status:** executed before v2 amendment landed.
 
-Gemini's audit (Risk 4) flagged that mixing a stateful refactor of a complex
-G6 graph component with a global CSS reskin destroys regression isolation.
-If the graph breaks mid-07A, we can't distinguish between a broken React
-lifecycle from the split versus a missing CSS variable from the token swap.
+Under slice plan v1.3, Codex committed
+`refactor(phase-07-prep): split CorrelationGraph.tsx before 07A reskin` at
+`ab1f9b8` (2026-04-22 21:19). The split extracted graph canvas lifecycle
+wiring into a new `src/components/correlation-graph/useCorrelationGraphCanvas.ts`
+hook (~304 LOC). CorrelationGraph.tsx dropped from 601 → ~322 lines. All
+gates passed at that commit.
 
-**`src/components/correlation-graph/CorrelationGraph.tsx` (601 lines) is
-intentionally left intact for 07A.** 07A.4 token-swaps it in place with no
-structural changes. The 500-line cap violation is logged as carried tech
-debt; a dedicated `refactor(phase-07-post): split CorrelationGraph.tsx`
-commit lands after 07A closes, either as standalone post-07A work or as
-part of 07B/07C prep (decided at 07A close).
+Rev v2 briefly moved this to "deferred" after Gemini audit Risk 4 flagged
+regression-isolation concerns (stateful refactor colliding with CSS reskin).
+On reflection, Risk 4 is **mitigated by commit ordering**: the split is its
+own atomic commit before any token work, so `git bisect` still cleanly
+isolates a graph regression to either the split (`ab1f9b8`) or a later
+token-swap commit.
 
-**Action for Codex:** skip directly from §2.1 (baseline unblocker) to §3 Slice
-07A.1. No pre-work split commit.
+**Decision:** keep the split. Do not revert. Proceed to 07A.1.
+
+**Note for 07A.4:** the token-swap on `correlation-graph/*` now includes the
+new `useCorrelationGraphCanvas.ts` file. That file is pure logic (no JSX)
+so it should have zero token references — verify and move on.
 
 ## 3. Slicing
 
