@@ -9,6 +9,7 @@
 | Rev | Date | Summary |
 |---|---|---|
 | v1 | 2026-04-23 | Initial draft. 10 slices covering scaffold + HTTP proxy swap (5 vendors) + file dialog + crash reporting + Electron removal + Vercel removal + smoke pass. No rollback window per user decision. |
+| v2.1 | 2026-04-23 | **Claude adversarial probe:** (a) expand 07B.2 migration path to cover Electron safeStorage, not just localStorage — keys in the current canonical store would otherwise be lost at 07B.7 cutover. (b) Add grep checks to 07B.0 survey for `api/` consumers — deletion in 07B.8 could break a hidden `src/` import. No-restructure amendment — same 10 slices. |
 | **v2** | **2026-04-23** | **Integrate Gemini pre-flight findings: (1) Tauri v2 capabilities/allowlist config is REQUIRED for plugin-http — added to 07B.1 scaffold; (2) vitest global mocks for `@tauri-apps/*` imports — added as 07B.2 first action to protect baseline 643 passing tests; (3) `resolveUrl()` + `import.meta.env.DEV` branching must be purged alongside `electronAPI` removal — hardcode absolute URLs; new 07B.3 slice extracts into `apiConfig.ts` before vendor swap; (4) plugin-fs readFile loads entire file into JS — explicit Rust streaming command via Tauri channels added to 07B.5 scope for >50MB files; (5) coupling: `src/utils/errorReporting.ts` added to crash-reporting scope; `src/types/electron.d.ts` added to Electron kill; (6) Vite proxy config removal pulled forward from 07B.8 to 07B.3 (prevents dev-server traffic leaking through after plugin-http lands); (7) 07B.1 + 07B.2 merged (scaffold + dev boot are coupled). Slice count stays at 10 but order/content restructured.** |
 
 ## 1. Scope
@@ -89,7 +90,13 @@ electron/
 - Move `electron/CLAUDE.md` → `docs/archive/electron-era/electron-module-docs.md`
 - Create `docs/archive/electron-era/` directory
 - Survey `api/` contents — write a one-line note in the slice plan about each file's purpose so 07B.8 knows what it's deleting (some `api/` files may be cached Unleashed proxy routes; others may already be dead)
-- Survey `wrangler.toml` — note whether it's actively used for Cloudflare Worker deploy or residue
+- **Grep check (v2.1 — adversarial probe add):** verify no `src/` file imports from `api/` directly:
+  ```
+  grep -rn "from ['\"]\\./api/\\|from ['\"]\\./\\.\\./api/\\|from ['\"]@/api/" src/
+  ```
+  If any match: note the caller + bind target in the survey so 07B.8 can decide whether to delete, inline, or preserve the file.
+- Survey `wrangler.toml` — note whether it's actively used for Cloudflare Worker deploy or residue.
+- **Grep check (v2.1):** any file referencing `.worktrees/` or `.tmp-daily-bug-scan-*` still in vitest exclude? (Should be fine — added in 4631955 — but verify after any local tree changes.)
 - Don't delete anything yet. This slice is inventory only.
 
 **Gate:** `npm run build` green (docs move shouldn't touch anything).
@@ -211,7 +218,17 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
 - Expose via `@tauri-apps/api/core` `invoke()` in TS
 - Create `src/services/credentials.ts` — singleton wrapper over the keyring commands (aligned with v5.1 spec naming)
 - Rewrite `src/store/apiKeyStorage.ts` to use `credentials()` singleton instead of `window.electronAPI?.getSecureStorage` etc. Consumer code in `AIContext` unchanged.
-- **Migration path:** on first launch, if keyring has no values but `localStorage` has legacy API keys, migrate them then delete from localStorage. One-way. Log the migration.
+- **Migration path (v2.1 expanded).** Users may have keys in **three** places pre-07B:
+  1. `localStorage` (newer migrations or plain fallback)
+  2. `window.electronAPI.getSecureStorage` → Electron safeStorage (OS-encrypted blob in app data; the currently-canonical store)
+  3. `window.electronAPI.migrateToSecureStorage` (bridging path from older-older)
+  On first launch after 07B.2, the bootstrap `apiKeyStorage.ts` must:
+  - If keyring has values → use keyring, done.
+  - Else, read from Electron safeStorage (electronAPI still lives until 07B.7 → safe to call here).
+  - Else, read from localStorage.
+  - Write any discovered legacy values into keyring; delete from localStorage; log the migration event.
+  Electron safeStorage is NOT cleared by us — it gets deleted along with `electron/` at 07B.7 (the store is tied to the Electron app identity anyway, so Electron removal destroys it).
+  **Do not lose keys on the cutover** — this is the one user-facing failure we cannot ship. Codex MUST manually verify with a pre-existing key in Electron safeStorage before committing 07B.2.
 - **Windows keyring gotcha** (Gemini pre-flight): Windows Credential Manager does not support enumerating keys. The v5.1 `__index__` workaround stays — keep a comma-separated key list at key `__index__` so we can iterate. Document in commit.
 - Unit tests for the TS wrapper mock `invoke` calls (the global mock from Step A is used).
 - Extend `src/test/setup.ts` with a `credentials()` singleton mock so component tests that pull in `AIContext` don't crash:
