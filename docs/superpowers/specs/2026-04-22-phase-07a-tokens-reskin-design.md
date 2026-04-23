@@ -15,7 +15,8 @@
 | v1.3 | 2026-04-22 | Add lint baseline (419 problems) + count-based regression gate. |
 | v2 | 2026-04-22 | Incorporate Gemini audit: (1) defer CorrelationGraph.tsx split out of 07A; (2) bridge legacy semantic CSS vars with aliases so ui/* primitives survive; (3) switch 07A.3 from tailwind.config.js to Tailwind v4 `@theme` in tokens.css; (4) remove Google Fonts CDN fallback in 07A.1 (vendor locally or stop); (5) add boot-time `data-theme="dark"` lock + `noclense-theme` localStorage scrub to 07A.1. |
 | v2.1 | 2026-04-22 | Reverse §2.2 deferral: split already executed at `ab1f9b8` under v1.3 before v2 landed. Clean extraction to `useCorrelationGraphCanvas.ts`; regression isolation preserved by commit ordering. Keep the split; proceed to 07A.1. Remaining v2 changes (items 2–5) unchanged. |
-| **v2.2** | **2026-04-22** | **Post-07A.6 mid-phase corrections from re-run Gemini audit: (1) authorize `color-mix(in srgb, var(--token) NN%, transparent)` as a valid pattern for inline alpha-blended token colors (already shipped in ~50 sites across 13 files in 07A.4–07A.6; reverting would lose token-tracking and create more churn). (2) Standardize HTML5 `accentColor` styling on the Tailwind `accent-*` className utility, not inline `style={{ accentColor: 'var(--*)' }}` — fix applied in 07A.7 scope. (3) Extend 07A.7 scope to include the accent-standardization pass. (4) Future slices: include gate output (build/test/lint tail) in per-slice self-assessment.** |
+| v2.2 | 2026-04-22 | Post-07A.6 mid-phase corrections from re-run Gemini audit: (1) authorize `color-mix(in srgb, var(--token) NN%, transparent)` as a valid pattern for inline alpha-blended token colors (already shipped in ~50 sites across 13 files in 07A.4–07A.6; reverting would lose token-tracking and create more churn). (2) Standardize HTML5 `accentColor` styling on the Tailwind `accent-*` className utility, not inline `style={{ accentColor: 'var(--*)' }}` — fix applied in 07A.7 scope. (3) Extend 07A.7 scope to include the accent-standardization pass. (4) Future slices: include gate output (build/test/lint tail) in per-slice self-assessment. |
+| **v2.3** | **2026-04-23** | **Split Slice 07A.7 scope: Codex lacks a GUI/browser environment for Part C (room verification). Move room smoke pass to a user-driven pre-merge gate outside the commit. Codex commits Parts A + D + E (accent standardization, snapshot sweep, gate output) as the 07A.7 commit; user runs Part C manually after commit + before 07A-close sign-off.** |
 
 **If previously read v1.x, pay attention to §2.2 (deferred), §3 Slice 07A.1 (theme lock added; no CDN fallback), §3 Slice 07A.2 (bridge aliases — don't delete semantic vars), and §3 Slice 07A.3 (Tailwind v4 @theme in CSS, not tailwind.config.js).**
 
@@ -517,7 +518,9 @@ Same mechanical rules as Slice 07A.4. Directories:
 
 ### Slice 07A.7 — Room verification + snapshot sweep + v2.2 cleanup
 
-**Commit:** `feat(phase-07a): ckpt 07A.7; verify Investigate + Submit rooms match v5.1 deck + refresh snapshots + v2.2 cleanup`
+**Commit (v2.3):** `feat(phase-07a): ckpt 07A.7; accent standardization + snapshot sweep + v2.2 cleanup`
+
+(Room verification moved to user-driven pre-merge gate; see Part C below.)
 
 **A. v2.2 cleanup — accent-color standardization**
 
@@ -542,10 +545,24 @@ is a valid pattern for alpha-blended token colors in inline styles. The
 phases may migrate some to Tailwind `bg-token/NN` opacity-modifier
 syntax as a separate cleanup, but that is NOT in 07A.7 scope.
 
-**C. Room verification**
+**C. Room verification — USER MANUAL PASS (v2.3 scope change)**
 
-- Load the app in Electron; navigate to Investigate Room; compare against zip deck slide 07. Fix any visual regressions introduced during 07A.4–07A.6. Known-accepted: `ui/*` primitives still render old palette (documented YELLOW Y3 in Claude's 07A.3 review; rebuilt in 07B).
-- Navigate to Submit Room (variation A); compare against slide 08. Fix any regressions.
+Room verification is a GUI-bound task that cannot run inside Codex's sandbox
+(confirmed 2026-04-23 — Codex attempted CDP inspection of a detached
+Electron instance; Vite dynamic-import modules fail to load outside the
+active dev server session, so the renderer never mounts).
+
+**This part is OUT of Codex's 07A.7 commit.** It becomes a user-driven
+pre-merge gate:
+
+1. User runs `npm run electron:dev` locally.
+2. Navigates Auth → Dashboard (stubs) → Import → Investigation Setup → Investigate → Submit.
+3. Compares Investigate Room against zip deck slide 07 and Submit Room (variation A) against slide 08.
+4. Known-accepted deviation: `ui/*` primitives still render old palette (documented YELLOW Y3 from Claude's 07A.3 review; rebuilt in 07B).
+5. If real regressions found (Tailwind class dropped a token, old hex left behind, broken-box surface): open a bug note, halt the 07A close, surface to Claude for a follow-up fix commit.
+6. If only Y3-class old-primitive rendering: GO for 07A close.
+
+**Record the result in the 07A close-out sign-off.** No Codex commit gets made based on Part C; Codex's 07A.7 commit contains only Parts A + D + E.
 
 **D. Snapshot sweep**
 
