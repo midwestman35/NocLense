@@ -1,4 +1,12 @@
 import type { LogEntry, LogLevel } from '../types';
+import { fileStream } from '../services/fileStream';
+import {
+    isBrowserImportFile,
+    readImportFileSliceText,
+    readImportFileText,
+    toBrowserImportFile,
+} from '../services/importFileSource';
+import type { ImportFileSource } from '../services/importFileSource';
 import { cleanupLogEntry } from './messageCleanup';
 import { dbManager } from './indexedDB';
 import { formatLogTimestamp } from './logTimestamp';
@@ -80,6 +88,44 @@ interface OperatorClientBufferedLineState {
     buffer: string;
     bufferStartByteOffset: number;
     nextLineNumber: number;
+}
+
+interface ImportTextChunk {
+    offset: number;
+    nextOffset: number;
+    text: string;
+    isLast: boolean;
+}
+
+async function processImportFileChunks(
+    file: ImportFileSource,
+    chunkSize: number,
+    onChunk: (chunk: ImportTextChunk) => Promise<void>,
+): Promise<void> {
+    if (!isBrowserImportFile(file)) {
+        await fileStream.streamTextChunks(file.path, chunkSize, async (chunk) => {
+            await onChunk({
+                offset: chunk.offset,
+                nextOffset: chunk.offset + chunk.byteLength,
+                text: chunk.text,
+                isLast: chunk.isLast,
+            });
+        });
+        return;
+    }
+
+    let offset = 0;
+    while (offset < file.size) {
+        const nextOffset = Math.min(offset + chunkSize, file.size);
+        const text = await file.slice(offset, nextOffset).text();
+        await onChunk({
+            offset,
+            nextOffset,
+            text,
+            isLast: nextOffset >= file.size,
+        });
+        offset = nextOffset;
+    }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -944,7 +990,7 @@ const parseHomerText = (text: string, fileColor: string, startId: number, fileNa
  * This prevents memory exhaustion on large files (e.g., 740MB+)
  */
 async function parseOperatorClientLogStreaming(
-    file: File,
+    file: ImportFileSource,
     fileColor: string,
     startId: number,
     onProgress?: (progress: number) => void,
@@ -955,20 +1001,16 @@ async function parseOperatorClientLogStreaming(
     const logs: LogEntry[] = [];
     const state = createOperatorClientState(startId, resolveOperatorClientTimeZone(timezone));
     const lineState = createOperatorClientBufferedLineState();
-    let offset = 0;
     let chunkCount = 0;
     const YIELD_INTERVAL = 5;
 
-    while (offset < fileSize) {
-        const chunk = file.slice(offset, Math.min(offset + CHUNK_SIZE, fileSize));
-        const chunkText = await chunk.text();
-        offset += CHUNK_SIZE;
+    await processImportFileChunks(file, CHUNK_SIZE, async ({ text, nextOffset, isLast }) => {
         chunkCount += 1;
 
         processBufferedOperatorClientChunk(
             lineState,
-            chunkText,
-            offset >= fileSize,
+            text,
+            isLast,
             (line) => {
                 const finalized = processOperatorClientLine(state, line, fileColor, file.name);
                 if (finalized !== null) {
@@ -982,10 +1024,10 @@ async function parseOperatorClientLogStreaming(
         }
 
         if (onProgress) {
-            const progress = 0.1 + (Math.min(offset, fileSize) / fileSize) * 0.85;
+            const progress = 0.1 + (Math.min(nextOffset, fileSize) / fileSize) * 0.85;
             onProgress(Math.min(progress, 0.95));
         }
-    }
+    });
 
     const finalEntry = flushOperatorClientState(state);
     if (finalEntry !== null) {
@@ -1000,7 +1042,7 @@ async function parseOperatorClientLogStreaming(
 }
 
 async function parseOperatorClientLogStreamingToIndexedDB(
-    file: File,
+    file: ImportFileSource,
     fileColor: string,
     startId: number,
     onProgress?: (progress: number) => void,
@@ -1013,7 +1055,6 @@ async function parseOperatorClientLogStreamingToIndexedDB(
     const fileSize = file.size;
     const state = createOperatorClientState(startId, resolveOperatorClientTimeZone(timezone));
     const lineState = createOperatorClientBufferedLineState();
-    let offset = 0;
     let chunkCount = 0;
     let batch: LogEntry[] = [];
     let totalParsed = 0;
@@ -1041,17 +1082,14 @@ async function parseOperatorClientLogStreamingToIndexedDB(
         }
     };
 
-    while (offset < fileSize) {
-        const chunk = file.slice(offset, Math.min(offset + CHUNK_SIZE, fileSize));
-        const chunkText = await chunk.text();
-        offset += CHUNK_SIZE;
+    await processImportFileChunks(file, CHUNK_SIZE, async ({ text, nextOffset, isLast }) => {
         chunkCount += 1;
 
         const finalizedEntries: LogEntry[] = [];
         processBufferedOperatorClientChunk(
             lineState,
-            chunkText,
-            offset >= fileSize,
+            text,
+            isLast,
             (line) => {
                 const finalized = processOperatorClientLine(state, line, fileColor, file.name);
                 if (finalized !== null) {
@@ -1069,10 +1107,10 @@ async function parseOperatorClientLogStreamingToIndexedDB(
         }
 
         if (onProgress) {
-            const progress = 0.1 + (Math.min(offset, fileSize) / fileSize) * 0.85;
+            const progress = 0.1 + (Math.min(nextOffset, fileSize) / fileSize) * 0.85;
             onProgress(Math.min(progress, 0.95));
         }
-    }
+    });
 
     const finalEntry = flushOperatorClientState(state);
     if (finalEntry !== null) {
@@ -1104,13 +1142,13 @@ async function parseOperatorClientLogStreamingToIndexedDB(
 }
 
 export const parseLogFileStreaming = async (
-    file: File,
+    file: ImportFileSource,
     fileColor: string,
     startId: number,
     onProgress?: (progress: number) => void,
     timezone?: string,
 ): Promise<LogEntry[]> => {
-    const ocSniff = await file.slice(0, Math.min(OPERATOR_CLIENT_SNIFF_BYTES, file.size)).text();
+    const ocSniff = await readImportFileSliceText(file, 0, Math.min(OPERATOR_CLIENT_SNIFF_BYTES, file.size));
     if (isOperatorClientLogText(ocSniff)) {
         return parseOperatorClientLogStreaming(file, fileColor, startId, onProgress, timezone);
     }
@@ -1119,7 +1157,6 @@ export const parseLogFileStreaming = async (
     const fileSize = file.size;
     const parsedLogs: LogEntry[] = [];
     let idCounter = startId;
-    let offset = 0;
     let buffer = ''; // Buffer for incomplete lines at chunk boundaries
     let chunkCount = 0;
     const YIELD_INTERVAL = 5; // Yield every 5 chunks
@@ -1134,14 +1171,11 @@ export const parseLogFileStreaming = async (
     let lineCount = 0;
     const YIELD_EVERY_N_LINES = 5000; // Yield every 5000 lines
 
-    while (offset < fileSize) {
-        const chunk = file.slice(offset, Math.min(offset + CHUNK_SIZE, fileSize));
-        const chunkText = await chunk.text();
-        offset += CHUNK_SIZE;
+    await processImportFileChunks(file, CHUNK_SIZE, async ({ text, nextOffset }) => {
         chunkCount++;
 
         // Combine buffer with new chunk
-        const textToProcess = buffer + chunkText;
+        const textToProcess = buffer + text;
 
         // Split into lines, keeping last incomplete line in buffer
         const lines = textToProcess.split(/\r?\n/);
@@ -1156,7 +1190,7 @@ export const parseLogFileStreaming = async (
             if (lineCount % YIELD_EVERY_N_LINES === 0) {
                 await new Promise(resolve => setTimeout(resolve, 0));
                 if (onProgress) {
-                    const progress = 0.1 + (offset / fileSize) * 0.8;
+                    const progress = 0.1 + (nextOffset / fileSize) * 0.8;
                     onProgress(Math.min(progress, 0.95));
                 }
             }
@@ -1285,7 +1319,7 @@ export const parseLogFileStreaming = async (
         if (chunkCount % YIELD_INTERVAL === 0) {
             await new Promise(resolve => setTimeout(resolve, 0));
         }
-    }
+    });
 
     // Process remaining buffer as final line
     if (buffer.trim() && currentLog) {
@@ -1293,13 +1327,14 @@ export const parseLogFileStreaming = async (
     }
 
     // Push last log
-    if (currentLog) {
+    const finalLog = currentLog as LogEntry | null;
+    if (finalLog) {
         if (payloadLines.length > 0) {
-            currentLog.payload = payloadLines.join("\n");
+            finalLog.payload = payloadLines.join("\n");
             payloadLines = [];
         }
-        processLogPayload(currentLog);
-        parsedLogs.push(currentLog);
+        processLogPayload(finalLog);
+        parsedLogs.push(finalLog);
     }
 
     if (onProgress) onProgress(0.95);
@@ -1317,26 +1352,21 @@ export const parseLogFileStreaming = async (
  * Processes file incrementally and yields control to prevent tab freezing
  * @deprecated Use parseLogFileStreaming for large files instead
  */
-const readFileInChunks = async (file: File): Promise<string> => {
+const readFileInChunks = async (file: ImportFileSource): Promise<string> => {
     const CHUNK_SIZE = 1024 * 1024; // 1MB chunks
-    const fileSize = file.size;
-    let offset = 0;
     let fullText = '';
     let chunkCount = 0;
     const YIELD_INTERVAL = 10; // Yield every 10 chunks to keep UI responsive
 
-    while (offset < fileSize) {
-        const chunk = file.slice(offset, Math.min(offset + CHUNK_SIZE, fileSize));
-        const chunkText = await chunk.text();
-        fullText += chunkText;
-        offset += CHUNK_SIZE;
+    await processImportFileChunks(file, CHUNK_SIZE, async ({ text }) => {
+        fullText += text;
         chunkCount++;
 
         // Yield control to browser periodically to prevent tab freezing
         if (chunkCount % YIELD_INTERVAL === 0) {
             await new Promise(resolve => setTimeout(resolve, 0));
         }
-    }
+    });
 
     return fullText;
 };
@@ -1346,13 +1376,13 @@ const readFileInChunks = async (file: File): Promise<string> => {
  * This is the preferred method for large files as it prevents memory exhaustion
  */
 const parseLogFileStreamingToIndexedDB = async (
-    file: File,
+    file: ImportFileSource,
     fileColor: string,
     startId: number,
     onProgress?: (progress: number) => void,
     timezone?: string,
 ): Promise<{ totalParsed: number; minTimestamp: number; maxTimestamp: number }> => {
-    const ocSniff = await file.slice(0, Math.min(OPERATOR_CLIENT_SNIFF_BYTES, file.size)).text();
+    const ocSniff = await readImportFileSliceText(file, 0, Math.min(OPERATOR_CLIENT_SNIFF_BYTES, file.size));
     if (isOperatorClientLogText(ocSniff)) {
         return parseOperatorClientLogStreamingToIndexedDB(file, fileColor, startId, onProgress, timezone);
     }
@@ -1364,7 +1394,6 @@ const parseLogFileStreamingToIndexedDB = async (
     const BATCH_SIZE = 500; // Write to IndexedDB in batches of 500
     const fileSize = file.size;
     let idCounter = startId;
-    let offset = 0;
     let buffer = '';
     let chunkCount = 0;
     const YIELD_INTERVAL = 5;
@@ -1391,13 +1420,10 @@ const parseLogFileStreamingToIndexedDB = async (
         }
     };
 
-    while (offset < fileSize) {
-        const chunk = file.slice(offset, Math.min(offset + CHUNK_SIZE, fileSize));
-        const chunkText = await chunk.text();
-        offset += CHUNK_SIZE;
+    await processImportFileChunks(file, CHUNK_SIZE, async ({ text, nextOffset }) => {
         chunkCount++;
 
-        const textToProcess = buffer + chunkText;
+        const textToProcess = buffer + text;
         const lines = textToProcess.split(/\r?\n/);
         buffer = lines.pop() || '';
 
@@ -1408,7 +1434,7 @@ const parseLogFileStreamingToIndexedDB = async (
             if (lineCount % YIELD_EVERY_N_LINES === 0) {
                 await new Promise(resolve => setTimeout(resolve, 0));
                 if (onProgress) {
-                    const progress = 0.1 + (offset / fileSize) * 0.8;
+                    const progress = 0.1 + (nextOffset / fileSize) * 0.8;
                     onProgress(Math.min(progress, 0.95));
                 }
             }
@@ -1545,7 +1571,7 @@ const parseLogFileStreamingToIndexedDB = async (
         if (chunkCount % YIELD_INTERVAL === 0) {
             await new Promise(resolve => setTimeout(resolve, 0));
         }
-    }
+    });
 
     // Process remaining buffer
     if (buffer.trim() && currentLog) {
@@ -1553,15 +1579,16 @@ const parseLogFileStreamingToIndexedDB = async (
     }
 
     // Write last log
-    if (currentLog) {
+    const finalLog = currentLog as LogEntry | null;
+    if (finalLog) {
         if (payloadLines.length > 0) {
-            currentLog.payload = payloadLines.join("\n");
+            finalLog.payload = payloadLines.join("\n");
             payloadLines = [];
         }
-        processLogPayload(currentLog);
-        batch.push(currentLog);
-        if (currentLog.timestamp < minTimestamp) minTimestamp = currentLog.timestamp;
-        if (currentLog.timestamp > maxTimestamp) maxTimestamp = currentLog.timestamp;
+        processLogPayload(finalLog);
+        batch.push(finalLog);
+        if (finalLog.timestamp < minTimestamp) minTimestamp = finalLog.timestamp;
+        if (finalLog.timestamp > maxTimestamp) maxTimestamp = finalLog.timestamp;
     }
 
     // Write remaining batch
@@ -1596,12 +1623,13 @@ const parseLogFileStreamingToIndexedDB = async (
  * the entire file into memory, preventing OOM on large (100MB+) CSV files.
  */
 const parseCSVStreamingToIndexedDB = async (
-    file: File,
+    file: ImportFileSource,
     fileColor: string,
     startId: number,
     onProgress?: (progress: number) => void
 ): Promise<{ totalParsed: number; minTimestamp: number; maxTimestamp: number }> => {
     await dbManager.init();
+    const csvFile = await toBrowserImportFile(file);
 
     const BATCH_SIZE = 500;
     let idCounter = startId;
@@ -1622,7 +1650,7 @@ const parseCSVStreamingToIndexedDB = async (
     if (onProgress) onProgress(0.05);
 
     return new Promise<{ totalParsed: number; minTimestamp: number; maxTimestamp: number }>((resolve, reject) => {
-        Papa.parse(file, {
+        Papa.parse(csvFile, {
             header: true,
             skipEmptyLines: true,
             step: (results: Papa.ParseStepResult<Record<string, string>>) => {
@@ -1656,7 +1684,7 @@ const parseCSVStreamingToIndexedDB = async (
                         // writeBatch() resets the batch array so rows won't pile up in memory.
                         void writeBatch().then(() => {
                             if (onProgress) {
-                                const progress = 0.1 + (results.meta.cursor / file.size) * 0.8;
+                                const progress = 0.1 + (results.meta.cursor / csvFile.size) * 0.8;
                                 onProgress(Math.min(progress, 0.95));
                             }
                         });
@@ -1673,8 +1701,8 @@ const parseCSVStreamingToIndexedDB = async (
                     // Update metadata
                     const existingMetadata = await dbManager.getMetadata();
                     const existingFileNames = existingMetadata?.fileNames || [];
-                    if (!existingFileNames.includes(file.name)) {
-                        existingFileNames.push(file.name);
+                    if (!existingFileNames.includes(csvFile.name)) {
+                        existingFileNames.push(csvFile.name);
                     }
 
                     await dbManager.updateMetadata({
@@ -1925,7 +1953,7 @@ function canUseWebWorker(): boolean {
 }
 
 export const parseLogFile = async (
-    file: File,
+    file: ImportFileSource,
     fileColor: string = '#3b82f6',
     startId: number = 1,
     onProgress?: (progress: number) => void,
@@ -1960,7 +1988,7 @@ export const parseLogFile = async (
     // For non-CSV files > 10 MB in the browser, offload parsing to a Web Worker
     // so the main thread stays responsive. Electron uses its own IPC worker path.
     const WORKER_THRESHOLD = 10 * 1024 * 1024; // 10MB
-    if (!isCSV && file.size > WORKER_THRESHOLD && canUseWebWorker()) {
+    if (!isCSV && file.size > WORKER_THRESHOLD && canUseWebWorker() && isBrowserImportFile(file)) {
         return parseLogFileViaWorker(file, fileColor, startId, onProgress, timezone);
     }
 
@@ -1972,7 +2000,7 @@ export const parseLogFile = async (
         if (onProgress) onProgress(0.1);
         text = await readFileInChunks(file);
     } else {
-        text = await file.text();
+        text = await readImportFileText(file);
     }
 
     if (isCSV) {

@@ -30,8 +30,44 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({
 }));
 
 vi.mock('@tauri-apps/plugin-fs', () => ({
+  open: vi.fn(async () => ({
+    read: vi.fn(async () => null),
+    seek: vi.fn(async () => 0),
+    close: vi.fn(async () => undefined),
+  })),
   readFile: vi.fn(),
   readTextFile: vi.fn(),
+  stat: vi.fn(async () => ({
+    isFile: true,
+    isDirectory: false,
+    isSymlink: false,
+    size: 0,
+    mtime: null,
+    atime: null,
+    birthtime: null,
+    readonly: false,
+    fileAttributes: null,
+    dev: null,
+    ino: null,
+    mode: null,
+    nlink: null,
+    uid: null,
+    gid: null,
+    rdev: null,
+    blksize: null,
+    blocks: null,
+  })),
+  SeekMode: {
+    Start: 0,
+    Current: 1,
+    End: 2,
+  },
+}));
+
+vi.mock('@tauri-apps/api/event', () => ({
+  emit: vi.fn(async () => undefined),
+  listen: vi.fn(async () => vi.fn()),
+  once: vi.fn(async () => vi.fn()),
 }));
 
 // jsdom doesn't implement scrollIntoView

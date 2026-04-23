@@ -4,6 +4,7 @@ import { validateFile } from '../utils/fileUtils';
 import { parseLogFile } from '../utils/parser';
 import { uploadFile, getJobStatus } from '../api/client';
 import type { ImportedDataset, LogEntry, LogLevel, LogSourceType } from '../types';
+import type { ImportFileSource } from './importFileSource';
 
 const FILE_COLORS = ['#3b82f6', '#eab308', '#06b6d4', '#22c55e', '#f97316', '#a855f7', '#ec4899', '#64748b'];
 
@@ -233,7 +234,7 @@ function parseGenericFallbackText(text: string, startId: number, fileName: strin
 }
 
 export async function importFiles(
-  files: File[],
+  files: ImportFileSource[],
   options: {
     sourceType: LogSourceType;
     startId?: number;

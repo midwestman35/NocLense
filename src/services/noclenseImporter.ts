@@ -19,6 +19,8 @@ import type {
 import type { Case, Note } from '../types/case';
 import { caseLibraryService } from './caseLibraryService';
 import { caseRepository } from './caseRepository';
+import type { ImportFileSource } from './importFileSource';
+import { toBrowserImportFile } from './importFileSource';
 
 export type ImportNoclenseResult =
   | {
@@ -190,11 +192,11 @@ async function readJsonFile<T>(zip: JSZip, path: string): Promise<T | null> {
 }
 
 export async function importNoclenseFile(
-  file: File,
+  file: ImportFileSource,
 ): Promise<ImportNoclenseResult> {
   let zip: JSZip;
   try {
-    zip = await JSZip.loadAsync(file);
+    zip = await JSZip.loadAsync(await toBrowserImportFile(file));
   } catch {
     return { ok: false, error: 'The file could not be read as a .noclense archive. It may be corrupted.' };
   }

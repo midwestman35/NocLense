@@ -79,7 +79,7 @@ export function getFileSizeWarning(fileSize: number): string | null {
 /**
  * Validate file before processing
  */
-export function validateFile(file: File): { valid: boolean; error?: string; warning?: string } {
+export function validateFile(file: { name: string; size: number }): { valid: boolean; error?: string; warning?: string } {
     // Check file extension
     const validExtensions = ['.log', '.txt', '.csv'];
     const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();

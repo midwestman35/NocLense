@@ -6,6 +6,8 @@ import { useEvidence } from '../../contexts/EvidenceContext';
 import { useCase } from '../../store/caseContext';
 import { dbManager } from '../../utils/indexedDB';
 import { appendLogsToIndexedDB, importFiles, importPastedLogs } from '../../services/importService';
+import { isBrowserImportFile, openImportFilesDialog } from '../../services/importFileSource';
+import type { ImportFileSource } from '../../services/importFileSource';
 import { importNoclenseFile } from '../../services/noclenseImporter';
 import type { ImportedDataset, LogSourceType } from '../../types';
 import type { Attachment, Case } from '../../types/case';
@@ -117,7 +119,7 @@ export function WorkspaceImportPanel({ onComplete, onInvestigationReady }: Works
     setLogs(merged);
   };
 
-  const handleFiles = async (fileList: FileList | null) => {
+  const handleFiles = async (fileList: FileList | ImportFileSource[] | null) => {
     if (!fileList || fileList.length === 0) return;
 
     setError(null);
@@ -126,7 +128,8 @@ export function WorkspaceImportPanel({ onComplete, onInvestigationReady }: Works
     setParsingProgress(0);
 
     try {
-      const files = Array.from(fileList);
+      const files = Array.isArray(fileList) ? fileList : Array.from(fileList);
+      const browserFiles = files.filter(isBrowserImportFile);
       const firstFile = files[0];
 
       if (firstFile && firstFile.name.toLowerCase().endsWith('.noclense')) {
@@ -163,9 +166,9 @@ export function WorkspaceImportPanel({ onComplete, onInvestigationReady }: Works
       // --- Server mode: upload to backend for parsing ---
       // REMOVED-FOR-DEPLOY: server mode UI hidden — re-add when noclense-server is approved
       // eslint-disable-next-line no-constant-condition, no-constant-binary-expression
-      if (false && serverMode) {
+      if (false && serverMode && browserFiles.length === files.length) {
         try {
-          const result = await serverUploadAndParse(files, setParsingProgress);
+          const result = await serverUploadAndParse(browserFiles, setParsingProgress);
           setSelectedLogId(null);
           setNotices([`Server parsed ${result.count.toLocaleString()} log entries from ${files.length} file${files.length === 1 ? '' : 's'}.`]);
           toast(`Server parsed ${result.count.toLocaleString()} logs`, { variant: 'success' });
@@ -223,6 +226,25 @@ export function WorkspaceImportPanel({ onComplete, onInvestigationReady }: Works
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
+    }
+  };
+
+  const handleChooseFiles = async () => {
+    try {
+      const nativeFiles = await openImportFilesDialog();
+      if (nativeFiles === null) {
+        fileInputRef.current?.click();
+        return;
+      }
+      if (nativeFiles.length === 0) {
+        return;
+      }
+
+      await handleFiles(nativeFiles);
+    } catch (dialogError) {
+      const msg = dialogError instanceof Error ? dialogError.message : 'Failed to open file picker.';
+      setError(msg);
+      toast(msg, { variant: 'error' });
     }
   };
 
@@ -399,7 +421,7 @@ export function WorkspaceImportPanel({ onComplete, onInvestigationReady }: Works
           />
           <button
             type="button"
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => void handleChooseFiles()}
             data-testid="import-drop-zone"
             className="flex w-full flex-col items-center justify-center rounded border border-dashed border-[var(--border)] bg-[var(--workspace)] px-4 py-6 text-center hover:border-[var(--ring)] hover:bg-[var(--muted)] motion-safe:transition-[transform] motion-safe:duration-[var(--duration-normal)] motion-safe:ease-[var(--ease-spring)] motion-safe:hover:-translate-y-[1px] motion-safe:hover:scale-[1.01]"
           >
