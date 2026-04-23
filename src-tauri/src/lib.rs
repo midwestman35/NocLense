@@ -10,6 +10,7 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
+            commands::crash_reporting::report_runtime_error,
             commands::file_stream::stream_file_chunks,
             commands::keyring::keyring_get,
             commands::keyring::keyring_set,

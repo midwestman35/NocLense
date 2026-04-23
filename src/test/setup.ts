@@ -14,6 +14,8 @@ vi.mock('@tauri-apps/api/core', () => ({
         return [];
       case 'legacy_secure_storage_read':
         return {};
+      case 'report_runtime_error':
+        return { reportId: 'report-test' };
       default:
         return undefined;
     }

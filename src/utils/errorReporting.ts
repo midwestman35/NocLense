@@ -1,3 +1,5 @@
+import { invoke } from '@tauri-apps/api/core';
+
 interface RuntimeErrorPayload {
   source: string;
   message: string;
@@ -9,13 +11,6 @@ interface RuntimeErrorResult {
   reportId: string;
 }
 
-/**
- * Forward a runtime error to Electron main process.
- *
- * Why:
- * - Centralized logging in main process enables file persistence and optional
- *   remote forwarding without exposing sensitive transport details in renderer.
- */
 export async function reportRuntimeError(payload: RuntimeErrorPayload): Promise<RuntimeErrorResult | null> {
   const report = {
     ...payload,
@@ -25,14 +20,12 @@ export async function reportRuntimeError(payload: RuntimeErrorPayload): Promise<
   };
 
   try {
-    if (window.electronAPI?.reportError) {
-      const result = await window.electronAPI.reportError(report);
-      if (result?.ok && result.reportId) {
-        return { reportId: result.reportId };
-      }
+    const result = await invoke<RuntimeErrorResult>('report_runtime_error', { report });
+    if (result?.reportId) {
+      return { reportId: result.reportId };
     }
   } catch (error) {
-    console.error('Failed to report runtime error via electron bridge:', error);
+    console.error('Failed to report runtime error via Tauri command:', error);
   }
 
   // Browser fallback keeps diagnostics available during web/dev runs.
