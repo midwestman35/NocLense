@@ -427,7 +427,7 @@ export default function InvestigationSetupModal({ ticketId, onConfirm, onCancel 
                             checked={checked}
                             disabled={!selectable}
                             onChange={() => selectable && toggleAtt(att.id)}
-                            style={{ accentColor: 'var(--violet)' }}
+                            className="accent-violet"
                           />
                           <FileText size={12} style={{ color: zip ? 'var(--amber)' : pdf ? 'var(--destructive)' : 'var(--muted-foreground)', flexShrink: 0 }} />
                           <div className="min-w-0 flex-1">
@@ -653,7 +653,7 @@ export default function InvestigationSetupModal({ ticketId, onConfirm, onCancel 
                                       type="checkbox"
                                       checked={selectedStations.has(s.name)}
                                       onChange={() => toggleStation(s.name)}
-                                      style={{ accentColor: 'var(--cyan)' }}
+                                      className="accent-cyan"
                                     />
                                     <span className="flex-1 truncate font-mono text-[11px]" style={{ color: 'var(--foreground)' }} title={s.name}>
                                       {s.name}
