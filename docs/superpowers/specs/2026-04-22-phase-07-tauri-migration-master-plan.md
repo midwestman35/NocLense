@@ -42,11 +42,17 @@ remain documented future work.
 | Vercel | Kill entirely — remove `api/*`, `server/*`, `@vercel/analytics`, `@vercel/blob` |
 | Gemini cadence | After each phase merge; 07G is Gemini's archive + cleanup phase |
 
-## 3. Agent responsibilities (per HANDOFF.md role framing)
+## 3. Agent responsibilities (per HANDOFF.md role framing, locked 2026-04-22)
 
-- **Claude** — writes this master plan; writes each slice plan; adversarial-reviews Codex commits per lightweight policy (one probe per plan, self-assessment per slice, deep review at phase close); approves merges. **Never implements.**
-- **Codex** — receives slice plan from user; implements commit-by-commit; runs per-slice self-assessment at slice end; user pastes diffs/output back for Claude review.
-- **Gemini** — after each sub-phase merges: rewrites `README.md`, `docs/USAGE_GUIDE.md`, `docs/DEVELOPER_HANDOFF.md` to reflect shipped state. At 07G: archives + removes all Electron code.
+- **Claude — CEO / Architect.** Writes this master plan; writes each slice plan; integrates Gemini pre-flight findings before finalizing; adversarial-reviews Codex commits per lightweight policy (one probe per plan, self-assessment per slice, deep review at phase close); gives final GO / NO-GO. **Never implements.** Owns direction + correctness.
+- **Codex — CTO / Executor.** Receives finalized slice plan; executes exactly; commits incrementally; runs build / test / lint after each commit; reports status + per-slice self-assessment. Owns implementation + delivery.
+- **Gemini — Research + Audit.** Runs pre-flight risk analysis before each sub-phase starts build (surfaces blind spots + future risks). After Claude's review + GO, runs post-phase audit and rewrites `README.md`, `docs/USAGE_GUIDE.md`, `docs/DEVELOPER_HANDOFF.md` to reflect shipped state. At 07G: archives + removes all Electron code.
+
+**Phase loop (per sub-phase):**
+
+```
+Gemini pre-flight  →  Claude finalize  →  Codex build  →  Claude review  →  Gemini audit + docs
+```
 
 `codex:rescue` remains forbidden per HANDOFF.md.
 
@@ -215,18 +221,34 @@ Executes v5.1 spec §5.1 checkpoint sequence 1.1–1.7 within this sub-phase.
 
 ---
 
-## 15. Per-sub-phase workflow (per HANDOFF.md review policy)
+## 15. Per-sub-phase workflow (phase loop locked 2026-04-22)
 
 For each of 07A–07G:
 
-1. **Claude** writes slice plan → `docs/superpowers/specs/2026-MM-DD-phase-07X-<topic>-design.md`.
-2. **Claude** runs one adversarial probe on the slice plan (lightweight policy).
-3. **User** feeds slice plan to Codex in separate CLI session.
-4. **Codex** implements commit-by-commit; runs per-slice self-assessment at slice end.
-5. **User** pastes diffs/self-assessment to Claude.
-6. **Claude** deep-reviews at phase close-out; YELLOWs logged as known-limitations; only NO-GO blocks.
-7. On GO: Claude signs off → **Gemini** rewrites docs → slice merges to `april-redesign`.
-8. Next sub-phase begins.
+1. **Claude** drafts slice plan → `docs/superpowers/specs/2026-MM-DD-phase-07X-<topic>-design.md`.
+2. **Gemini — pre-flight.** Reads the draft slice plan. Runs risk analysis:
+   top risks ranked by severity, blind spots, optional improvements. Surfaces
+   findings for Claude to incorporate.
+3. **Claude — finalize.** Integrates Gemini's pre-flight findings; runs one
+   adversarial probe on the plan (lightweight policy); bumps the slice plan
+   revision; gives GO to build.
+4. **User** feeds finalized slice plan to Codex in separate CLI session.
+5. **Codex — build.** Implements commit-by-commit; runs build / test / lint
+   after each commit against the documented gates; halts on any regression.
+   At slice end: runs per-slice self-assessment.
+6. **User** pastes diffs + self-assessment back to Claude.
+7. **Claude — review.** Deep review at phase close; YELLOWs logged as
+   known-limitations; only NO-GO blocks. GO / NO-GO decision.
+8. **Gemini — audit + docs.** On GO: runs post-phase audit (validates shipped
+   state matches the plan; surfaces any debt introduced); rewrites `README.md`,
+   `docs/USAGE_GUIDE.md`, `docs/DEVELOPER_HANDOFF.md` to reflect reality.
+9. Slice merges to `april-redesign`. Next sub-phase begins at step 1.
+
+**Note for 07A:** this phase was already mid-flight when the loop was
+locked. Gemini's pre-flight audit ran retroactively (2026-04-22, post Step 0
+and file split); findings were folded into slice plan rev v2 / v2.1. Remaining
+07A slices (07A.1–07A.7) follow the full loop from step 4 onward. 07B onward
+runs the full loop from step 1.
 
 ---
 

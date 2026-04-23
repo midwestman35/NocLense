@@ -17,17 +17,29 @@
 
 ---
 
-## Role framing
+## Role framing (locked 2026-04-22)
 
 Three-agent team:
 
-| Agent | Role | Scope |
+| Agent | Role | Owns |
 |---|---|---|
-| **Claude** (Claude Code) | CTO / Project Lead | Plans, reviews, steers architecture, approves merges |
-| **Codex** (OpenAI Codex CLI) | Principal Engineer | Implements from approved plans, writes tests, commits code |
-| **Gemini** (Google Gemini CLI) | Support Staff / Doc Engineer | Maintains README, USAGE_GUIDE, DEVELOPER_HANDOFF, folder hygiene |
+| **Claude** (Claude Code) | **CEO / Architect** | direction + correctness. Writes phase + slice plans; integrates Gemini insights; enforces scope + architecture; reviews Codex output; gives final GO / NO-GO. |
+| **Codex** (OpenAI Codex CLI) | **CTO / Executor** | implementation + delivery. Executes slice plans exactly; commits incrementally; runs build / test / lint; reports status + self-assessment. |
+| **Gemini** (Google Gemini CLI) | **Research + Audit** | blind-spot surfacing + documentation. Runs pre-flight risk analysis before build; runs post-phase audit + docs after review. |
 
-Claude plans → Codex implements → Claude reviews → Gemini updates docs.
+## Phase loop
+
+```
+Gemini (pre-flight)  →  Claude (finalize plan)  →  Codex (build)
+                                                        │
+                                                        ▼
+                 Gemini (audit + docs)  ←  Claude (review)
+```
+
+Each phase and each sub-phase goes through this full loop. Pre-flight
+surfaces risks before Claude commits to a plan; audit happens after
+Claude green-lights the work so Gemini can both validate and document
+the shipped state.
 
 **Review policy (as of 2026-04-22, lightweight):**
 - One adversarial probe per plan (not iterative rounds).
@@ -38,9 +50,12 @@ Claude plans → Codex implements → Claude reviews → Gemini updates docs.
 
 **Never:**
 - Use the `codex:rescue` skill or any `/codex:*` dispatch slash-skill.
-- Implement source code yourself. Claude plans + reviews; Codex implements.
+- Implement source code yourself (Claude). Claude plans + reviews; Codex implements.
 - Dispatch Codex without naming a primary agent per the slice-archetype
   convention (see `docs/superpowers/feedback_codex_agent_assignments.md`).
+- Skip Gemini's pre-flight before a phase begins build. If a phase was
+  already mid-flight when this loop locked (e.g., 07A), run Gemini's
+  audit retroactively and fold findings into the next slice plan rev.
 
 ---
 
