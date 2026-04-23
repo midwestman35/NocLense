@@ -195,12 +195,37 @@ there is no in-flight implementation work.
 
 ---
 
-## Immediate next step — plan Phase 07 (Electron → Tauri migration)
+## Immediate next step — dispatch Phase 07A (tokens + reskin)
 
-Per user direction (2026-04-22), Phase 07 planning starts the week
-following Phase 06C close. No Codex dispatch until the plan lands.
+**Phase 07 planning landed 2026-04-22.** Master plan at
+`docs/superpowers/specs/2026-04-22-phase-07-tauri-migration-master-plan.md`.
+First slice plan at
+`docs/superpowers/specs/2026-04-22-phase-07a-tokens-reskin-design.md`.
 
-**Phase 07 readiness contracts (from Phase 06C sign-off):**
+**Phase 07 sub-phase map:**
+
+| Sub-phase | Scope | Status |
+|---|---|---|
+| pre-work | File-size split (CorrelationGraph, graphPresentation, NewWorkspaceLayout) | Ready to dispatch |
+| 07A | Tokens + Fonts + Global Reskin (obsidian + phosphor, dark only) | **Slice plan ready; next to dispatch** |
+| 07B | Auth + Dashboard (greenfield screens) | Slice plan pending 07A merge |
+| 07C | Import + Investigation Setup | Slice plan pending 07B merge |
+| 07D | Tauri scaffold + keyring + Unleashed refactor (v5.1 thin-MVP) | Slice plan pending 07C merge |
+| 07E | Port 4 remaining vendors + FirstRunWizard + Settings panel | Slice plan pending 07D merge |
+| 07F | Custom chrome + titlebar + kill Vercel | Slice plan pending 07E merge |
+| 07G | Electron archive (Gemini primary) | Slice plan pending 07F merge |
+
+**Confirmed architecture decisions (2026-04-22 brainstorming with Enrique):**
+
+- **v5.1 local keyring**, NOT v4 AWS proxy. Zero backend, $0 recurring.
+- **Scope:** Tauri shell + keyring + UI redesign. Rust log perf port and auto-updater are **out of scope** for Phase 07.
+- **Platforms:** Windows + macOS.
+- **Branch:** continue on `april-redesign`; merge to `main` at end of 07G.
+- **Vercel:** killed entirely in 07F. No web preview after Phase 07.
+- **Codex dispatch:** user-driven CLI per HANDOFF policy. Never use `codex:rescue`.
+- **Gemini:** runs after each sub-phase merge.
+
+**Phase 07 readiness contracts (from Phase 06C sign-off) — all addressed in master plan §4:**
 
 1. **IndexedDB persistence across Electron → Tauri.** Phase 06C
    shipped a new `cases` object store. Tauri uses a different

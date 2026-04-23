@@ -1,0 +1,310 @@
+# Phase 07A — Tokens + Fonts + Global Reskin (slice plan)
+
+**Parent:** `docs/superpowers/specs/2026-04-22-phase-07-tauri-migration-master-plan.md`
+**Primary agent:** Codex (per HANDOFF.md role framing; see `feedback_codex_agent_assignments.md` for slice-archetype → agent mapping — this slice is visual/tokens, not security-critical).
+**Owner review:** Claude (adversarial probe at plan level + deep review at phase close).
+**Gemini:** kicks off at 07A close to update README Design System section + close DEVELOPER_HANDOFF 07A block.
+
+---
+
+## 1. Goal
+
+Swap the visual foundation from the current Green-House / light+dark tokens to the
+v5.1 obsidian + phosphor dark-only system. No behavior changes. No new screens
+(Auth + Dashboard land in 07B). When 07A closes, Investigate Room and Submit Room
+look like the v5.1 deck.
+
+## 2. Pre-work commit (runs BEFORE slice 1)
+
+Per master plan §5 and HANDOFF.md Phase 06C tech-debt:
+
+**Commit:** `refactor(phase-07-prep): split oversize files before 07A reskin`
+
+Split each by responsibility, no logic changes. Target <500 lines per resulting file.
+
+| File | Lines | Suggested split |
+|---|---|---|
+| `src/components/correlation-graph/CorrelationGraph.tsx` | 601 | extract graph effect wiring + toolbar into siblings |
+| `src/components/correlation-graph/graphPresentation.tsx` | 517 | extract node/edge style helpers |
+| `src/components/workspace/NewWorkspaceLayout.tsx` | 504 | extract phase-state reducer + room-transition hook |
+
+**Gate for pre-work:** `npm run build` + `npm run test:run` green. No visual diff (logic unchanged). Claude reviews the split.
+
+Pre-work lands before any 07A slice. If Codex's split introduces any behavior regression, halt 07A until fixed.
+
+## 3. Slicing
+
+Seven slices inside 07A. Each is one commit. Per-slice self-assessment at end.
+
+### Slice 07A.1 — Font swap
+
+**Commit:** `feat(phase-07a): ckpt 07A.1; swap fonts to Inter Tight / Geist Mono / Instrument Serif`
+
+- `npm uninstall @fontsource/dm-sans @fontsource/jetbrains-mono`
+- `npm install @fontsource/inter-tight @fontsource/geist-mono @fontsource/instrument-serif`
+- If any target package is missing on npm (verify before install), fall back to Google Fonts `<link>` in `index.html` and note in commit.
+- Update `src/main.tsx` imports: `@fontsource/inter-tight/300.css`, `.../400.css`, `.../500.css`, `.../600.css`, `.../700.css`; `@fontsource/geist-mono/300.css`–`600.css`; `@fontsource/instrument-serif/400-italic.css`.
+- Delete any DM Sans / JetBrains Mono imports.
+
+**Gate:** app boots in Electron; no missing-font warnings in DevTools.
+
+### Slice 07A.2 — `tokens.css` rewrite
+
+**Commit:** `feat(phase-07a): ckpt 07A.2; rewrite tokens.css to obsidian + phosphor`
+
+Replace the entire `src/styles/tokens.css` with the v5.1 palette. Authoritative values from zip README §Design-Tokens:
+
+```css
+:root {
+  /* Surface + ink */
+  --bg-0: #05070a;  /* root */
+  --bg-1: #0a0d12;  /* app surface */
+  --bg-2: #0f1319;  /* raised panel */
+  --bg-3: #151a22;  /* elevated card */
+  --ink-0: #f3f5f7;
+  --ink-1: #cfd4dc;
+  --ink-2: #8a93a1;
+  --ink-3: #5b6373;
+  --line:   rgba(255,255,255,0.06);
+  --line-2: rgba(255,255,255,0.10);
+
+  /* Accents */
+  --mint:      #8ef0b7;
+  --mint-dim:  #4fb987;
+  --mint-deep: #133b2a;
+  --amber:     #f7b955;
+  --red:       #ff6b7a;
+  --violet:    #a58cff;
+  --cyan:      #8be5ff;
+
+  /* Fonts */
+  --font-display: 'Inter Tight', system-ui, sans-serif;
+  --font-mono:    'Geist Mono', ui-monospace, monospace;
+  --font-serif:   'Instrument Serif', serif;
+
+  /* Radii */
+  --radius-chip:  6px;
+  --radius-input: 8px;
+  --radius-row:   10px;
+  --radius-panel: 14px;
+  --radius-win:   2px;
+}
+```
+
+Also define glass-panel and glass-2 utilities per zip §Spacing-and-radii:
+
+```css
+.glass-panel {
+  background: linear-gradient(180deg, rgba(22,27,36,0.75), rgba(14,18,24,0.6));
+  border: 0.5px solid var(--line-2);
+  backdrop-filter: blur(30px) saturate(160%);
+  border-radius: var(--radius-panel);
+}
+.glass-2 {
+  background: rgba(14,18,24,0.5);
+  border: 0.5px solid var(--line);
+  border-radius: var(--radius-input);
+}
+```
+
+**Delete:**
+- Old Green-House scale (`--gh-50` through `--gh-950` or similar).
+- Light-mode overrides. The app is dark only. No `@media (prefers-color-scheme: light)` block.
+- Any `html[data-theme="light"]` selectors across the stylesheet.
+
+**Gate:** `npm run build` green. Existing components still render (some may look wrong but build succeeds).
+
+### Slice 07A.3 — Tailwind config wire-up
+
+**Commit:** `feat(phase-07a): ckpt 07A.3; wire tailwind.config.js to tokens.css variables`
+
+`tailwind.config.js` extends `theme.extend`:
+
+```js
+extend: {
+  colors: {
+    bg:   { 0: 'var(--bg-0)', 1: 'var(--bg-1)', 2: 'var(--bg-2)', 3: 'var(--bg-3)' },
+    ink:  { 0: 'var(--ink-0)', 1: 'var(--ink-1)', 2: 'var(--ink-2)', 3: 'var(--ink-3)' },
+    mint: { DEFAULT: 'var(--mint)', dim: 'var(--mint-dim)', deep: 'var(--mint-deep)' },
+    amber: 'var(--amber)', red: 'var(--red)', violet: 'var(--violet)', cyan: 'var(--cyan)',
+    line: { DEFAULT: 'var(--line)', 2: 'var(--line-2)' },
+  },
+  fontFamily: {
+    display: ['var(--font-display)'],
+    mono:    ['var(--font-mono)'],
+    serif:   ['var(--font-serif)'],
+  },
+  borderRadius: {
+    chip: 'var(--radius-chip)',
+    input: 'var(--radius-input)',
+    row: 'var(--radius-row)',
+    panel: 'var(--radius-panel)',
+    win: 'var(--radius-win)',
+  },
+}
+```
+
+**Gate:** `npx tailwindcss -i …` or equivalent shows utilities like `bg-bg-1`, `text-mint`, `font-display`, `rounded-panel` emit correct CSS.
+
+### Slice 07A.4 — Token-swap: `log/*` + `correlation-graph/*` + `workspace/*`
+
+**Commit:** `feat(phase-07a): ckpt 07A.4; reskin log + correlation-graph + workspace to new tokens`
+
+Mechanical replacement of hardcoded colors / font names to Tailwind utilities or CSS-variable refs across:
+
+- `src/components/log/*.tsx` (including `LogViewer.tsx`, `LogRow.tsx`, `LogStreamHeader.tsx`, `LogTabs.tsx` and any siblings)
+- `src/components/correlation-graph/*.tsx` (post-split files from pre-work)
+- `src/components/workspace/*.tsx` (including the three rooms and the post-split `NewWorkspaceLayout` siblings)
+
+**Mapping rules:**
+
+| Old pattern | New pattern |
+|---|---|
+| `bg-slate-900`, `bg-gray-900`, `bg-zinc-950` | `bg-bg-0` or `bg-bg-1` (pick per surface depth) |
+| `bg-slate-800`, `bg-gray-800` | `bg-bg-2` |
+| `bg-slate-700`, `bg-gray-700` | `bg-bg-3` |
+| `text-white`, `text-slate-50` | `text-ink-0` |
+| `text-slate-300`, `text-gray-300` | `text-ink-1` |
+| `text-slate-400`, `text-gray-400` | `text-ink-2` |
+| `text-slate-500`, `text-gray-500` | `text-ink-3` |
+| `text-green-400`, current mint | `text-mint` |
+| `text-yellow-400`, `text-amber-400` | `text-amber` |
+| `text-red-400`, `text-rose-400` | `text-red` |
+| `text-purple-400`, `text-violet-400` | `text-violet` |
+| `text-sky-400`, `text-cyan-400` | `text-cyan` |
+| `font-mono` (JetBrains Mono) | `font-mono` (unchanged utility; now resolves to Geist Mono) |
+| `font-sans` (DM Sans default) | `font-display` |
+| border colors referencing white-alpha | `border-line` or `border-line-2` |
+
+**Do not change:** component logic, props, event handlers, state management, or any `className` that is purely structural (flex, grid, gap, padding).
+
+**Per-file checklist (Codex self-assessment):**
+- [ ] Visual: rendering matches the zip deck for this surface.
+- [ ] No raw hex values left in JSX (grep `#[0-9a-fA-F]{3,8}` in each touched file).
+- [ ] No references to DM Sans or JetBrains Mono.
+- [ ] Existing unit tests still pass; snapshot tests updated if fonts/colors asserted.
+
+**Gate:** `npm run build` + `npm run test:run` green. Visual diff reviewed by Claude.
+
+### Slice 07A.5 — Token-swap: `ai/*` + `evidence/*` + `filter/*`
+
+**Commit:** `feat(phase-07a): ckpt 07A.5; reskin ai + evidence + filter to new tokens`
+
+Same mechanical rules as Slice 07A.4. Directories:
+
+- `src/components/ai/*` (includes `AiPanel.tsx`, `AiSettingsModal.tsx`, `AIButton.tsx`, etc.)
+- `src/components/evidence/*`
+- `src/components/filter/*`
+
+**Gate:** as 07A.4.
+
+### Slice 07A.6 — Token-swap: `case/*` + `timeline/*` + `zendesk/*` + remaining reskin bucket
+
+**Commit:** `feat(phase-07a): ckpt 07A.6; reskin case + timeline + zendesk + residual to new tokens`
+
+- `src/components/case/*`
+- `src/components/timeline/*`
+- `src/components/zendesk/*`
+- Any remaining "reskin" bucket files from zip README §Repo-sweep not covered in 07A.4/07A.5 (e.g., `InvestigationSetupModal.tsx` if it lives outside `workspace/`).
+
+**Gate:** as 07A.4. Grep `bg-slate-`, `bg-gray-`, `text-slate-`, `text-gray-` across `src/components/` and `src/pages/` — should return only the `ui/*` primitives (which are addressed separately in later phases) and/or be empty.
+
+### Slice 07A.7 — Investigate + Submit room verification + snapshot sweep
+
+**Commit:** `feat(phase-07a): ckpt 07A.7; verify Investigate + Submit rooms match v5.1 deck + refresh snapshots`
+
+- Load the app in Electron; navigate to Investigate Room; compare against zip deck slide 07. Fix any visual regressions introduced during 07A.4–07A.6.
+- Navigate to Submit Room (variation A); compare against slide 08. Fix any regressions.
+- Run `npm run test:run -- -u` to refresh all snapshot tests across the affected surface area.
+- Inspect updated snapshots; reject any snapshot update that represents a real regression (not just a class rename).
+- Delete any test files under `src/styles/__tests__/` that hard-code Green-House color assertions and replace with token-based assertions.
+
+**Gate:** Investigate + Submit rooms visually match the deck. `npm run test:run` green. Zero snapshot updates rejected.
+
+---
+
+## 4. Files that must NOT change in 07A
+
+Behavior/logic-only files — no reskin touches:
+
+- `src/services/**` — services are interface-stable until 07D/07E
+- `src/contexts/**` — contexts are logic, not visual
+- `src/utils/**` — utilities
+- `src/hooks/**` — hooks
+- `electron/**` — Electron retires in 07G; do not touch here
+- `src-tauri/**` — does not exist yet; created in 07D
+- `src/types.ts` — data contract
+
+If a visual component uses an inline style for a non-visual reason (e.g., computed
+layout math), leave it alone. Token swap is for theme values only.
+
+## 5. Verification (full 07A gate)
+
+- `npm run build` green
+- `npm run test:run` green
+- `npm run lint` green
+- Claude's manual smoke-test pass on Electron: login → import sample log → Investigate → Submit → export. No visual regressions outside of intended reskin.
+- Screenshot diff (Claude responsibility): Investigate Room, Submit Room, Log Viewer, AI Panel, Correlation Graph. Each matches zip deck.
+- `grep -r "dm-sans\|jetbrains-mono\|bg-slate-\|bg-gray-\|text-slate-\|text-gray-" src/components/` returns empty outside `ui/*` primitives.
+- `grep -r "prefers-color-scheme: light\|data-theme=\"light\"" src/` returns empty.
+
+## 6. Risks specific to 07A
+
+| # | Risk | Mitigation |
+|---|---|---|
+| A1 | Inter Tight / Instrument Serif not on npm `@fontsource/*` | Verify in 07A.1 first; Google Fonts `<link>` fallback |
+| A2 | Tailwind v4 config syntax differs from v3 (project uses v4 per `package.json`) | Check `@tailwindcss/postcss` docs before 07A.3; use `@theme` block in CSS if v4 prefers it over `tailwind.config.js` |
+| A3 | Token-swap diff noise is huge; hard to review | Split into 07A.4/5/6 by directory so each diff is bounded; Claude reviews each commit's visual diff before next slice |
+| A4 | `ui/*` primitives (Button, Card, Dialog, etc.) out of reskin scope but cascade through app | These are noted in zip README §Rebuild bucket; addressed during 07B when new screens need them. 07A leaves them alone. |
+| A5 | Existing snapshot tests assert specific hex values | 07A.7 refreshes snapshots; Claude reviews updates for regressions vs intended changes |
+
+## 7. Codex dispatch prompt (ready to paste)
+
+(User can copy the following into Codex CLI to kick off 07A.)
+
+```
+You are working in the NocLense repo at
+C:/Users/somur/Documents/NocLense/NocLense on branch april-redesign.
+
+Primary agent: frontend-design (per
+docs/superpowers/feedback_codex_agent_assignments.md — tokens/visual slice).
+
+Execute Phase 07A per
+docs/superpowers/specs/2026-04-22-phase-07a-tokens-reskin-design.md.
+
+Start with the pre-work commit (file-size split) as specified in §2.
+Then run the 7 slices 07A.1–07A.7 in order, one commit each, using the
+commit prefixes given.
+
+Run per-slice self-assessment per HANDOFF.md lightweight review policy;
+do not per-commit block on YELLOWs, log them. Only NO-GO blocks.
+
+After each commit, run:
+  npm run build
+  npm run test:run
+  npm run lint
+
+If any are red, halt and pass the output back to Claude.
+
+Do not touch:
+- src/services/, src/contexts/, src/utils/, src/hooks/, src/types.ts
+- electron/
+- ui/* primitives (scope of 07B)
+
+Reference for token values: the master plan at
+docs/superpowers/specs/2026-04-22-phase-07-tauri-migration-master-plan.md
+and the zip at NocLense Standalone.zip →
+design_handoff_noclense_v5_tauri/README.md §Design-Tokens.
+```
+
+## 8. What Gemini does at 07A close
+
+- Update `README.md` "Design System" / "Styling" section to reflect obsidian + phosphor tokens and new font stack.
+- Update `docs/USAGE_GUIDE.md` only if screenshots are embedded (refresh them).
+- Update `docs/DEVELOPER_HANDOFF.md` — close 07A block with shipped commits + scope note.
+- Remove any residual Green-House mentions.
+- Archive `docs/superpowers/specs/2026-04-20-ui-polish-redesign-design.md` under an `archived/` subfolder if it is now superseded (decide at 07A close).
+
+---
+
+**End of 07A slice plan.** 07B (Auth + Dashboard) slice plan is written after 07A merges.
