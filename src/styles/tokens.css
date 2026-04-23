@@ -104,6 +104,39 @@
   --glow-ready: rgba(81, 145, 43, 0.28);
 }
 
+@theme {
+  /* Colors — exposed as bg-*, text-*, border-*, ring-*, etc. utilities */
+  --color-bg-0: #05070a;
+  --color-bg-1: #0a0d12;
+  --color-bg-2: #0f1319;
+  --color-bg-3: #151a22;
+  --color-ink-0: #f3f5f7;
+  --color-ink-1: #cfd4dc;
+  --color-ink-2: #8a93a1;
+  --color-ink-3: #5b6373;
+  --color-line: rgba(255, 255, 255, 0.06);
+  --color-line-2: rgba(255, 255, 255, 0.10);
+  --color-mint: #8ef0b7;
+  --color-mint-dim: #4fb987;
+  --color-mint-deep: #133b2a;
+  --color-amber: #f7b955;
+  --color-red: #ff6b7a;
+  --color-violet: #a58cff;
+  --color-cyan: #8be5ff;
+
+  /* Fonts — exposed as font-display, font-mono, font-serif */
+  --font-display: 'Inter Tight', system-ui, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, monospace;
+  --font-serif: 'Instrument Serif', serif;
+
+  /* Radii — exposed as rounded-chip, rounded-input, rounded-row, rounded-panel, rounded-win */
+  --radius-chip: 6px;
+  --radius-input: 8px;
+  --radius-row: 10px;
+  --radius-panel: 14px;
+  --radius-win: 2px;
+}
+
 /* Dark — Phase 04.5 Direction C warm base (§B mapping: bg #0d110f→#121311 etc.) */
 [data-theme="dark"] {
   --background: #121311;
