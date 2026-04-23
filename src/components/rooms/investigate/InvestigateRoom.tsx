@@ -1,20 +1,19 @@
 import { useState, type JSX, type Ref } from 'react';
-import { Bookmark, Database, ExternalLink, FileText, Search, Sparkles } from 'lucide-react';
+import { ExternalLink, FileText, Search, Sparkles } from 'lucide-react';
 import { WorkspaceCard } from '../../workspace/WorkspaceCard';
 import { CARD_GRID_CLASSES } from '../../workspace/WorkspaceGrid';
 import { SimilarCasesSection } from '../../workspace/SimilarCasesSection';
 import { Badge } from '../../ui';
 import { AISidebar } from '../../AISidebar';
-import EvidencePanel from '../../evidence/EvidencePanel';
-import { CorrelationGraph } from '../../correlation-graph/CorrelationGraph';
 import type { LogViewerHandle } from '../../LogViewer';
 import type { LogEntry } from '../../../types';
 import type { CitationId, EvidenceSet } from '../../../types/canonical';
 import type { SimilarPastTicket } from '../../../types/diagnosis';
 import type { InvestigationSetup } from '../../../types/investigation';
 import { loadAiSettings } from '../../../store/aiSettings';
-import { useBundleSizePulse } from '../../../hooks/useBundleSizePulse';
+import { CorrelationGraph } from './CorrelationGraph';
 import { DatadogLiveCard } from './DatadogLiveCard';
+import { EvidencePanel } from './EvidencePanel';
 import { LogStreamPanel } from './LogStreamPanel';
 
 interface InvestigateRoomProps {
@@ -31,18 +30,6 @@ interface InvestigateRoomProps {
   onSetupAI: () => void;
   onSetupConsumed: () => void;
   onCitationClick: (citationId: CitationId) => void;
-}
-
-function EvidenceBadge({ evidenceSet }: { evidenceSet: EvidenceSet | null }): JSX.Element {
-  const { pulseKey } = useBundleSizePulse(evidenceSet);
-  return (
-    <span
-      key={pulseKey}
-      className="rounded-full bg-[var(--warning)]/10 px-2 py-0.5 text-[9px] font-semibold tabular-nums text-[var(--warning)] motion-safe:animate-[bundle-pulse_300ms_var(--ease-enter-out,ease-out)_both]"
-    >
-      {evidenceSet?.items.length ?? 0}
-    </span>
-  );
 }
 
 export function InvestigateRoom({
@@ -100,16 +87,7 @@ export function InvestigateRoom({
         </div>
       </WorkspaceCard>
 
-      <WorkspaceCard
-        id="evidence"
-        title="Evidence"
-        icon={<Bookmark size={14} />}
-        accentColor="#f59e0b"
-        badge={<EvidenceBadge evidenceSet={evidenceSet} />}
-        className={CARD_GRID_CLASSES['evidence']}
-      >
-        <EvidencePanel />
-      </WorkspaceCard>
+      <EvidencePanel evidenceSet={evidenceSet} />
 
       <WorkspaceCard
         id="similar-tickets"
@@ -179,16 +157,7 @@ export function InvestigateRoom({
         </div>
       </WorkspaceCard>
 
-      <WorkspaceCard
-        id="correlation-graph"
-        title="Correlation Graph"
-        icon={<Database size={14} />}
-        accentColor="var(--correlation-call-id)"
-        defaultExpanded={false}
-        className={CARD_GRID_CLASSES['correlation-graph']}
-      >
-        <CorrelationGraph />
-      </WorkspaceCard>
+      <CorrelationGraph />
 
       <DatadogLiveCard />
     </>
