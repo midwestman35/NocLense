@@ -1,5 +1,5 @@
 import { Maximize2, Minus, Plus, RotateCcw } from 'lucide-react';
-import type { KeyboardEvent, MutableRefObject } from 'react';
+import type { JSX, KeyboardEvent, MutableRefObject } from 'react';
 
 import { Button } from '../ui/Button';
 

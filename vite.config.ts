@@ -104,6 +104,13 @@ export default defineConfig(({ mode }) => {
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',
     css: true,
+    exclude: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/.worktrees/**',
+      '**/.tmp-daily-bug-scan-*/**',
+      '**/.codex-beta-push/**',
+    ],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

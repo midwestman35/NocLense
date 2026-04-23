@@ -1,4 +1,4 @@
-import type { Dispatch, SetStateAction } from 'react';
+import type { Dispatch, JSX, SetStateAction } from 'react';
 import type { EdgeData, Graph, GraphData, GraphOptions, IEvent, NodeData } from '@antv/g6';
 
 import {

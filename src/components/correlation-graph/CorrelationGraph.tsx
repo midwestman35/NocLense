@@ -1,5 +1,6 @@
 import {
   type FocusEvent,
+  type JSX,
   type KeyboardEvent,
   useCallback,
   useEffect,

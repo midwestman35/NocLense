@@ -45,7 +45,7 @@ export interface CorrelationItem {
     excluded?: boolean;
 }
 
-interface LogContextType extends LogState {
+export interface LogContextType extends LogState {
     setLogs: (logs: LogEntry[]) => void;
     setLoading: (loading: boolean) => void;
     parsingProgress: number; // Progress from 0 to 1
