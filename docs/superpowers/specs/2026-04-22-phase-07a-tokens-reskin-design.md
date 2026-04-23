@@ -5,6 +5,18 @@
 **Owner review:** Claude (adversarial probe at plan level + deep review at phase close).
 **Gemini:** kicks off at 07A close to update README Design System section + close DEVELOPER_HANDOFF 07A block.
 
+## Revision history
+
+| Rev | Date | Summary |
+|---|---|---|
+| v1 | 2026-04-22 | Initial slice plan (7 slices + pre-work split). |
+| v1.1 | 2026-04-22 | Add baseline tsc unblocker; narrow pre-work file-split to only `CorrelationGraph.tsx`. |
+| v1.2 | 2026-04-22 | Add vitest exclude for worktree/bug-scan dirs; document baseline red test set. |
+| v1.3 | 2026-04-22 | Add lint baseline (419 problems) + count-based regression gate. |
+| **v2** | **2026-04-22** | **Incorporate Gemini audit: (1) defer CorrelationGraph.tsx split out of 07A; (2) bridge legacy semantic CSS vars with aliases so ui/* primitives survive; (3) switch 07A.3 from tailwind.config.js to Tailwind v4 `@theme` in tokens.css; (4) remove Google Fonts CDN fallback in 07A.1 (vendor locally or stop); (5) add boot-time `data-theme="dark"` lock + `noclense-theme` localStorage scrub to 07A.1.** |
+
+**If previously read v1.x, pay attention to §2.2 (deferred), §3 Slice 07A.1 (theme lock added; no CDN fallback), §3 Slice 07A.2 (bridge aliases — don't delete semantic vars), and §3 Slice 07A.3 (Tailwind v4 @theme in CSS, not tailwind.config.js).**
+
 ---
 
 ## 1. Goal
@@ -159,51 +171,107 @@ lines 117, 118, 188, 246, 358, 510; 3 warnings at lines 322, 1123, 1456 — all
 Any error on LogContext.tsx at line 48 (where we added `export`) — or any new
 error on any of the six files — is a regression.
 
-### 2.2 File-size split (narrowed scope)
+### 2.2 File-size split — DEFERRED (rev v2)
 
-**Commit:** `refactor(phase-07-prep): split CorrelationGraph.tsx before 07A reskin`
+**Status:** removed from 07A pre-work.
 
-Current file sizes measured on `april-redesign` HEAD 2026-04-22:
+Gemini's audit (Risk 4) flagged that mixing a stateful refactor of a complex
+G6 graph component with a global CSS reskin destroys regression isolation.
+If the graph breaks mid-07A, we can't distinguish between a broken React
+lifecycle from the split versus a missing CSS variable from the token swap.
 
-| File | Lines | Action |
-|---|---|---|
-| `src/components/correlation-graph/CorrelationGraph.tsx` | 601 | **split** — extract graph effect wiring and/or toolbar into siblings; target <500 lines |
-| `src/components/correlation-graph/graphPresentation.tsx` | 445 | no action (already under 500; HANDOFF snapshot was stale) |
-| `src/components/workspace/NewWorkspaceLayout.tsx` | 468 | no action (already under 500; HANDOFF snapshot was stale) |
+**`src/components/correlation-graph/CorrelationGraph.tsx` (601 lines) is
+intentionally left intact for 07A.** 07A.4 token-swaps it in place with no
+structural changes. The 500-line cap violation is logged as carried tech
+debt; a dedicated `refactor(phase-07-post): split CorrelationGraph.tsx`
+commit lands after 07A closes, either as standalone post-07A work or as
+part of 07B/07C prep (decided at 07A close).
 
-Split by responsibility, no logic changes.
-
-**Gate for §2.2:** `npm run build` + `npm run test:run` green. No visual diff
-(logic unchanged). Claude reviews the split before any 07A slice begins.
-
-If Codex's split introduces any behavior regression, halt 07A until fixed.
+**Action for Codex:** skip directly from §2.1 (baseline unblocker) to §3 Slice
+07A.1. No pre-work split commit.
 
 ## 3. Slicing
 
 Seven slices inside 07A. Each is one commit. Per-slice self-assessment at end.
 
-### Slice 07A.1 — Font swap
+### Slice 07A.1 — Font swap + boot-time theme lock (rev v2)
 
-**Commit:** `feat(phase-07a): ckpt 07A.1; swap fonts to Inter Tight / Geist Mono / Instrument Serif`
+**Commit:** `feat(phase-07a): ckpt 07A.1; swap fonts to Inter Tight / Geist Mono / Instrument Serif + lock dark theme`
+
+**A. Font swap**
 
 - `npm uninstall @fontsource/dm-sans @fontsource/jetbrains-mono`
 - `npm install @fontsource/inter-tight @fontsource/geist-mono @fontsource/instrument-serif`
-- If any target package is missing on npm (verify before install), fall back to Google Fonts `<link>` in `index.html` and note in commit.
-- Update `src/main.tsx` imports: `@fontsource/inter-tight/300.css`, `.../400.css`, `.../500.css`, `.../600.css`, `.../700.css`; `@fontsource/geist-mono/300.css`–`600.css`; `@fontsource/instrument-serif/400-italic.css`.
+- **No CDN fallback.** (Gemini audit Risk 3: Electron CSP + air-gapped NOC
+  environments break `<link>` to fonts.googleapis.com.) Verify each
+  `@fontsource` package exists on npm *before* running `npm install`. If
+  any package is missing, download the licensed font files (WOFF2) from
+  the upstream repository (rsms/inter, vercel/geist-font, or Google Fonts
+  project source) and vendor them at `public/fonts/` with a per-weight
+  `@font-face` rule in `tokens.css`. Halt and surface if this is needed;
+  do not use a Google Fonts `<link>` tag.
+- Update `src/main.tsx` imports: `@fontsource/inter-tight/300.css`,
+  `.../400.css`, `.../500.css`, `.../600.css`, `.../700.css`;
+  `@fontsource/geist-mono/300.css`–`600.css`;
+  `@fontsource/instrument-serif/400-italic.css`.
 - Delete any DM Sans / JetBrains Mono imports.
 
-**Gate:** app boots in Electron; no missing-font warnings in DevTools.
+**B. Boot-time theme lock** (Gemini audit Risk 5)
 
-### Slice 07A.2 — `tokens.css` rewrite
+Existing NOC operators still have `localStorage.getItem('noclense-theme')`
+cached with potentially `"light"`. `src/utils/theme.ts` applies that as a
+`data-theme` attribute on `<html>` on mount, even after we delete the
+light-mode CSS rules. Third-party libraries (G6 graph chrome, Datadog
+embed, un-reskinned ui/* primitives) that read `[data-theme="light"]`
+could enter a hybrid state.
 
-**Commit:** `feat(phase-07a): ckpt 07A.2; rewrite tokens.css to obsidian + phosphor`
+Add a scrub + lock to `src/main.tsx` **before `createRoot(...).render(...)`**:
 
-Replace the entire `src/styles/tokens.css` with the v5.1 palette. Authoritative values from zip README §Design-Tokens:
+```ts
+// Phase 07A: lock dark theme; clear legacy light-mode preference
+try {
+  localStorage.removeItem('noclense-theme');
+} catch { /* ignore (sandbox, private mode) */ }
+document.documentElement.setAttribute('data-theme', 'dark');
+```
+
+Update `src/utils/theme.ts`:
+- `setTheme(theme)`: force `theme = 'dark'` regardless of argument; still
+  writes `localStorage.setItem('noclense-theme', 'dark')` and applies the
+  `data-theme='dark'` attribute so existing tests pass without rewrite.
+- `getTheme()` (or equivalent getter): always return `'dark'`.
+
+Update `src/utils/__tests__/theme.test.ts` if assertions explicitly test
+light-mode behavior (e.g., toggling). Keep the dark-path assertions.
+
+**Gate:** app boots in Electron; no missing-font warnings in DevTools;
+`document.documentElement.dataset.theme === 'dark'` in console; no network
+requests to fonts.googleapis.com in Network tab. `npm run test:run`
+baseline-match; `npm run lint` count-based baseline.
+
+### Slice 07A.2 — `tokens.css` rewrite with semantic alias bridge (rev v2)
+
+**Commit:** `feat(phase-07a): ckpt 07A.2; add obsidian + phosphor primitives + bridge semantic vars to new scale`
+
+Gemini audit Risk 1: `ui/*` primitives (Button, Card, Dialog, Input, Toast,
+Tooltip, etc.) reference semantic CSS variables — `--card`, `--border`,
+`--foreground`, `--muted-foreground`, `--destructive`, `--ring`, `--input`,
+`--popover`, `--accent` — across 52 occurrences in 17 files. These are NOT
+in 07A's reskin scope (they belong to the 07B rebuild bucket). **If we
+delete the semantic vars, every primitive instantly loses its background,
+border, and text color, and the visual verification gate for Investigate
+and Submit rooms fails.**
+
+Fix: add the new obsidian + phosphor primitives, then **alias** the
+existing semantic vars to the new scale. `ui/*` primitives keep working
+during 07A; the aliases get deleted in 07B when primitives are rebuilt.
+
+**New structure of `src/styles/tokens.css` `:root`:**
 
 ```css
 :root {
-  /* Surface + ink */
-  --bg-0: #05070a;  /* root */
+  /* ── Obsidian + Phosphor primitives (new v5.1 scale) ─────────────── */
+  --bg-0: #05070a;  /* root background, outside-panel */
   --bg-1: #0a0d12;  /* app surface */
   --bg-2: #0f1319;  /* raised panel */
   --bg-3: #151a22;  /* elevated card */
@@ -214,7 +282,6 @@ Replace the entire `src/styles/tokens.css` with the v5.1 palette. Authoritative 
   --line:   rgba(255,255,255,0.06);
   --line-2: rgba(255,255,255,0.10);
 
-  /* Accents */
   --mint:      #8ef0b7;
   --mint-dim:  #4fb987;
   --mint-deep: #133b2a;
@@ -223,74 +290,160 @@ Replace the entire `src/styles/tokens.css` with the v5.1 palette. Authoritative 
   --violet:    #a58cff;
   --cyan:      #8be5ff;
 
-  /* Fonts */
   --font-display: 'Inter Tight', system-ui, sans-serif;
   --font-mono:    'Geist Mono', ui-monospace, monospace;
   --font-serif:   'Instrument Serif', serif;
 
-  /* Radii */
   --radius-chip:  6px;
   --radius-input: 8px;
   --radius-row:   10px;
   --radius-panel: 14px;
   --radius-win:   2px;
+
+  /* ── Legacy semantic aliases (DELETE IN 07B) ─────────────────────────
+   * Kept during 07A so ui/* primitives don't break.
+   * Delete this entire block when 07B rebuilds primitives against the
+   * new scale directly.
+   */
+  --background:         var(--bg-1);
+  --foreground:         var(--ink-0);
+  --card:               var(--bg-2);
+  --card-foreground:    var(--ink-0);
+  --workspace:          var(--bg-1);
+  --muted:              var(--bg-3);
+  --muted-foreground:   var(--ink-2);
+  --border:             var(--line-2);
+  --input:              var(--bg-2);
+  --ring:               var(--mint);
+  --accent:             var(--mint-deep);
+  --accent-foreground:  var(--ink-0);
+  --destructive:        var(--red);
+  --success:            var(--mint);
+  --warning:            var(--amber);
+  --info:               var(--cyan);
+  --popover:            var(--bg-2);
+  --popover-foreground: var(--ink-0);
 }
 ```
 
-Also define glass-panel and glass-2 utilities per zip §Spacing-and-radii:
+**Also:**
+
+- Add glass utilities per zip §Spacing-and-radii (the existing `.glass-panel`
+  and `.glass-2` snippet from prior rev stays):
+
+  ```css
+  .glass-panel {
+    background: linear-gradient(180deg, rgba(22,27,36,0.75), rgba(14,18,24,0.6));
+    border: 0.5px solid var(--line-2);
+    backdrop-filter: blur(30px) saturate(160%);
+    border-radius: var(--radius-panel);
+  }
+  .glass-2 {
+    background: rgba(14,18,24,0.5);
+    border: 0.5px solid var(--line);
+    border-radius: var(--radius-input);
+  }
+  ```
+
+- **Delete:**
+  - The `:root, [data-theme="light"]` combined selector block (lines 23+ in
+    current `tokens.css`) — remove just the `[data-theme="light"]` selector
+    addition and any light-mode-specific `--*` declarations within. Preserve
+    `:root { --green-house-* }` primitives and `:root { --radius-*, --shadow-*,
+    --correlation-* }` declarations further down.
+  - The second `[data-theme="light"]` block at line ~325.
+  - Any standalone `html[data-theme="light"]` selectors.
+
+- **Keep (do NOT delete in 07A):**
+  - `--green-house-*` scale. Currently unused by the new palette but may have
+    stragglers; survey and clean up in 07B.
+  - `--radius-*`, `--shadow-*`, `--correlation-*`, `--card-border`,
+    `--phase-dot-*` and other structural tokens.
+  - `[data-theme="dark"]` block — values are now redundant with the aliases in
+    `:root`, but the selector is harmless since the app is locked to `dark`
+    (Slice 07A.1). Leave it for 07B cleanup to avoid mid-07A diff noise.
+
+**Gate:** `npm run build` green; `npm run test:run` baseline-match; `npm run
+lint` count-based baseline; open the app in Electron and verify a Button, a
+Card, a Dialog, and a Tooltip all still render (not broken boxes). If any
+primitive is visually broken, the alias bridge is missing a variable — halt
+and surface.
+
+### Slice 07A.3 — Tailwind v4 `@theme` wire-up in tokens.css (rev v2)
+
+**Commit:** `feat(phase-07a): ckpt 07A.3; add @theme block to tokens.css for Tailwind v4 utility generation`
+
+Gemini audit Risk 2: NocLense runs Tailwind v4.2.1 (see `package.json`
+and `@tailwindcss/postcss`). **Tailwind v4 removes `tailwind.config.js`
+from the supported configuration surface; theme tokens now live in a CSS
+`@theme` block.** Writing a `tailwind.config.js` with `theme.extend` would
+be silently ignored by `@tailwindcss/postcss`, and every new utility
+(`bg-bg-1`, `text-ink-0`, `text-mint`, `font-display`, `rounded-panel`)
+would resolve to nothing.
+
+Add a `@theme` block to `src/styles/tokens.css`, colocated with `:root`
+so the entire token story lives in one file:
 
 ```css
-.glass-panel {
-  background: linear-gradient(180deg, rgba(22,27,36,0.75), rgba(14,18,24,0.6));
-  border: 0.5px solid var(--line-2);
-  backdrop-filter: blur(30px) saturate(160%);
-  border-radius: var(--radius-panel);
-}
-.glass-2 {
-  background: rgba(14,18,24,0.5);
-  border: 0.5px solid var(--line);
-  border-radius: var(--radius-input);
-}
-```
+@theme {
+  /* Colors — exposed as bg-*, text-*, border-*, ring-*, etc. utilities */
+  --color-bg-0: #05070a;
+  --color-bg-1: #0a0d12;
+  --color-bg-2: #0f1319;
+  --color-bg-3: #151a22;
+  --color-ink-0: #f3f5f7;
+  --color-ink-1: #cfd4dc;
+  --color-ink-2: #8a93a1;
+  --color-ink-3: #5b6373;
+  --color-line: rgba(255, 255, 255, 0.06);
+  --color-line-2: rgba(255, 255, 255, 0.10);
+  --color-mint: #8ef0b7;
+  --color-mint-dim: #4fb987;
+  --color-mint-deep: #133b2a;
+  --color-amber: #f7b955;
+  --color-red: #ff6b7a;
+  --color-violet: #a58cff;
+  --color-cyan: #8be5ff;
 
-**Delete:**
-- Old Green-House scale (`--gh-50` through `--gh-950` or similar).
-- Light-mode overrides. The app is dark only. No `@media (prefers-color-scheme: light)` block.
-- Any `html[data-theme="light"]` selectors across the stylesheet.
+  /* Fonts — exposed as font-display, font-mono, font-serif */
+  --font-display: 'Inter Tight', system-ui, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, monospace;
+  --font-serif: 'Instrument Serif', serif;
 
-**Gate:** `npm run build` green. Existing components still render (some may look wrong but build succeeds).
-
-### Slice 07A.3 — Tailwind config wire-up
-
-**Commit:** `feat(phase-07a): ckpt 07A.3; wire tailwind.config.js to tokens.css variables`
-
-`tailwind.config.js` extends `theme.extend`:
-
-```js
-extend: {
-  colors: {
-    bg:   { 0: 'var(--bg-0)', 1: 'var(--bg-1)', 2: 'var(--bg-2)', 3: 'var(--bg-3)' },
-    ink:  { 0: 'var(--ink-0)', 1: 'var(--ink-1)', 2: 'var(--ink-2)', 3: 'var(--ink-3)' },
-    mint: { DEFAULT: 'var(--mint)', dim: 'var(--mint-dim)', deep: 'var(--mint-deep)' },
-    amber: 'var(--amber)', red: 'var(--red)', violet: 'var(--violet)', cyan: 'var(--cyan)',
-    line: { DEFAULT: 'var(--line)', 2: 'var(--line-2)' },
-  },
-  fontFamily: {
-    display: ['var(--font-display)'],
-    mono:    ['var(--font-mono)'],
-    serif:   ['var(--font-serif)'],
-  },
-  borderRadius: {
-    chip: 'var(--radius-chip)',
-    input: 'var(--radius-input)',
-    row: 'var(--radius-row)',
-    panel: 'var(--radius-panel)',
-    win: 'var(--radius-win)',
-  },
+  /* Radii — exposed as rounded-chip, rounded-input, rounded-row, rounded-panel, rounded-win */
+  --radius-chip: 6px;
+  --radius-input: 8px;
+  --radius-row: 10px;
+  --radius-panel: 14px;
+  --radius-win: 2px;
 }
 ```
 
-**Gate:** `npx tailwindcss -i …` or equivalent shows utilities like `bg-bg-1`, `text-mint`, `font-display`, `rounded-panel` emit correct CSS.
+**Do NOT create or modify `tailwind.config.js`** — in fact, consider deleting
+the existing one (it's a near-empty `{ content, theme: { extend: {} } }`
+scaffold from Tailwind v3 that no longer participates in the build). Decide
+at commit time:
+
+- If removing `tailwind.config.js` breaks anything (Vite plugin probe, IDE
+  hint, etc.), leave it alone with its current empty `extend: {}` state and
+  note in commit.
+- If removal is clean, delete it in this commit.
+
+**Sanity check before committing:**
+
+Write a tiny test snippet — any temporary file or inline in a component's
+JSX — using `bg-bg-1 text-ink-0 rounded-panel font-display`. Run
+`npm run build` and inspect the compiled CSS (in `dist/assets/*.css` after
+build) for the utilities. If they're absent from the emitted CSS, the
+`@theme` block isn't being processed; halt and verify
+`@tailwindcss/postcss` is loaded via `postcss.config.js` and that
+`tokens.css` is imported via `@import` in `src/styles/index.css`.
+
+Remove the test snippet before committing.
+
+**Gate:** `npm run build` green. Compiled CSS includes `bg-bg-1`,
+`text-ink-0`, `rounded-panel`, and `font-display` rules. Tests + lint at
+baseline.
 
 ### Slice 07A.4 — Token-swap: `log/*` + `correlation-graph/*` + `workspace/*`
 
