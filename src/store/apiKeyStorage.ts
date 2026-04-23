@@ -1,7 +1,11 @@
+import { invoke } from '@tauri-apps/api/core';
+import { CredentialNotFoundError, credentials } from '../services/credentials';
 import type { AIProviderId } from '../types/ai';
 
 const STORAGE_KEY_API_KEY = 'noclense_ai_api_key';
-const PROVIDERS: AIProviderId[] = ['gemini', 'claude', 'codex'];
+const PROVIDERS: AIProviderId[] = ['gemini', 'claude', 'codex', 'unleash'];
+
+type LegacyKeyMap = Partial<Record<AIProviderId, string>>;
 
 function getProviderStorageKey(provider: AIProviderId): string {
   return `${STORAGE_KEY_API_KEY}_${provider}`;
@@ -15,8 +19,7 @@ function hasSecureStorageBridge(): boolean {
   return Boolean(
     window.electronAPI?.isSecureStorageAvailable &&
       window.electronAPI?.getSecureStorage &&
-      window.electronAPI?.setSecureStorage &&
-      window.electronAPI?.migrateToSecureStorage
+      window.electronAPI?.setSecureStorage
   );
 }
 
@@ -39,7 +42,6 @@ function loadApiKeyFromLocalStorage(provider: AIProviderId): string | null {
 function saveApiKeyToLocalStorage(provider: AIProviderId, key: string): void {
   try {
     localStorage.setItem(getProviderStorageKey(provider), key);
-    // Keep legacy key for backward compatibility with existing installs.
     if (provider === 'gemini') {
       localStorage.setItem(STORAGE_KEY_API_KEY, key);
     }
@@ -59,7 +61,7 @@ function removeApiKeyFromLocalStorage(provider: AIProviderId): void {
   }
 }
 
-async function isSecureStorageAvailable(): Promise<boolean> {
+async function isElectronSecureStorageAvailable(): Promise<boolean> {
   if (!isElectronBridgeAvailable() || !hasSecureStorageBridge()) {
     return false;
   }
@@ -68,42 +70,40 @@ async function isSecureStorageAvailable(): Promise<boolean> {
     const result = await window.electronAPI?.isSecureStorageAvailable?.();
     return Boolean(result?.ok && result.available);
   } catch (error) {
-    console.error('Failed checking secure storage availability:', error);
+    console.error('Failed checking Electron secure storage availability:', error);
     return false;
   }
 }
 
-export async function loadApiKey(provider: AIProviderId): Promise<string | null> {
-  const secureAvailable = await isSecureStorageAvailable();
+async function loadApiKeyFromElectronSecureStorage(provider: AIProviderId): Promise<string | null> {
+  const secureAvailable = await isElectronSecureStorageAvailable();
   if (!secureAvailable) {
-    return loadApiKeyFromLocalStorage(provider);
+    return null;
   }
 
   try {
-    const secureResult = await window.electronAPI?.getSecureStorage?.(getProviderStorageKey(provider));
-    if (secureResult?.ok && secureResult.value) {
-      return secureResult.value;
+    const providerResult = await window.electronAPI?.getSecureStorage?.(getProviderStorageKey(provider));
+    if (providerResult?.ok && typeof providerResult.value === 'string' && providerResult.value.length > 0) {
+      return providerResult.value;
     }
 
-    // Legacy fallback for older single-provider Gemini key.
     if (provider === 'gemini') {
       const legacyResult = await window.electronAPI?.getSecureStorage?.(STORAGE_KEY_API_KEY);
-      if (legacyResult?.ok && legacyResult.value) {
+      if (legacyResult?.ok && typeof legacyResult.value === 'string' && legacyResult.value.length > 0) {
         return legacyResult.value;
       }
     }
   } catch (error) {
-    console.error('Failed loading API key from secure storage:', error);
+    console.error('Failed loading API key from Electron secure storage:', error);
   }
 
-  return loadApiKeyFromLocalStorage(provider);
+  return null;
 }
 
-export async function saveApiKey(provider: AIProviderId, key: string): Promise<void> {
-  const secureAvailable = await isSecureStorageAvailable();
+async function saveApiKeyToElectronSecureStorage(provider: AIProviderId, key: string): Promise<boolean> {
+  const secureAvailable = await isElectronSecureStorageAvailable();
   if (!secureAvailable) {
-    saveApiKeyToLocalStorage(provider, key);
-    return;
+    return false;
   }
 
   try {
@@ -120,56 +120,193 @@ export async function saveApiKey(provider: AIProviderId, key: string): Promise<v
     }
 
     removeApiKeyFromLocalStorage(provider);
+    return true;
   } catch (error) {
-    console.error('Failed saving API key to secure storage, using localStorage fallback:', error);
-    saveApiKeyToLocalStorage(provider, key);
+    console.error('Failed saving API key to Electron secure storage:', error);
+    return false;
   }
 }
 
-export async function migrateFromLocalStorage(): Promise<boolean> {
-  const secureAvailable = await isSecureStorageAvailable();
-  if (!secureAvailable) {
-    return false;
-  }
-
-  const valuesToMigrate: Record<string, string> = {};
+function collectLocalStorageValues(): LegacyKeyMap {
+  const values: LegacyKeyMap = {};
 
   for (const provider of PROVIDERS) {
     const key = loadApiKeyFromLocalStorage(provider);
     if (key) {
-      valuesToMigrate[getProviderStorageKey(provider)] = key;
-      if (provider === 'gemini') {
-        valuesToMigrate[STORAGE_KEY_API_KEY] = key;
+      values[provider] = key;
+    }
+  }
+
+  return values;
+}
+
+function mapLegacySecureStorageValues(values: Record<string, string>): LegacyKeyMap {
+  const mapped: LegacyKeyMap = {};
+
+  for (const provider of PROVIDERS) {
+    const scoped = values[getProviderStorageKey(provider)];
+    if (typeof scoped === 'string' && scoped.length > 0) {
+      mapped[provider] = scoped;
+      continue;
+    }
+
+    if (provider === 'gemini') {
+      const legacy = values[STORAGE_KEY_API_KEY];
+      if (typeof legacy === 'string' && legacy.length > 0) {
+        mapped[provider] = legacy;
       }
     }
   }
 
-  if (Object.keys(valuesToMigrate).length === 0) {
+  return mapped;
+}
+
+async function loadLegacyValuesFromTauriSecureStorage(): Promise<LegacyKeyMap> {
+  try {
+    const values = await invoke<Record<string, string>>('legacy_secure_storage_read', {
+      keys: [...PROVIDERS.map(getProviderStorageKey), STORAGE_KEY_API_KEY],
+    });
+
+    if (!values || typeof values !== 'object') {
+      return {};
+    }
+
+    return mapLegacySecureStorageValues(values);
+  } catch (error) {
+    console.error('Failed reading legacy Electron secure storage via Tauri:', error);
+    return {};
+  }
+}
+
+function hasLegacyValues(values: LegacyKeyMap): boolean {
+  return PROVIDERS.some((provider) => typeof values[provider] === 'string' && values[provider]!.length > 0);
+}
+
+async function readLegacyValues(): Promise<LegacyKeyMap> {
+  const electronValues: LegacyKeyMap = {};
+
+  for (const provider of PROVIDERS) {
+    const value = await loadApiKeyFromElectronSecureStorage(provider);
+    if (value) {
+      electronValues[provider] = value;
+    }
+  }
+
+  if (hasLegacyValues(electronValues)) {
+    return electronValues;
+  }
+
+  const tauriValues = await loadLegacyValuesFromTauriSecureStorage();
+  if (hasLegacyValues(tauriValues)) {
+    return tauriValues;
+  }
+
+  return collectLocalStorageValues();
+}
+
+async function isKeyringAvailable(): Promise<boolean> {
+  return credentials().isAvailable();
+}
+
+async function hasAnyKeyringValues(): Promise<boolean> {
+  try {
+    const keys = await credentials().list();
+    return keys.some((key) => PROVIDERS.includes(key as AIProviderId));
+  } catch (error) {
+    console.error('Failed listing keyring values:', error);
     return false;
+  }
+}
+
+async function persistValuesToKeyring(values: LegacyKeyMap): Promise<void> {
+  for (const provider of PROVIDERS) {
+    const value = values[provider];
+    if (typeof value === 'string' && value.length > 0) {
+      await credentials().set(provider, value);
+    }
+  }
+}
+
+function clearLocalStorageValues(values: LegacyKeyMap): void {
+  for (const provider of PROVIDERS) {
+    if (typeof values[provider] === 'string' && values[provider]!.length > 0) {
+      removeApiKeyFromLocalStorage(provider);
+    }
+  }
+}
+
+async function migrateLegacyValuesToKeyring(): Promise<LegacyKeyMap> {
+  if (!(await isKeyringAvailable())) {
+    return {};
+  }
+
+  if (await hasAnyKeyringValues()) {
+    return {};
+  }
+
+  const legacyValues = await readLegacyValues();
+  if (!hasLegacyValues(legacyValues)) {
+    return {};
+  }
+
+  await persistValuesToKeyring(legacyValues);
+  clearLocalStorageValues(legacyValues);
+  console.info('Migrated legacy API keys into the OS keyring.', {
+    providers: PROVIDERS.filter((provider) => legacyValues[provider]),
+  });
+  return legacyValues;
+}
+
+export async function loadApiKey(provider: AIProviderId): Promise<string | null> {
+  if (!(await isKeyringAvailable())) {
+    const secureValue = await loadApiKeyFromElectronSecureStorage(provider);
+    return secureValue ?? loadApiKeyFromLocalStorage(provider);
   }
 
   try {
-    const result = await window.electronAPI?.migrateToSecureStorage?.(valuesToMigrate);
-    if (!result?.ok) {
-      throw new Error(result?.error || 'Migration failed');
-    }
-
-    for (const provider of PROVIDERS) {
-      removeApiKeyFromLocalStorage(provider);
-    }
-
-    return true;
+    return await credentials().get(provider);
   } catch (error) {
-    console.error('Failed migrating API keys to secure storage:', error);
+    if (!(error instanceof CredentialNotFoundError)) {
+      console.error('Failed loading API key from the OS keyring:', error);
+      return loadApiKeyFromLocalStorage(provider);
+    }
+  }
+
+  const migratedValues = await migrateLegacyValuesToKeyring();
+  return migratedValues[provider] ?? null;
+}
+
+export async function saveApiKey(provider: AIProviderId, key: string): Promise<void> {
+  if (await isKeyringAvailable()) {
+    await credentials().set(provider, key);
+    removeApiKeyFromLocalStorage(provider);
+    return;
+  }
+
+  if (await saveApiKeyToElectronSecureStorage(provider, key)) {
+    return;
+  }
+
+  saveApiKeyToLocalStorage(provider, key);
+}
+
+export async function migrateFromLocalStorage(): Promise<boolean> {
+  if (!(await isKeyringAvailable())) {
     return false;
   }
+
+  const migratedValues = await migrateLegacyValuesToKeyring();
+  return hasLegacyValues(migratedValues);
 }
 
 export async function getApiKeyStorageStatus(): Promise<{
   isElectron: boolean;
   secureStorageAvailable: boolean;
+  keyringAvailable: boolean;
 }> {
   const isElectron = isElectronBridgeAvailable();
-  const secureStorageAvailable = await isSecureStorageAvailable();
-  return { isElectron, secureStorageAvailable };
+  const secureStorageAvailable = await isElectronSecureStorageAvailable();
+  const keyringAvailable = await isKeyringAvailable();
+
+  return { isElectron, secureStorageAvailable, keyringAvailable };
 }

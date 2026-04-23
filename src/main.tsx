@@ -14,8 +14,10 @@ import App from './App.tsx'
 import { loadServiceMappings } from './utils/messageCleanup'
 import ErrorBoundary from './components/ErrorBoundary'
 import { installGlobalErrorHandlers, reportRuntimeError } from './utils/errorReporting'
+import { initCredentials } from './services/credentials'
 
 installGlobalErrorHandlers();
+initCredentials();
 
 // Phase 07A: lock dark theme; clear legacy light-mode preference
 try {
