@@ -14,7 +14,7 @@ export default defineConfig([
     '.codex-beta-push/**',
     'tools/external/**',
     '.worktrees/**',
-    '.tmp-daily-bug-scan-*/**',
+    '.tmp-*/**',
     'reference/**',
     'src-tauri/**',
     'build/**',

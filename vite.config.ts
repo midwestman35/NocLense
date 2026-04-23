@@ -108,8 +108,10 @@ export default defineConfig(({ mode }) => {
       '**/node_modules/**',
       '**/dist/**',
       '**/.worktrees/**',
-      '**/.tmp-daily-bug-scan-*/**',
+      '**/.tmp-*/**',
       '**/.codex-beta-push/**',
+      '**/reference/**',
+      '**/src-tauri/**',
     ],
     coverage: {
       provider: 'v8',
