@@ -553,14 +553,28 @@ Electron instance; Vite dynamic-import modules fail to load outside the
 active dev server session, so the renderer never mounts).
 
 **This part is OUT of Codex's 07A.7 commit.** It becomes a user-driven
-pre-merge gate:
+pre-merge gate.
 
-1. User runs `npm run electron:dev` locally.
-2. Navigates Auth → Dashboard (stubs) → Import → Investigation Setup → Investigate → Submit.
-3. Compares Investigate Room against zip deck slide 07 and Submit Room (variation A) against slide 08.
-4. Known-accepted deviation: `ui/*` primitives still render old palette (documented YELLOW Y3 from Claude's 07A.3 review; rebuilt in 07B).
-5. If real regressions found (Tailwind class dropped a token, old hex left behind, broken-box surface): open a bug note, halt the 07A close, surface to Claude for a follow-up fix commit.
-6. If only Y3-class old-primitive rendering: GO for 07A close.
+**Runtime for Part C: plain Vite dev server in a browser — NOT Electron.**
+
+The reskin is pure CSS tokens + Tailwind classes in the React renderer. No
+IPC, no `electronAPI`, no native-chrome features are exercised by 07A. A
+browser against `http://localhost:5173/` shows the identical React tree
+with identical styling. Running Electron for Part C adds runtime drift
+(port-conflict zombies, optimize-deps cache invalidation, stale BrowserWindow
+instances) for zero verification benefit — and Electron is scheduled for
+retirement in 07G anyway. Native-chrome verification (titlebar, traffic
+lights, custom drag regions) belongs to 07F and will use the Tauri shell.
+
+User gate steps:
+
+1. `npm run dev` (no Electron wrapper).
+2. Open `http://localhost:5173/` in any Chromium browser.
+3. Navigate Auth (stubs) → Dashboard (stubs) → Import → Investigation Setup → Investigate → Submit.
+4. Compare Investigate Room against zip deck slide 07 and Submit Room (variation A) against slide 08.
+5. Known-accepted deviation: `ui/*` primitives still render old palette (documented YELLOW Y3 from Claude's 07A.3 review; rebuilt in 07B).
+6. If real regressions found (Tailwind class dropped a token, old hex left behind, broken-box surface): open a bug note, halt the 07A close, surface to Claude for a follow-up fix commit.
+7. If only Y3-class old-primitive rendering: GO for 07A close.
 
 **Record the result in the 07A close-out sign-off.** No Codex commit gets made based on Part C; Codex's 07A.7 commit contains only Parts A + D + E.
 
