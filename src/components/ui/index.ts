@@ -11,6 +11,13 @@ export { ScrollArea } from './ScrollArea';
 export { Tooltip } from './Tooltip';
 export { Skeleton, SkeletonLogRow, SkeletonFilterBar, SkeletonAiPanel } from './Skeleton';
 export { ToastProvider, useToast } from './Toast';
+export { MacWindow } from './MacWindow';
+export { Icon } from './Icon';
+export type { IconName } from './Icon';
+export { Cursor } from './Cursor';
+export { Spark } from './Spark';
+export { LogHistogram } from './LogHistogram';
+export { Ambient } from './Ambient';
 
 // Composites
 export { Dialog } from './Dialog';

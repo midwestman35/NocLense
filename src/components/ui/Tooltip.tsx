@@ -62,9 +62,9 @@ export function Tooltip({ content, children, delay = 200, className, side = 'top
             transition={TOOLTIP_TRANSITION}
             className={twMerge(
               clsx(
-                'pointer-events-none absolute z-[var(--z-toast)] border border-[var(--border)]',
-                'rounded-[var(--radius-sm)] bg-[var(--card)] text-[var(--foreground)]',
-                'px-2.5 py-1 text-[var(--text-xs)] whitespace-nowrap shadow-[var(--shadow-raised)]',
+                'pointer-events-none absolute z-[var(--z-toast)] border border-[var(--line-2)]',
+                'rounded-[var(--radius-input)] bg-[rgba(14,18,24,0.86)] text-[var(--ink-1)]',
+                'px-2.5 py-1 text-[11px] whitespace-nowrap shadow-[0_18px_50px_-30px_rgba(0,0,0,0.9)] backdrop-blur-md',
                 POSITION_CLASSES[side],
                 className
               )

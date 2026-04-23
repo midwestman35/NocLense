@@ -17,7 +17,7 @@ export function Separator({
       aria-orientation={orientation}
       className={twMerge(
         clsx(
-          'shrink-0 bg-[var(--border)]',
+          'shrink-0 bg-[var(--line)]',
           orientation === 'horizontal' ? 'h-px w-full' : 'h-full w-px',
           className
         )

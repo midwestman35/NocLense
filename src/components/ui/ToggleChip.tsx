@@ -31,10 +31,11 @@ export function ToggleChip({
   return (
     <label
       className={clsx(
-        'flex items-center gap-2 text-xs select-none group transition-colors',
+        'tag group select-none transition-colors',
         disabled
-          ? 'cursor-default text-[var(--muted-foreground)] opacity-40'
-          : 'cursor-pointer text-[var(--muted-foreground)] hover:text-[var(--foreground)]',
+          ? 'cursor-default opacity-40'
+          : 'cursor-pointer hover:border-[var(--line-2)]',
+        checked && !disabled ? 'border-[rgba(142,240,183,0.28)] bg-[rgba(142,240,183,0.1)] text-[var(--mint)]' : 'ink',
         className
       )}
       title={title}
@@ -56,13 +57,13 @@ export function ToggleChip({
           }
         }}
         className={clsx(
-          'w-4 h-4 border rounded transition-[background-color,border-color,color] duration-200 flex items-center justify-center',
-          checked && !disabled ? activeClassName : 'border-[var(--muted-foreground)] bg-transparent'
+          'flex h-4 w-4 items-center justify-center rounded border transition-[background-color,border-color,color] duration-200',
+          checked && !disabled ? activeClassName : 'border-[var(--ink-3)] bg-transparent text-[var(--ink-3)]'
         )}
       >
         {icon}
       </div>
-      <span className={clsx('font-medium transition-colors', !disabled && activeLabelClassName)}>
+      <span className={clsx('font-medium transition-colors', !disabled && checked && activeLabelClassName)}>
         {label}
       </span>
       {count != null && count > 0 && (

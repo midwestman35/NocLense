@@ -15,7 +15,7 @@ export function Skeleton({
   lines = 1,
   className,
 }: SkeletonProps) {
-  const baseClass = 'animate-shimmer bg-gradient-to-r from-[var(--muted)] via-[var(--accent)] to-[var(--muted)] bg-[length:200%_100%]';
+  const baseClass = 'nl-shimmer bg-[rgba(255,255,255,0.04)]';
 
   if (variant === 'text' && lines > 1) {
     return (
@@ -23,7 +23,7 @@ export function Skeleton({
         {Array.from({ length: lines }, (_, i) => (
           <div
             key={i}
-            className={clsx(baseClass, 'rounded-[var(--radius-sm)]')}
+            className={clsx(baseClass, 'rounded-[var(--radius-xs)]')}
             style={{
               width: i === lines - 1 ? '60%' : '100%',
               height: height ?? 12,
@@ -38,7 +38,7 @@ export function Skeleton({
     <div
       className={clsx(
         baseClass,
-        variant === 'circular' ? 'rounded-full' : 'rounded-[var(--radius-sm)]',
+        variant === 'circular' ? 'rounded-full' : 'rounded-[var(--radius-xs)]',
         className
       )}
       style={{ width: width ?? '100%', height: height ?? (variant === 'text' ? 12 : 24) }}
@@ -49,7 +49,7 @@ export function Skeleton({
 /** Skeleton mimicking a log row (35px height) */
 export function SkeletonLogRow() {
   return (
-    <div className="flex items-center gap-3 px-2 h-[var(--log-row-height)] border-b border-[var(--border)]">
+    <div className="flex h-[var(--log-row-height)] items-center gap-3 border-b border-[var(--line)] px-2">
       <Skeleton width={28} height={12} />
       <Skeleton width={110} height={12} />
       <Skeleton width={48} height={16} variant="rectangular" className="rounded-full" />
@@ -74,7 +74,7 @@ export function SkeletonFilterBar() {
 /** Skeleton for AI panel loading state */
 export function SkeletonAiPanel() {
   return (
-    <div className="p-4 flex flex-col gap-4">
+    <div className="flex flex-col gap-4 p-4">
       <Skeleton height={20} width="40%" />
       <Skeleton variant="text" lines={3} height={14} />
       <div className="flex gap-2 mt-2">

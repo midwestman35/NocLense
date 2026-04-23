@@ -52,14 +52,14 @@ export function ResizeHandle({
         'group flex items-center justify-center',
         'transition-colors duration-[var(--duration-fast)]',
         orientation === 'horizontal'
-          ? 'h-2 w-full cursor-row-resize hover:bg-[var(--accent)]'
-          : 'h-full w-2 cursor-col-resize hover:bg-[var(--accent)]',
+          ? 'h-2 w-full cursor-row-resize hover:bg-[rgba(142,240,183,0.08)]'
+          : 'h-full w-2 cursor-col-resize hover:bg-[rgba(142,240,183,0.08)]',
         className
       )}
     >
       <div
         className={clsx(
-          'rounded-full bg-[var(--border)] group-hover:bg-[var(--muted-foreground)]',
+          'rounded-full bg-[var(--line-2)] group-hover:bg-[var(--mint)] group-hover:shadow-[0_0_8px_var(--mint)]',
           'transition-colors duration-[var(--duration-fast)]',
           orientation === 'horizontal' ? 'h-0.5 w-8' : 'h-8 w-0.5'
         )}

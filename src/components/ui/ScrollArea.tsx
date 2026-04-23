@@ -17,7 +17,7 @@ export function ScrollArea({
   return (
     <div
       className={twMerge(
-        clsx('overflow-y-auto overflow-x-hidden', className)
+        clsx('no-scrollbar overflow-y-auto overflow-x-hidden', className)
       )}
       style={{ maxHeight, ...style }}
       {...props}

@@ -43,16 +43,15 @@ export function DropdownMenu({ trigger, children, align = 'left', className }: D
             transition={DROPDOWN_MENU_TRANSITION}
             className={twMerge(
               clsx(
-                'absolute top-full mt-1 z-[var(--z-dropdown)] min-w-[180px] overflow-hidden rounded-[var(--radius-lg)] border border-[var(--button-subtle-border)]',
-                'text-[var(--popover-foreground)] shadow-[var(--shadow-raised)] backdrop-blur-md',
+                'glass absolute top-full z-[var(--z-dropdown)] mt-1 min-w-[180px] overflow-hidden',
+                'text-[var(--ink-1)] shadow-[0_24px_70px_-42px_rgba(0,0,0,0.95)]',
                 'py-1',
                 align === 'right' ? 'right-0' : 'left-0',
                 className
               )
             )}
-            style={{ backgroundImage: 'var(--menu-surface)' }}
           >
-            <div className="pointer-events-none absolute inset-0" style={{ backgroundImage: 'var(--menu-highlight)' }} />
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(142,240,183,0.14),transparent_56%)]" />
             <div className="relative">{children}</div>
           </motion.div>
         )}
@@ -73,8 +72,8 @@ export function DropdownItem({ active, className, children, ...props }: Dropdown
           'flex cursor-pointer items-center gap-2 rounded-[var(--radius-md)] px-3 py-1.5 text-[var(--text-sm)]',
           'transition-colors duration-[var(--duration-fast)]',
           active
-            ? 'bg-[var(--menu-item-hover)] text-[var(--accent-foreground)]'
-            : 'hover:bg-[var(--menu-item-hover)]',
+            ? 'bg-[rgba(142,240,183,0.1)] text-[var(--mint)]'
+            : 'hover:bg-[rgba(255,255,255,0.04)] hover:text-[var(--ink-0)]',
           className
         )
       )}

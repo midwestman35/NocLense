@@ -13,8 +13,9 @@ export function Header({ left, center, right, className, ...props }: HeaderProps
     <header
       className={twMerge(
         clsx(
-          'flex items-center h-[var(--header-height)] px-[var(--space-4)]',
-          'border-b border-[var(--border)] bg-[var(--card)]',
+          'flex h-[var(--header-height)] items-center px-[var(--space-4)]',
+          'border-b border-[var(--line)] bg-[linear-gradient(180deg,rgba(20,24,32,0.82),rgba(12,15,20,0.64))]',
+          'text-[var(--ink-1)] backdrop-blur-xl',
           'z-[var(--z-sticky)]',
           className
         )
@@ -22,7 +23,7 @@ export function Header({ left, center, right, className, ...props }: HeaderProps
       {...props}
     >
       {/* Left slot */}
-      <div className="flex items-center gap-[var(--space-2)] shrink-0">{left}</div>
+      <div className="flex shrink-0 items-center gap-[var(--space-2)]">{left}</div>
 
       {/* Spacer */}
       <div className="flex-1" />
@@ -36,7 +37,7 @@ export function Header({ left, center, right, className, ...props }: HeaderProps
       <div className="flex-1" />
 
       {/* Right slot */}
-      <div className="flex items-center gap-[var(--space-2)] shrink-0">{right}</div>
+      <div className="flex shrink-0 items-center gap-[var(--space-2)]">{right}</div>
     </header>
   );
 }

@@ -24,6 +24,7 @@ interface ToastContextType {
 
 const ToastContext = createContext<ToastContextType | null>(null);
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useToast(): ToastContextType {
   const ctx = useContext(ToastContext);
   if (!ctx) throw new Error('useToast must be used within a ToastProvider');
@@ -33,17 +34,17 @@ export function useToast(): ToastContextType {
 const MAX_TOASTS = 3;
 
 const VARIANT_STYLES: Record<ToastVariant, string> = {
-  info: 'border-[var(--info)]/30 bg-[var(--info)]/5',
-  success: 'border-[var(--success)]/30 bg-[var(--success)]/5',
-  warning: 'border-[var(--warning)]/30 bg-[var(--warning)]/5',
-  error: 'border-[var(--destructive)]/30 bg-[var(--destructive)]/5',
+  info: 'border-[rgba(139,229,255,0.24)]',
+  success: 'border-[rgba(142,240,183,0.32)]',
+  warning: 'border-[rgba(247,185,85,0.28)]',
+  error: 'border-[rgba(255,107,122,0.3)]',
 };
 
 const VARIANT_ICONS: Record<ToastVariant, ReactNode> = {
-  info: <Info size={14} className="text-[var(--info)] shrink-0" />,
-  success: <CheckCircle size={14} className="text-[var(--success)] shrink-0" />,
-  warning: <AlertTriangle size={14} className="text-[var(--warning)] shrink-0" />,
-  error: <AlertCircle size={14} className="text-[var(--destructive)] shrink-0" />,
+  info: <Info size={14} className="shrink-0 text-[var(--cyan)]" />,
+  success: <CheckCircle size={14} className="shrink-0 text-[var(--mint)]" />,
+  warning: <AlertTriangle size={14} className="shrink-0 text-[var(--amber)]" />,
+  error: <AlertCircle size={14} className="shrink-0 text-[var(--red)]" />,
 };
 
 function ToastItem({ item, onDismiss }: { item: ToastItem; onDismiss: (id: string) => void }) {
@@ -53,8 +54,9 @@ function ToastItem({ item, onDismiss }: { item: ToastItem; onDismiss: (id: strin
     <div
       ref={ref}
       className={clsx(
-        'flex items-start gap-2.5 px-3.5 py-3 rounded-[var(--radius-lg)] border shadow-[var(--shadow-raised)]',
-        'bg-[var(--card)] text-[var(--card-foreground)] text-xs leading-relaxed',
+        'glass flex items-start gap-2.5 rounded-[var(--radius-panel)] px-3.5 py-3',
+        'text-xs leading-relaxed text-[var(--ink-1)] shadow-[0_24px_80px_-48px_rgba(0,0,0,0.9)]',
+        'before:mt-1 before:h-1.5 before:w-1.5 before:shrink-0 before:rounded-full before:bg-[var(--mint)] before:shadow-[0_0_10px_var(--mint)]',
         'animate-toast-in',
         VARIANT_STYLES[item.variant]
       )}
@@ -65,14 +67,14 @@ function ToastItem({ item, onDismiss }: { item: ToastItem; onDismiss: (id: strin
       {item.action && (
         <button
           onClick={() => { item.action!.onClick(); onDismiss(item.id); }}
-          className="shrink-0 font-medium text-[var(--foreground)] underline underline-offset-2 hover:no-underline"
+          className="shrink-0 font-medium text-[var(--mint)] underline underline-offset-2 hover:no-underline"
         >
           {item.action.label}
         </button>
       )}
       <button
         onClick={() => onDismiss(item.id)}
-        className="shrink-0 text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors p-0.5"
+        className="shrink-0 p-0.5 text-[var(--ink-3)] transition-colors hover:text-[var(--ink-0)]"
         aria-label="Dismiss"
       >
         <X size={12} />
@@ -117,7 +119,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       {toasts.length > 0 && (
         <div
-          className="fixed bottom-4 right-4 z-[var(--z-toast)] flex flex-col gap-2 w-80 pointer-events-auto"
+          className="pointer-events-auto fixed bottom-4 right-4 z-[var(--z-toast)] flex w-80 flex-col gap-2"
           aria-live="polite"
         >
           {toasts.map((item) => (

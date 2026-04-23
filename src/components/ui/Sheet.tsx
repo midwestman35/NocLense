@@ -60,14 +60,14 @@ export function Sheet({ open, onClose, side = 'left', children, className }: She
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 z-[var(--z-modal-backdrop)] bg-black/50"
+            className="fixed inset-0 z-[var(--z-modal-backdrop)] bg-black/65 backdrop-blur-sm"
           />
           <motion.div
             initial={variants.initial}
             animate={variants.animate}
             exit={variants.exit}
             transition={SHEET_TRANSITION}
-            className={twMerge(clsx('fixed z-[var(--z-modal)] bg-[var(--card)] border-[var(--border)]', sideClasses[side], className))}
+            className={twMerge(clsx('glass fixed z-[var(--z-modal)] border-[var(--line)] text-[var(--ink-0)] shadow-[0_30px_90px_-40px_rgba(0,0,0,0.95)]', sideClasses[side], className))}
           >
             {children}
           </motion.div>

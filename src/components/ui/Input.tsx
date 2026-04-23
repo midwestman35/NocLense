@@ -12,11 +12,8 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
 }
 
 const inputBase =
-  'flex w-full rounded-[var(--radius-md)] border border-[var(--input)] ' +
-  'bg-transparent px-3 py-2 text-[var(--text-base)] text-[var(--foreground)] ' +
-  'placeholder:text-[var(--muted-foreground)] ' +
-  'transition-colors duration-[var(--duration-fast)] ' +
-  'focus-visible:outline-none focus-visible:ring-[var(--ring-width)] focus-visible:ring-[var(--ring)] ' +
+  'w-full text-[13.5px] text-[var(--ink-0)] placeholder:text-[var(--ink-3)] ' +
+  'focus-visible:outline-none ' +
   'disabled:cursor-not-allowed disabled:opacity-50';
 
 export function Input({
@@ -30,19 +27,19 @@ export function Input({
   return (
     <div className={twMerge(clsx('flex flex-col gap-[var(--space-1)]', wrapperClassName))}>
       {label && (
-        <label className="text-[var(--text-sm)] font-[var(--font-weight-medium)] text-[var(--muted-foreground)]">
+        <label className="text-[11px] font-[var(--font-weight-medium)] uppercase tracking-[0.08em] text-[var(--ink-2)]">
           {label}
         </label>
       )}
-      <div className="relative">
+      <div className="field">
         {variant === 'search' && icon && (
-          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]">
+          <span className="lead">
             {icon}
-          </div>
+          </span>
         )}
         <input
           className={twMerge(
-            clsx(inputBase, variant === 'search' && icon && 'pl-10', className)
+            clsx(inputBase, className)
           )}
           {...props}
         />

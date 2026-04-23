@@ -28,7 +28,7 @@ export function Dialog({ open, onClose, title, children, footer }: DialogProps) 
           exit={{ opacity: 0 }}
           transition={{ duration: 0.15 }}
           onClick={onClose}
-          className="fixed inset-0 z-[var(--z-modal-backdrop)] flex items-center justify-center bg-black/55 p-[var(--space-6)]"
+          className="fixed inset-0 z-[var(--z-modal-backdrop)] flex items-center justify-center bg-black/70 p-[var(--space-6)] backdrop-blur-sm"
         >
           <motion.div
             role="dialog"
@@ -38,10 +38,10 @@ export function Dialog({ open, onClose, title, children, footer }: DialogProps) 
             exit={{ opacity: 0, y: 8 }}
             transition={DIALOG_TRANSITION}
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-[500px] max-h-[80vh] flex flex-col rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--card)] text-[var(--card-foreground)] shadow-[var(--shadow-floating)]"
+            className="glass flex max-h-[80vh] w-full max-w-[500px] flex-col overflow-hidden text-[var(--ink-0)] shadow-[0_30px_90px_-40px_rgba(0,0,0,0.95)]"
           >
-            <div className="flex items-center justify-between px-[var(--space-5)] py-[var(--space-4)] border-b border-[var(--border)]">
-              <h2 className="text-[var(--text-lg)] font-[var(--font-weight-semibold)]">
+            <div className="flex items-center justify-between border-b border-[var(--line)] px-[var(--space-5)] py-[var(--space-4)]">
+              <h2 className="text-[var(--text-lg)] font-[var(--font-weight-semibold)] tracking-[var(--tracking-display)]">
                 {title}
               </h2>
               <Button variant="icon" onClick={onClose} aria-label="Close">
@@ -49,12 +49,12 @@ export function Dialog({ open, onClose, title, children, footer }: DialogProps) 
               </Button>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-[var(--space-5)] py-[var(--space-4)]">
+            <div className="flex-1 overflow-y-auto px-[var(--space-5)] py-[var(--space-4)] text-[var(--ink-1)]">
               {children}
             </div>
 
             {footer && (
-              <div className="flex items-center justify-end gap-[var(--space-2)] px-[var(--space-5)] py-[var(--space-4)] border-t border-[var(--border)]">
+              <div className="flex items-center justify-end gap-[var(--space-2)] border-t border-[var(--line)] px-[var(--space-5)] py-[var(--space-4)]">
                 {footer}
               </div>
             )}

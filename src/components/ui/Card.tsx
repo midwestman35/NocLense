@@ -10,9 +10,9 @@ interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
 
 const cardVariants: Record<CardVariant, string> = {
   default:
-    'rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--card)] text-[var(--card-foreground)]',
+    'rounded-[var(--radius-panel)] border border-[var(--line)] bg-[var(--bg-2)] text-[var(--ink-0)]',
   elevated:
-    'rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--card)] text-[var(--card-foreground)] shadow-[var(--shadow-raised)]',
+    'rounded-[var(--radius-panel)] border border-[var(--line)] bg-[var(--bg-2)] text-[var(--ink-0)] shadow-[0_24px_80px_-48px_rgba(0,0,0,0.9),0_0_40px_-30px_rgba(142,240,183,0.35)]',
 };
 
 export function Card({ variant = 'default', className, ...props }: CardProps) {
@@ -33,7 +33,8 @@ export function CardHeader({
       className={twMerge(
         clsx(
           'flex items-center gap-[var(--space-2)] px-[var(--space-4)] py-[var(--space-3)] ' +
-            'border-b border-[var(--border)] font-[var(--font-weight-semibold)] text-[var(--text-md)]',
+            'border-b border-[var(--line)] bg-[linear-gradient(180deg,rgba(255,255,255,0.025),transparent)] ' +
+            'font-[var(--font-weight-semibold)] text-[13px] text-[var(--ink-1)]',
           className
         )
       )}
@@ -48,7 +49,7 @@ export function CardContent({
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={twMerge(clsx('p-[var(--space-4)]', className))}
+      className={twMerge(clsx('p-[var(--space-4)] text-[var(--ink-1)]', className))}
       {...props}
     />
   );
