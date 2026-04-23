@@ -118,6 +118,47 @@ halt and surface to Claude.
 run, review the diff. If it's a cosmetic change unrelated to our edits, revert
 it; if it's a real regression, halt.
 
+### 2.1.2 Lint baseline (count-based regression gate)
+
+Baseline capture on `april-redesign` HEAD 2026-04-22:
+
+```
+✖ 419 problems (404 errors, 15 warnings)
+```
+
+The 404 errors are concentrated in Phase 06-era debt across `src/services/**`,
+`src/utils/**`, `src/contexts/**`, and various test files. Dominant rules:
+`@typescript-eslint/no-explicit-any` (~80%), `@typescript-eslint/no-unused-vars`,
+`react-hooks/exhaustive-deps`, `react-refresh/only-export-components`,
+`no-useless-escape`. All pre-existing, all out of 07A scope.
+
+**Lint regression rule:**
+
+- `npm run lint` error count must be **≤ 404**. Warning count must be **≤ 15**.
+- If either count *decreases* incidentally (e.g., a token-swap removes an unused
+  import), that's fine — update the baseline in this section at the next commit.
+- If either count *increases*, that's a regression → halt.
+
+**Step-0-specific lint check** (before committing Step 0 + vite.config.ts):
+
+```
+npx eslint \
+  src/components/correlation-graph/CorrelationGraph.tsx \
+  src/components/correlation-graph/CorrelationGraphChrome.tsx \
+  src/components/correlation-graph/graphPresentation.tsx \
+  src/contexts/LogContext.tsx \
+  src/services/investigationExporter.ts \
+  vite.config.ts
+```
+
+Expected result: **LogContext.tsx shows 9 pre-existing problems** (6 errors at
+lines 117, 118, 188, 246, 358, 510; 3 warnings at lines 322, 1123, 1456 — all
+`no-explicit-any`, `react-refresh/only-export-components`, `no-unused-vars`,
+`react-hooks/exhaustive-deps`). The other 5 files must be clean.
+
+Any error on LogContext.tsx at line 48 (where we added `export`) — or any new
+error on any of the six files — is a regression.
+
 ### 2.2 File-size split (narrowed scope)
 
 **Commit:** `refactor(phase-07-prep): split CorrelationGraph.tsx before 07A reskin`
