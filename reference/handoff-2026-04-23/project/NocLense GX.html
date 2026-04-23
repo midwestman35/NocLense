@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>NocLense GX — Google Expressive Direction</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Geist+Mono:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+
+<style>
+/* ── DESIGN.md tokens → CSS custom properties ── */
+:root{
+  /* surfaces */
+  --gx-surface-dim:              #0d1210;
+  --gx-surface:                  #131916;
+  --gx-surface-low:              #1b221e;
+  --gx-surface-c:                #1f2622;
+  --gx-surface-high:             #292f2c;
+  --gx-surface-highest:          #343b38;
+  /* content */
+  --gx-on-surface:               #dde4df;
+  --gx-on-surface-variant:       #bec9c2;
+  --gx-outline:                  #889491;
+  --gx-outline-variant:          #3d4945;
+  /* primary — phosphor mint */
+  --gx-primary:                  #8ef0b7;
+  --gx-on-primary:               #00391e;
+  --gx-primary-c:                #00522d;
+  --gx-on-primary-c:             #aafcd3;
+  /* secondary — sage */
+  --gx-secondary:                #b3ccbe;
+  --gx-on-secondary:             #1e352a;
+  --gx-secondary-c:              #354b40;
+  --gx-on-secondary-c:           #cfe8da;
+  /* tertiary — AI blue */
+  --gx-tertiary:                 #a4c8e1;
+  --gx-on-tertiary:              #073548;
+  --gx-tertiary-c:               #214d62;
+  --gx-on-tertiary-c:            #c1e5ff;
+  /* signals */
+  --gx-error:                    #ffb4ab;
+  --gx-error-c:                  #93000a;
+  --gx-warning:                  #ffb945;
+  --gx-warning-c:                #4a3800;
+  /* radius */
+  --gx-xs:  4px;
+  --gx-sm:  8px;
+  --gx-md:  12px;
+  --gx-lg:  16px;
+  --gx-xl:  20px;
+  --gx-2xl: 28px;
+  --gx-full:9999px;
+}
+
+*{box-sizing:border-box}
+html,body{
+  margin:0;padding:0;
+  background:var(--gx-surface-dim);
+  color:var(--gx-on-surface);
+  font-family:"Plus Jakarta Sans",-apple-system,system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+.mono{font-family:"Geist Mono",ui-monospace,monospace;font-feature-settings:"ss02","zero"}
+
+/* ── macOS chrome ── */
+.gx-window{
+  position:relative;width:100%;height:100%;
+  background:var(--gx-surface);
+  border-radius:12px;overflow:hidden;isolation:isolate;
+  box-shadow:0 0 0 0.5px rgba(255,255,255,0.07), 0 40px 100px -20px rgba(0,0,0,0.7);
+}
+.gx-titlebar{
+  position:absolute;top:0;left:0;right:0;height:38px;z-index:20;
+  display:flex;align-items:center;padding:0 14px;gap:8px;
+  background:rgba(13,18,16,0.85);
+  backdrop-filter:blur(24px) saturate(140%);
+  border-bottom:1px solid var(--gx-outline-variant);
+}
+.gx-lights{display:flex;gap:8px;margin-right:6px}
+.gx-light{width:12px;height:12px;border-radius:50%;box-shadow:0 0 0 0.5px rgba(0,0,0,0.25) inset}
+.gx-light.r{background:#ff6159}.gx-light.y{background:#ffbd2e}.gx-light.g{background:#27c93f}
+.gx-title{position:absolute;left:50%;transform:translateX(-50%);font-size:12.5px;font-weight:500;color:var(--gx-on-surface-variant);display:flex;align-items:center;gap:8px}
+.gx-title .live-dot{width:6px;height:6px;border-radius:50%;background:var(--gx-primary);box-shadow:0 0 8px var(--gx-primary);animation:gx-pulse 2s ease-in-out infinite}
+.gx-titlebar-right{margin-left:auto;display:flex;align-items:center;gap:12px;font-family:"Geist Mono",monospace;font-size:11px;color:var(--gx-outline)}
+.gx-body{position:absolute;inset:38px 0 0 0;overflow:hidden}
+
+/* ── surface cards ── */
+.gx-card{background:var(--gx-surface-c);border-radius:var(--gx-2xl);padding:24px}
+.gx-card-high{background:var(--gx-surface-high);border-radius:var(--gx-2xl);padding:24px}
+.gx-card-primary{background:var(--gx-primary-c);border-radius:var(--gx-2xl);padding:24px}
+.gx-card-ai{background:var(--gx-tertiary-c);border-radius:var(--gx-2xl);padding:24px}
+
+/* ── buttons ── */
+.gx-btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  font-family:"Plus Jakarta Sans",sans-serif;font-size:13px;font-weight:600;
+  border:0;border-radius:var(--gx-full);padding:10px 22px;cursor:pointer;
+  transition:background .15s, transform .06s, box-shadow .15s;
+  white-space:nowrap;letter-spacing:0.01em;
+}
+.gx-btn:active{transform:scale(0.97)}
+.gx-btn.filled{background:var(--gx-primary);color:var(--gx-on-primary);box-shadow:0 2px 16px -4px rgba(142,240,183,0.35)}
+.gx-btn.filled:hover{background:var(--gx-on-primary-c);box-shadow:0 4px 20px -4px rgba(142,240,183,0.5)}
+.gx-btn.tonal{background:var(--gx-secondary-c);color:var(--gx-on-secondary-c)}
+.gx-btn.tonal:hover{background:#3d5649}
+.gx-btn.ghost{background:transparent;color:var(--gx-on-surface-variant)}
+.gx-btn.ghost:hover{background:rgba(255,255,255,0.05)}
+.gx-btn.surface{background:var(--gx-surface-high);color:var(--gx-on-surface)}
+.gx-btn.surface:hover{background:var(--gx-surface-highest)}
+
+/* ── chips ── */
+.gx-chip{display:inline-flex;align-items:center;gap:6px;border-radius:var(--gx-sm);padding:5px 12px;font-size:11.5px;font-weight:600;font-family:"Geist Mono",monospace;letter-spacing:0.06em;text-transform:uppercase}
+.gx-chip.high{background:var(--gx-error-c);color:var(--gx-error)}
+.gx-chip.med{background:var(--gx-warning-c);color:var(--gx-warning)}
+.gx-chip.low{background:var(--gx-surface-highest);color:var(--gx-on-surface-variant)}
+.gx-chip.primary{background:rgba(142,240,183,0.12);color:var(--gx-primary);border:1px solid rgba(142,240,183,0.2)}
+.gx-chip.tertiary{background:var(--gx-tertiary-c);color:var(--gx-on-tertiary-c)}
+.gx-chip.filter{background:var(--gx-secondary-c);color:var(--gx-on-secondary-c)}
+.gx-chip.assist{background:var(--gx-surface-high);color:var(--gx-on-surface-variant)}
+
+/* ── inputs ── */
+.gx-input{
+  display:flex;align-items:center;gap:10px;
+  background:var(--gx-surface-highest);border:none;border-bottom:2px solid var(--gx-outline-variant);
+  border-radius:var(--gx-md) var(--gx-md) 0 0;
+  padding:12px 14px;transition:border-color .15s;
+}
+.gx-input:focus-within{border-bottom-color:var(--gx-primary)}
+.gx-input input{background:transparent;border:0;outline:0;color:var(--gx-on-surface);font-family:"Plus Jakarta Sans",sans-serif;font-size:14px;flex:1;min-width:0}
+.gx-input input::placeholder{color:var(--gx-outline)}
+.gx-input .gx-lead{color:var(--gx-outline);display:flex;align-items:center}
+
+/* ── nav rail ── */
+.gx-rail{
+  width:220px;background:var(--gx-surface-low);border-right:1px solid var(--gx-outline-variant);
+  display:flex;flex-direction:column;padding:16px 12px;gap:2px;flex-shrink:0;
+}
+.gx-nav-item{
+  display:flex;align-items:center;gap:14px;
+  padding:10px 16px;border-radius:var(--gx-full);
+  font-size:14px;font-weight:500;cursor:pointer;transition:background .12s;
+  color:var(--gx-on-surface-variant);
+}
+.gx-nav-item.active{background:var(--gx-secondary-c);color:var(--gx-on-secondary-c);font-weight:600}
+.gx-nav-item:not(.active):hover{background:rgba(255,255,255,0.04)}
+
+/* ── progress bar ── */
+.gx-progress{height:4px;border-radius:var(--gx-full);background:var(--gx-outline-variant);overflow:hidden}
+.gx-progress-fill{height:100%;border-radius:var(--gx-full);background:var(--gx-primary);box-shadow:0 0 8px rgba(142,240,183,0.4);transition:width .6s cubic-bezier(.34,1.56,.64,1)}
+
+/* ── scrollbar ── */
+.no-scroll::-webkit-scrollbar{display:none}
+.no-scroll{scrollbar-width:none;overflow-y:auto}
+
+/* ── animations ── */
+@keyframes gx-pulse{0%,100%{opacity:.5;transform:scale(1)}50%{opacity:1;transform:scale(1.15)}}
+@keyframes gx-sweep{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+@keyframes gx-blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+@keyframes gx-stream{0%{transform:translateY(6px);opacity:0}100%{transform:translateY(0);opacity:1}}
+@keyframes gx-aurora{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(3%,-2%) scale(1.06)}}
+@keyframes gx-ring{0%{transform:scale(.5);opacity:.8}100%{transform:scale(2.2);opacity:0}}
+@keyframes gx-shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+@keyframes gx-bar{0%,100%{transform:scaleY(.4)}50%{transform:scaleY(1)}}
+
+body{background:#0a0c10}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="gx-primitives.jsx"></script>
+<script type="text/babel" src="gx-auth.jsx"></script>
+<script type="text/babel" src="gx-dashboard.jsx"></script>
+<script type="text/babel" src="gx-workflow.jsx"></script>
+<script type="text/babel" src="gx-app.jsx"></script>
+</body>
+</html>
