@@ -18,51 +18,60 @@
   --green-house-950: #071402;
 }
 
-/* Light (default) */
-:root,
-[data-theme="light"] {
-  --background: #ffffff;
-  --foreground: #0a0a0a;
-  --card: #ffffff;
-  --card-foreground: #0a0a0a;
-  --workspace: #fafafa;
-  --muted: #f5f5f5;
-  --muted-foreground: #737373;
-  --border: #e5e5e5;
-  --input: #e5e5e5;
-  --ring: #a3a3a3;
-  --accent: #f5f5f5;
-  --accent-foreground: #171717;
-  --destructive: #dc2626;
-  --success: #16a34a;
-  --warning: #ca8a04;
-  --info: #3b82f6;
-  --popover: #ffffff;
-  --popover-foreground: #0a0a0a;
-  --header-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 248, 0.98) 100%);
-  --header-highlight: linear-gradient(90deg, rgba(81, 145, 43, 0.1) 0%, rgba(81, 145, 43, 0.03) 28%, rgba(255, 255, 255, 0) 72%);
-  --panel-header-surface: linear-gradient(180deg, rgba(251, 252, 251, 1) 0%, rgba(245, 247, 245, 1) 100%);
-  --menu-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(246, 249, 246, 0.98) 100%);
-  --menu-highlight: radial-gradient(circle at top left, rgba(81, 145, 43, 0.1) 0%, rgba(81, 145, 43, 0.04) 26%, rgba(255, 255, 255, 0) 68%);
-  --menu-item-hover: rgba(81, 145, 43, 0.08);
-  --button-subtle-surface: rgba(255, 255, 255, 0.56);
-  --button-subtle-border: rgba(81, 145, 43, 0.14);
-  --button-subtle-hover: rgba(81, 145, 43, 0.12);
-  --correlation-call-id: #417621;
-  --correlation-report-id: #b45309;
-  --correlation-operator-id: #2563eb;
-  --correlation-extension-id: #7c3aed;
-  --correlation-station-id: #0f766e;
-  --correlation-file-name: #be185d;
-  --correlation-cnc-id: #c2410c;
-  --correlation-message-id: #0891b2;
-  --correlation-graph-bg: #f5f7f4;
-  --correlation-graph-edge: rgba(115, 115, 115, 0.28);
-  --correlation-graph-cluster-edge: rgba(81, 145, 43, 0.34);
-  --correlation-graph-label: #171717;
-  --correlation-graph-muted-label: #737373;
-  --correlation-graph-node-stroke: rgba(212, 212, 212, 0.95);
-  --correlation-graph-active-ring: #0a0a0a;
+:root {
+  /* ── Obsidian + Phosphor primitives (new v5.1 scale) ─────────────── */
+  --bg-0: #05070a;
+  --bg-1: #0a0d12;
+  --bg-2: #0f1319;
+  --bg-3: #151a22;
+  --ink-0: #f3f5f7;
+  --ink-1: #cfd4dc;
+  --ink-2: #8a93a1;
+  --ink-3: #5b6373;
+  --line: rgba(255, 255, 255, 0.06);
+  --line-2: rgba(255, 255, 255, 0.10);
+
+  --mint: #8ef0b7;
+  --mint-dim: #4fb987;
+  --mint-deep: #133b2a;
+  --amber: #f7b955;
+  --red: #ff6b7a;
+  --violet: #a58cff;
+  --cyan: #8be5ff;
+
+  --font-display: 'Inter Tight', system-ui, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, monospace;
+  --font-serif: 'Instrument Serif', serif;
+
+  --radius-chip: 6px;
+  --radius-input: 8px;
+  --radius-row: 10px;
+  --radius-panel: 14px;
+  --radius-win: 2px;
+
+  /* ── Legacy semantic aliases (DELETE IN 07B) ───────────────────────
+   * Kept during 07A so ui/* primitives don't break.
+   * Delete this entire block when 07B rebuilds primitives against the
+   * new scale directly.
+   */
+  --background: var(--bg-1);
+  --foreground: var(--ink-0);
+  --card: var(--bg-2);
+  --card-foreground: var(--ink-0);
+  --workspace: var(--bg-1);
+  --muted: var(--bg-3);
+  --muted-foreground: var(--ink-2);
+  --border: var(--line-2);
+  --input: var(--bg-2);
+  --ring: var(--mint);
+  --accent: var(--mint-deep);
+  --accent-foreground: var(--ink-0);
+  --destructive: var(--red);
+  --success: var(--mint);
+  --warning: var(--amber);
+  --info: var(--cyan);
+  --popover: var(--bg-2);
+  --popover-foreground: var(--ink-0);
 
   /* Shadow scale (Phase 01a): semantic elevation, not t-shirt sizes.
      flat = no shadow (relies on --card-border for edge)
@@ -164,6 +173,19 @@
   /* Glow-ready COLOR token (dark theme). See comment on light-theme token
      above for rationale. LogRow.tsx:122 consumes via color-mix. */
   --glow-ready: rgba(118, 206, 64, 0.3);
+}
+
+.glass-panel {
+  background: linear-gradient(180deg, rgba(22, 27, 36, 0.75), rgba(14, 18, 24, 0.6));
+  border: 0.5px solid var(--line-2);
+  backdrop-filter: blur(30px) saturate(160%);
+  border-radius: var(--radius-panel);
+}
+
+.glass-2 {
+  background: rgba(14, 18, 24, 0.5);
+  border: 0.5px solid var(--line);
+  border-radius: var(--radius-input);
 }
 
 /*
@@ -321,14 +343,6 @@
   --phase-dot-complete: #51912b;
   --phase-dot-active: #76ce40;
   --phase-dot-glow: 0 0 8px rgba(118,206,64,0.4);
-}
-
-[data-theme="light"] {
-  --card-border: #e5e5e5;
-  --card-border-hover: #d4d4d4;
-  --phase-dot-inactive: #d4d4d4;
-  --room-import-glow: radial-gradient(ellipse at center, rgba(81,145,43,0.04) 0%, transparent 70%);
-  --room-submit-glow: radial-gradient(ellipse at center, rgba(81,145,43,0.03) 0%, transparent 70%);
 }
 
 /* Evidence bundle-size pulse (Phase 05 Commit 4) — replays on the
