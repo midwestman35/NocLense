@@ -32,7 +32,7 @@ export default function FilterChips() {
           <button
             type="button"
             onClick={handleRestoreFilters}
-            className="flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-medium whitespace-nowrap text-amber-300 shadow-[var(--shadow-flat)] shrink-0 hover:bg-amber-500/15"
+            className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-amber/30 bg-amber/10 px-2.5 py-1 text-xs font-medium text-amber shadow-[var(--shadow-flat)] hover:bg-amber/15"
             title="Restore the filters cleared by Jump To"
           >
             Restore jump filters

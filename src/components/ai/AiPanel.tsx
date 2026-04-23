@@ -150,7 +150,7 @@ export default function AiPanel({
         width: 'min(55vw, 960px)',
         display: 'flex', flexDirection: 'column',
         backgroundColor: 'var(--card)', color: 'var(--card-foreground)',
-        boxShadow: '-8px 0 32px rgba(0,0,0,0.35)',
+        boxShadow: 'var(--shadow-floating)',
         borderLeft: '1px solid var(--border)',
       }
     : {
@@ -169,7 +169,7 @@ export default function AiPanel({
       {/* Semi-transparent backdrop when popped out */}
       {popped && (
         <div
-          style={{ position: 'fixed', inset: 0, zIndex: 199, backgroundColor: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(1px)' }}
+          style={{ position: 'fixed', inset: 0, zIndex: 199, backgroundColor: 'color-mix(in srgb, var(--bg-0) 55%, transparent)', backdropFilter: 'blur(1px)' }}
           onClick={() => setPopped(false)}
         />
       )}
@@ -345,7 +345,7 @@ export default function AiPanel({
                     maxWidth: '90%', padding: '9px 12px', borderRadius: '10px', fontSize: '12px', lineHeight: '1.5',
                     alignSelf: msg.role === 'User' ? 'flex-end' : 'flex-start',
                     backgroundColor: msg.role === 'User' ? 'var(--success)' : 'var(--muted)',
-                    color: msg.role === 'User' ? '#fff' : 'var(--foreground)',
+                    color: msg.role === 'User' ? 'var(--ink-0)' : 'var(--foreground)',
                   }}>
                     {msg.text}
                   </div>
@@ -394,7 +394,7 @@ export default function AiPanel({
                   style={{
                     padding: '8px 12px', borderRadius: '8px', border: 'none', cursor: 'pointer',
                     backgroundColor: chatInput.trim() && !chatLoading ? 'var(--success)' : 'var(--muted)',
-                    color: chatInput.trim() && !chatLoading ? '#fff' : 'var(--muted-foreground)',
+                    color: chatInput.trim() && !chatLoading ? 'var(--ink-0)' : 'var(--muted-foreground)',
                     transition: 'all 0.15s',
                   }}
                 >
@@ -439,7 +439,7 @@ function AnalysisTab({ result, onRun, runLabel, emptyPrompt, icon }: {
           width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid var(--border)',
           cursor: result.loading ? 'not-allowed' : 'pointer',
           backgroundColor: result.loading ? 'var(--muted)' : 'var(--success)',
-          color: result.loading ? 'var(--muted-foreground)' : '#fff',
+          color: result.loading ? 'var(--muted-foreground)' : 'var(--ink-0)',
           fontSize: '12px', fontWeight: '600', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
           transition: 'all 0.15s',
         }}
@@ -476,7 +476,7 @@ function AnalysisTab({ result, onRun, runLabel, emptyPrompt, icon }: {
 function ErrorBox({ message, onDismiss }: { message: string; onDismiss: () => void }) {
   return (
     <div style={{
-      backgroundColor: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)',
+      backgroundColor: 'color-mix(in srgb, var(--destructive) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--destructive) 30%, transparent)',
       borderRadius: '8px', padding: '9px 12px', fontSize: '11px', color: 'var(--destructive)',
       display: 'flex', gap: '8px', alignItems: 'flex-start',
     }}>

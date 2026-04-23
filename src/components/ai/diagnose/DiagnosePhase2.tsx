@@ -154,24 +154,24 @@ export default function DiagnosePhase2({
 
   const levelBadge = (level: string) => clsx(
     'mt-0.5 shrink-0 rounded px-1 py-0.5 text-[9px] font-medium',
-    level === 'ERROR' ? 'bg-red-500/20 text-red-400' :
-    level === 'WARN' ? 'bg-amber-500/20 text-amber-400' :
-    'bg-blue-500/20 text-blue-400'
+    level === 'ERROR' ? 'bg-red/20 text-red' :
+    level === 'WARN' ? 'bg-amber/20 text-amber' :
+    'bg-cyan/20 text-cyan'
   );
 
   const leftPane = (
     <div className="flex h-full flex-col" style={{ borderRight: '1px solid var(--border)' }}>
       {/* Diagnosis Summary Banner */}
-      <div className="px-3 py-2.5" style={{ borderBottom: '1px solid var(--border)', background: 'linear-gradient(135deg, rgba(124,58,237,0.08), rgba(59,130,246,0.06))' }}>
+      <div className="px-3 py-2.5" style={{ borderBottom: '1px solid var(--border)', background: 'linear-gradient(135deg, color-mix(in srgb, var(--violet) 12%, transparent), color-mix(in srgb, var(--cyan) 10%, transparent))' }}>
         <div className="flex items-start gap-2 mb-1.5">
-          <Sparkles size={12} className="text-violet-400 mt-0.5 shrink-0" />
+          <Sparkles size={12} className="text-violet mt-0.5 shrink-0" />
           <p className="text-[11px] font-medium" style={{ color: 'var(--foreground)' }}>
             {diagnosisResult.summary || 'No diagnosis summary available.'}
           </p>
         </div>
         {diagnosisResult.rootCause && (
           <div className="flex items-start gap-2 mt-1.5 ml-0.5">
-            <AlertTriangle size={10} className="text-amber-400 mt-0.5 shrink-0" />
+            <AlertTriangle size={10} className="text-amber mt-0.5 shrink-0" />
             <p className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
               <span className="font-semibold" style={{ color: 'var(--foreground)' }}>Root Cause:</span>{' '}
               {diagnosisResult.rootCause}
@@ -192,7 +192,7 @@ export default function DiagnosePhase2({
           <button
             type="button"
             onClick={() => setShowLogBrowser(!showLogBrowser)}
-            className="flex items-center gap-1 text-[10px] transition-colors hover:text-violet-400"
+            className="flex items-center gap-1 text-[10px] transition-colors hover:text-violet"
             style={{ color: 'var(--muted-foreground)' }}
             title="Browse & add more logs"
           >
@@ -311,7 +311,7 @@ export default function DiagnosePhase2({
                     key={log.id}
                     className={clsx(
                       'px-3 py-1.5 flex items-start gap-1.5 text-[10px] cursor-pointer transition-colors',
-                      isAlreadyCorrelated ? 'bg-violet-500/5' : 'hover:bg-[var(--muted)]/50'
+                      isAlreadyCorrelated ? 'bg-violet/5' : 'hover:bg-[var(--muted)]/50'
                     )}
                     onClick={() => !isAlreadyCorrelated && starLogAsCorrelated(log)}
                   >
@@ -323,7 +323,7 @@ export default function DiagnosePhase2({
                       </span>
                     </div>
                     {isAlreadyCorrelated ? (
-                      <CheckCircle size={11} className="text-violet-400 shrink-0 mt-0.5" />
+                      <CheckCircle size={11} className="text-violet shrink-0 mt-0.5" />
                     ) : (
                       <Star size={11} className="shrink-0 mt-0.5" style={{ color: 'var(--muted-foreground)' }} />
                     )}
@@ -379,7 +379,7 @@ export default function DiagnosePhase2({
     <div className="flex w-full flex-col" style={{ height: '100%' }}>
       {/* Troubleshooting summary */}
       {diagnosisResult.appliedTroubleshooting && (
-        <div className="px-3 py-2" style={{ borderBottom: '1px solid var(--border)', backgroundColor: 'rgba(34,197,94,0.04)' }}>
+        <div className="px-3 py-2" style={{ borderBottom: '1px solid var(--border)', backgroundColor: 'color-mix(in srgb, var(--mint) 8%, transparent)' }}>
           <p className="text-[10px] font-semibold uppercase tracking-[0.12em] mb-1" style={{ color: 'var(--success)' }}>
             Troubleshooting
           </p>
@@ -444,7 +444,7 @@ export default function DiagnosePhase2({
             onClick={handleRefine}
             disabled={!refineInput.trim() || refining}
             className="flex items-center justify-center rounded px-2 py-1.5 transition-colors disabled:opacity-40"
-            style={{ backgroundColor: 'var(--success)', color: '#fff' }}
+            style={{ backgroundColor: 'var(--success)', color: 'var(--ink-0)' }}
           >
             {refining ? <Spinner size={13} label="Refining" /> : <Send size={13} />}
           </button>
@@ -477,8 +477,8 @@ export default function DiagnosePhase2({
         <button
           type="button"
           onClick={onNext}
-          className="flex items-center gap-1 rounded px-2.5 py-1 text-[11px] font-semibold text-white transition-colors"
-          style={{ backgroundColor: '#7c3aed' }}
+          className="flex items-center gap-1 rounded px-2.5 py-1 text-[11px] font-semibold text-ink-0 transition-colors"
+          style={{ backgroundColor: 'var(--violet)' }}
         >
           Next <ChevronRight size={13} />
         </button>
