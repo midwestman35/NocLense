@@ -9,7 +9,17 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 const tsconfigRootDir = fileURLToPath(new URL('.', import.meta.url))
 
 export default defineConfig([
-  globalIgnores(['dist', '.codex-beta-push/**', 'tools/external/**']),
+  globalIgnores([
+    'dist',
+    '.codex-beta-push/**',
+    'tools/external/**',
+    '.worktrees/**',
+    '.tmp-daily-bug-scan-*/**',
+    'reference/**',
+    'src-tauri/**',
+    'build/**',
+    'api/**',
+  ]),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [

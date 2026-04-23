@@ -10,6 +10,7 @@
 |---|---|---|
 | v1 | 2026-04-23 | Initial draft. 10 slices covering scaffold + HTTP proxy swap (5 vendors) + file dialog + crash reporting + Electron removal + Vercel removal + smoke pass. No rollback window per user decision. |
 | v2.1 | 2026-04-23 | **Claude adversarial probe:** (a) expand 07B.2 migration path to cover Electron safeStorage, not just localStorage — keys in the current canonical store would otherwise be lost at 07B.7 cutover. (b) Add grep checks to 07B.0 survey for `api/` consumers — deletion in 07B.8 could break a hidden `src/` import. No-restructure amendment — same 10 slices. |
+| v2.2 | 2026-04-23 | **Lint baseline rebaseline.** Codex halted at 07B.1 gate on 541 errors vs documented 404. Root cause: `eslint.config.js` `globalIgnores` was missing `.worktrees/**`, `.tmp-daily-bug-scan-*/**`, `reference/**`, `src-tauri/**`, `api/**`, `build/**` — `4631955` added these excludes to Vitest but not ESLint. Fix committed at (pending-sha) adds the missing ignores. New lint baseline: **117 errors / 5 warnings**. All 117 are pre-existing in `src/` (mostly `@typescript-eslint/no-explicit-any` Phase 06 debt); none introduced by 07B.0 or 07B.1. §5 gate threshold updated accordingly. |
 | **v2** | **2026-04-23** | **Integrate Gemini pre-flight findings: (1) Tauri v2 capabilities/allowlist config is REQUIRED for plugin-http — added to 07B.1 scaffold; (2) vitest global mocks for `@tauri-apps/*` imports — added as 07B.2 first action to protect baseline 643 passing tests; (3) `resolveUrl()` + `import.meta.env.DEV` branching must be purged alongside `electronAPI` removal — hardcode absolute URLs; new 07B.3 slice extracts into `apiConfig.ts` before vendor swap; (4) plugin-fs readFile loads entire file into JS — explicit Rust streaming command via Tauri channels added to 07B.5 scope for >50MB files; (5) coupling: `src/utils/errorReporting.ts` added to crash-reporting scope; `src/types/electron.d.ts` added to Electron kill; (6) Vite proxy config removal pulled forward from 07B.8 to 07B.3 (prevents dev-server traffic leaking through after plugin-http lands); (7) 07B.1 + 07B.2 merged (scaffold + dev boot are coupled). Slice count stays at 10 but order/content restructured.** |
 
 ## 1. Scope
@@ -507,7 +508,7 @@ Per user decision A1 — keep business-logic infrastructure untouched except for
 
 - `npm run build` → strictly green
 - `npm run test:run` → matches documented baseline (18 pre-existing failures in `EvidenceContext.test.tsx` + `caseContext.test.tsx`, no new)
-- `npm run lint` → ≤ 404 errors / ≤ 15 warnings (documented baseline from 07A prep)
+- `npm run lint` → ≤ **117 errors / ≤ 5 warnings** (v2.2 rebaseline after ESLint config fix; prior v2.1 number `404/15` was inflated by scratch trees/daily-bug-scan/api/worktrees)
 - `npm run tauri:build` → green (from 07B.1 onward)
 - Per-slice self-assessment includes gate tails (v2.2 requirement)
 
