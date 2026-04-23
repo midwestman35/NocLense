@@ -9,11 +9,10 @@ import {
   useRef,
   useState,
 } from 'react';
-import { Graph, NodeEvent, type IEvent } from '@antv/g6';
 
 import { usePrefersReducedMotion } from '../../hooks/usePrefersReducedMotion';
 import { useLogContext } from '../../contexts/LogContext';
-import { LARGE_GRAPH_THRESHOLD, type GraphEdge, type GraphNode } from './types';
+import { LARGE_GRAPH_THRESHOLD, type GraphNode } from './types';
 import { useCorrelationGraph } from './useCorrelationGraph';
 import {
   announce,
@@ -22,24 +21,13 @@ import {
   buildFocusedNodeAnnouncement,
   buildGraphAriaLabel,
   buildGraphData,
-  buildNodeDatum,
-  createForceLayoutOptions,
-  drawGraph,
-  type GraphNodeClickEvent,
-  measureGraphSurface,
   reconcileFocusedNodeId,
-  renderGraph,
   renderTooltipContent,
-  resolveGraphThemeTokens,
   resolveNextFocusedNodeId,
-  resolveTooltipPosition,
-  resolveViewportAnimation,
-  type GraphPointerEvent,
   type GraphTooltipState,
-  type GraphWithUpdates,
 } from './graphPresentation';
 import { CorrelationGraphControls, CorrelationGraphEmptyState, LargeGraphOverlay } from './CorrelationGraphChrome';
-import { detectWebGL2Availability, resolveGraphRendererSelection, ZOOM_STEP } from './graphRuntime';
+import { useCorrelationGraphCanvas } from './useCorrelationGraphCanvas';
 
 type PendingAction =
   | {
@@ -58,8 +46,6 @@ const EMPTY_ANNOUNCEMENT: AnnouncementState = {
   nonce: 0,
   text: '',
 };
-
-const FIT_VIEW_OPTIONS = { when: 'always' as const };
 
 export function CorrelationGraph(): JSX.Element {
   const prefersReducedMotion = usePrefersReducedMotion();
@@ -105,47 +91,20 @@ export function CorrelationGraph(): JSX.Element {
     [graphNodesById, resolvedFocusedNodeId],
   );
   const overlayHeadingId = useId();
-  const viewportAnimation = useMemo(
-    () => resolveViewportAnimation(disableGraphAnimation),
-    [disableGraphAnimation],
-  );
-  const webgl2Available = useMemo(() => detectWebGL2Availability(), []);
-  const rendererSelection = useMemo(
-    () => resolveGraphRendererSelection(renderedNodeCount, webgl2Available),
-    [renderedNodeCount, webgl2Available],
-  );
 
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const surfaceRef = useRef<HTMLDivElement | null>(null);
-  const graphRef = useRef<GraphWithUpdates | null>(null);
-  const graphNodesByIdRef = useRef<Map<string, GraphNode>>(new Map());
-  const graphEdgesByIdRef = useRef<Map<string, GraphEdge>>(new Map());
-  const previousFocusedNodeIdRef = useRef<string | null>(null);
   const pendingActionRef = useRef<PendingAction | null>(null);
   const expandedClustersRef = useRef(expandedClusters);
   const toggleClusterRef = useRef(toggleCluster);
   const toggleCorrelationRef = useRef(toggleCorrelation);
-  const isContainerFocusedRef = useRef(false);
-  const focusedNodeIdRef = useRef<string | null>(null);
-  const lastFocusedNodeIdRef = useRef<string | null>(null);
   const overlayPrimaryButtonRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
-    graphNodesByIdRef.current = graphNodesById;
-    graphEdgesByIdRef.current = graphEdgesById;
     expandedClustersRef.current = expandedClusters;
     toggleClusterRef.current = toggleCluster;
     toggleCorrelationRef.current = toggleCorrelation;
-    isContainerFocusedRef.current = isContainerFocused;
-    focusedNodeIdRef.current = focusedNodeId;
-    lastFocusedNodeIdRef.current = lastFocusedNodeId;
   }, [
     expandedClusters,
-    focusedNodeId,
-    graphEdgesById,
-    graphNodesById,
-    isContainerFocused,
-    lastFocusedNodeId,
     toggleCluster,
     toggleCorrelation,
   ]);
@@ -220,186 +179,26 @@ export function CorrelationGraph(): JSX.Element {
     focusGraphContainer();
   }, [focusGraphContainer]);
 
-  useEffect(() => {
-    const surface = surfaceRef.current;
-    if (!surface || !hasRenderableGraph) {
-      return;
-    }
-
-    const { height, width } = measureGraphSurface(surface);
-    const graph = new Graph({
-      container: surface,
-      width,
-      height,
-      padding: 24,
-      animation: !disableGraphAnimation,
-      data: { nodes: [], edges: [] },
-      renderer: rendererSelection.renderer,
-      node: { type: 'circle' },
-      edge: { type: 'line' },
-      layout: createForceLayoutOptions(disableGraphAnimation),
-      behaviors: [
-        { type: 'drag-canvas' },
-        { type: 'zoom-canvas' },
-        { type: 'drag-element-force' },
-      ],
-    }) as GraphWithUpdates;
-
-    const handleNodeClick = (event: IEvent) => {
-      if (!('targetType' in event) || event.targetType !== 'node' || !('target' in event)) {
-        return;
-      }
-      const nodeEvent = event as GraphNodeClickEvent;
-      const nodeId = nodeEvent.target.id;
-      if (typeof nodeId !== 'string') {
-        return;
-      }
-      const clickedNode = graphNodesByIdRef.current.get(nodeId);
-      if (!clickedNode) {
-        return;
-      }
-      activateNode(clickedNode);
-    };
-
-    const handleNodePointer = (event: IEvent) => {
-      if (!surfaceRef.current) {
-        return;
-      }
-      const pointerEvent = event as GraphPointerEvent;
-      const nodeId = pointerEvent.target.id;
-      if (typeof nodeId !== 'string') {
-        return;
-      }
-      const hoveredNode = graphNodesByIdRef.current.get(nodeId);
-      if (!hoveredNode) {
-        return;
-      }
-      const position = resolveTooltipPosition(pointerEvent, surfaceRef.current);
-      setTooltip({
-        kind: 'node',
-        x: position.x,
-        y: position.y,
-        node: hoveredNode,
-      });
-    };
-
-    const handleEdgePointer = (event: IEvent) => {
-      if (!surfaceRef.current) {
-        return;
-      }
-      const pointerEvent = event as GraphPointerEvent;
-      const edgeId = pointerEvent.target.id;
-      if (typeof edgeId !== 'string') {
-        return;
-      }
-      const hoveredEdge = graphEdgesByIdRef.current.get(edgeId);
-      if (!hoveredEdge) {
-        return;
-      }
-      const position = resolveTooltipPosition(pointerEvent, surfaceRef.current);
-      setTooltip({
-        kind: 'edge',
-        x: position.x,
-        y: position.y,
-        edge: hoveredEdge,
-      });
-    };
-
-    const resizeGraph = () => {
-      const nextSize = measureGraphSurface(surfaceRef.current);
-      graph.resize(nextSize.width, nextSize.height);
-      void graph.fitView(FIT_VIEW_OPTIONS, false);
-    };
-
-    graphRef.current = graph;
-    graph.on(NodeEvent.CLICK, handleNodeClick);
-    graph.on('node:pointerenter', handleNodePointer);
-    graph.on('node:pointermove', handleNodePointer);
-    graph.on('node:pointerleave', () => setTooltip(null));
-    graph.on('edge:pointerenter', handleEdgePointer);
-    graph.on('edge:pointermove', handleEdgePointer);
-    graph.on('edge:pointerleave', () => setTooltip(null));
-
-    const resizeObserver = typeof ResizeObserver !== 'undefined'
-      ? new ResizeObserver(() => {
-          resizeGraph();
-        })
-      : null;
-
-    resizeObserver?.observe(surface);
-
-    const cardBody = surface.closest('[data-card-body]');
-    if (resizeObserver && cardBody instanceof HTMLElement) {
-      resizeObserver.observe(cardBody);
-    }
-
-    return () => {
-      resizeObserver?.disconnect();
-      graph.destroy();
-      graphRef.current = null;
-    };
-  }, [activateNode, disableGraphAnimation, hasRenderableGraph, rendererSelection.kind, rendererSelection.renderer]);
-
-  useEffect(() => {
-    const graph = graphRef.current;
-    if (!graph || !hasRenderableGraph) {
-      return;
-    }
-
-    let cancelled = false;
-    const syncGraphData = async () => {
-      graph.setData(graphData);
-      await renderGraph(graph, surfaceRef.current);
-      if (!cancelled) {
-        await graph.fitView(FIT_VIEW_OPTIONS, viewportAnimation);
-      }
-    };
-
-    void syncGraphData();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [graphData, hasRenderableGraph, viewportAnimation]);
-
-  useEffect(() => {
-    const graph = graphRef.current;
-    if (!graph) {
-      previousFocusedNodeIdRef.current = resolvedFocusedNodeId;
-      return;
-    }
-
-    const idsToSync = Array.from(new Set([
-      previousFocusedNodeIdRef.current,
-      resolvedFocusedNodeId,
-    ].filter((nodeId): nodeId is string => Boolean(nodeId))));
-
-    if (idsToSync.length === 0) {
-      previousFocusedNodeIdRef.current = resolvedFocusedNodeId;
-      return;
-    }
-
-    const theme = resolveGraphThemeTokens();
-    const nodeUpdates = idsToSync
-      .map((nodeId) => graphNodesById.get(nodeId))
-      .filter((node): node is GraphNode => Boolean(node))
-      .map((node) => buildNodeDatum(node, theme, node.id === resolvedFocusedNodeId));
-
-    if (nodeUpdates.length === 0) {
-      previousFocusedNodeIdRef.current = resolvedFocusedNodeId;
-      return;
-    }
-
-    if (graph.updateNodeData) {
-      graph.updateNodeData(nodeUpdates);
-      void drawGraph(graph, surfaceRef.current);
-    } else {
-      graph.setData(buildGraphData(nodes, edges, resolvedFocusedNodeId));
-      void renderGraph(graph, surfaceRef.current);
-    }
-
-    previousFocusedNodeIdRef.current = resolvedFocusedNodeId;
-  }, [edges, graphNodesById, nodes, resolvedFocusedNodeId]);
+  const {
+    handleFitView,
+    handleResetLayout,
+    handleZoomIn,
+    handleZoomOut,
+    surfaceRef,
+  } = useCorrelationGraphCanvas({
+    activateNode,
+    disableGraphAnimation,
+    edges,
+    graphData,
+    graphEdgesById,
+    graphNodesById,
+    hasRenderableGraph,
+    isClustered,
+    nodes,
+    onTooltipChange: setTooltip,
+    renderedNodeCount,
+    resolvedFocusedNodeId,
+  });
 
   const handleContainerFocus = useCallback((event: FocusEvent<HTMLDivElement>) => {
     if (event.target !== event.currentTarget) {
@@ -495,40 +294,6 @@ export function CorrelationGraph(): JSX.Element {
         break;
     }
   }, [activateNode, focusedNode, nodes, resolvedFocusedNodeId]);
-
-  const handleZoomIn = useCallback(() => {
-    const graph = graphRef.current;
-    if (!graph) {
-      return;
-    }
-    void graph.zoomTo(graph.getZoom() * ZOOM_STEP, viewportAnimation);
-  }, [viewportAnimation]);
-
-  const handleZoomOut = useCallback(() => {
-    const graph = graphRef.current;
-    if (!graph) {
-      return;
-    }
-    void graph.zoomTo(graph.getZoom() / ZOOM_STEP, viewportAnimation);
-  }, [viewportAnimation]);
-
-  const handleFitView = useCallback(() => {
-    const graph = graphRef.current;
-    if (!graph) {
-      return;
-    }
-    void graph.fitView(FIT_VIEW_OPTIONS, viewportAnimation);
-  }, [viewportAnimation]);
-
-  const handleResetLayout = useCallback(() => {
-    const graph = graphRef.current;
-    if (!graph || !hasRenderableGraph || isClustered) {
-      return;
-    }
-    graph.stopLayout();
-    graph.setLayout(createForceLayoutOptions(disableGraphAnimation));
-    void graph.layout().then(() => graph.fitView(FIT_VIEW_OPTIONS, viewportAnimation));
-  }, [disableGraphAnimation, hasRenderableGraph, isClustered, viewportAnimation]);
 
   if (!hasRenderableGraph) {
     return <CorrelationGraphEmptyState />;
