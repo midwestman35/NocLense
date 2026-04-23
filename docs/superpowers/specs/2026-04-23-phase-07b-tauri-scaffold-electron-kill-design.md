@@ -9,6 +9,7 @@
 | Rev | Date | Summary |
 |---|---|---|
 | v1 | 2026-04-23 | Initial draft. 10 slices covering scaffold + HTTP proxy swap (5 vendors) + file dialog + crash reporting + Electron removal + Vercel removal + smoke pass. No rollback window per user decision. |
+| **v2** | **2026-04-23** | **Integrate Gemini pre-flight findings: (1) Tauri v2 capabilities/allowlist config is REQUIRED for plugin-http — added to 07B.1 scaffold; (2) vitest global mocks for `@tauri-apps/*` imports — added as 07B.2 first action to protect baseline 643 passing tests; (3) `resolveUrl()` + `import.meta.env.DEV` branching must be purged alongside `electronAPI` removal — hardcode absolute URLs; new 07B.3 slice extracts into `apiConfig.ts` before vendor swap; (4) plugin-fs readFile loads entire file into JS — explicit Rust streaming command via Tauri channels added to 07B.5 scope for >50MB files; (5) coupling: `src/utils/errorReporting.ts` added to crash-reporting scope; `src/types/electron.d.ts` added to Electron kill; (6) Vite proxy config removal pulled forward from 07B.8 to 07B.3 (prevents dev-server traffic leaking through after plugin-http lands); (7) 07B.1 + 07B.2 merged (scaffold + dev boot are coupled). Slice count stays at 10 but order/content restructured.** |
 
 ## 1. Scope
 
@@ -55,8 +56,16 @@ electron/
 - `src/services/zendeskService.ts` (2 call sites)
 - `src/services/providers/UnleashProvider.ts`
 
+**Dev-mode URL branching** (v2 addition — same vendor files, independent of Electron):
+- All of the above ALSO contain `import.meta.env.DEV` branches that resolve to relative proxy paths (`/ai-proxy`, `/zendesk-proxy`, `/confluence-proxy`, `/datadog-proxy`, `/jira-proxy`). `@tauri-apps/plugin-http` requires **absolute URLs**. These branches must be purged when the Electron IPC path is removed.
+- Centralize all resolved URLs in new `src/services/apiConfig.ts` (07B.3) before the vendor HTTP swap lands in 07B.4 — prevents hunting branching logic across 5 files.
+
 **Crash reporting** (replace or retire in 07B.6):
 - `src/components/CrashReportsPanel.tsx` — `getCrashReports`, `openCrashLogLocation`, `clearCrashReports`
+- **`src/utils/errorReporting.ts:28–35` (v2 addition; missed in v1)** — `window.electronAPI?.reportError` call from the global error handler. Must be rewired to a Tauri command OR to a no-op that logs to `console.error` + appends to app local data dir.
+
+**TypeScript declarations** (delete in 07B.7):
+- **`src/types/electron.d.ts` (v2 addition)** — declares `electronAPI` on `Window`. File must be deleted when 07B.7 removes the last consumer.
 
 ### 2.4 Vercel / web-hosting surface
 
@@ -85,12 +94,17 @@ electron/
 
 **Gate:** `npm run build` green (docs move shouldn't touch anything).
 
-### Slice 07B.1 — Tauri scaffold
+### Slice 07B.1 — Tauri scaffold + dev boot + capabilities config (v2 merged)
 
-**Commit:** `feat(phase-07b): ckpt 07B.1; scaffold src-tauri/ with Cargo + Tauri v2 config`
+**Commit:** `feat(phase-07b): ckpt 07B.1; scaffold src-tauri/ + wire tauri:dev + configure plugin-http capabilities`
 **Agent:** refactor | Support: code-review
 
-- `npm install --save-dev @tauri-apps/cli` (Tauri v2)
+v2: merges old 07B.1 (scaffold) + 07B.2 (boot verification) into one slice
+since they're coupled and add **critical Tauri v2 capabilities config**
+that v1 missed.
+
+Setup:
+- `npm install --save-dev @tauri-apps/cli` (Tauri v2 stable)
 - `npm install @tauri-apps/api @tauri-apps/plugin-dialog @tauri-apps/plugin-http @tauri-apps/plugin-fs`
 - Run `npx tauri init` — answers:
   - App name: `noclense`
@@ -99,53 +113,181 @@ electron/
   - Dev server URL: `http://localhost:5173`
   - Before-dev command: `npm run dev`
   - Before-build command: `npm run build`
-- Adjust `src-tauri/tauri.conf.json`:
-  - Window defaults: 1280×800 (per handoff `NocLense Standalone.html` CSS minimum-width)
-  - Title bar: native for now (custom-chrome work lands in 07I)
-  - Identifier: `com.axon.noclense` (verify with user)
-- Add `tauri:dev`, `tauri:build` scripts to root `package.json`
-- Keep Electron alongside for 07B.1 through 07B.6 — don't delete `electron/` yet. Tauri and Electron coexist during the migration slices; Electron kill happens at 07B.7.
 
-**Gate:** `npm run build` green; `npm run tauri:build` green (produces an empty shell app); `npm run test:run` baseline-match; `npm run lint` ≤ baseline.
+`src-tauri/tauri.conf.json`:
+- Window defaults: 1280×800 (per handoff `NocLense Standalone.html` CSS minimum-width)
+- Title bar: native for now (custom-chrome work lands in 07I)
+- **Identifier: `com.axon.noclense`** — MUST match the `service` string used by the keyring crate in 07B.2 to ensure per-app OS keystore isolation
+- Minimum size: 1100×700
 
-### Slice 07B.2 — Tauri dev boot + React mount verification
+**`src-tauri/capabilities/default.json` (v2 — REQUIRED, was missing in v1):**
 
-**Commit:** `feat(phase-07b): ckpt 07B.2; wire tauri:dev to Vite HMR; verify React renderer mounts`
-**Agent:** refactor | Support: code-review
+Tauri v2 enforces an explicit outbound request allowlist for `plugin-http`.
+Without capabilities config, all `fetch()` calls are silently blocked at OS
+level. Add default capability with explicit vendor domains:
 
+```json
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capability for the main window",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "dialog:default",
+    "dialog:allow-open",
+    "dialog:allow-save",
+    "fs:default",
+    "fs:allow-read-file",
+    "fs:allow-read-text-file",
+    "http:default",
+    {
+      "identifier": "http:allow-fetch",
+      "allow": [
+        {"url": "https://**.unleash.axon.com/**"},
+        {"url": "https://**.zendesk.com/**"},
+        {"url": "https://**.datadoghq.com/**"},
+        {"url": "https://**.atlassian.net/**"},
+        {"url": "https://generativelanguage.googleapis.com/**"}
+      ]
+    }
+  ]
+}
+```
+
+(Exact domain patterns confirmed during 07B.4 vendor audit. Starting allowlist
+shown above — may need additions.)
+
+Dev boot verification:
 - Verify `npm run tauri:dev` boots Tauri window pointing at Vite dev server
-- Confirm React app mounts (check DOM: `document.getElementById('root').children.length > 0`)
+- Confirm React app mounts (DOM check: `document.getElementById('root').children.length > 0`)
 - Confirm HMR works (edit a component, see live update in Tauri window)
-- Update `vite.config.ts` base path if Tauri plugin requires it
-- Document any Tauri-specific Vite adjustments in commit message
+- Update `vite.config.ts` base path if Tauri plugin requires it (may conflict with the existing `base: './'` Electron comment; Tauri v2 prefers absolute base for dev — confirm and document)
 
-**Manual user gate:** User launches `npm run tauri:dev` once; confirms app mounts and HMR works. Codex can't verify this headless; user gives GO before Codex proceeds to 07B.3.
+`tauri:dev` + `tauri:build` scripts added to root `package.json`.
 
-**Automated gates:** build green, tests + lint at baseline.
+Electron stays alongside through 07B.1 → 07B.6. Kill at 07B.7.
 
-### Slice 07B.3 — v5.1 local keyring
+**Automated gates:** `npm run build` green; `npm run tauri:build` green (produces an empty shell app); `npm run test:run` baseline-match; `npm run lint` ≤ baseline.
 
-**Commit:** `feat(phase-07b): ckpt 07B.3; implement v5.1 local keyring via Tauri keyring crate + refactor apiKeyStorage.ts`
+**Manual user gate:** user runs `npm run tauri:dev` once; confirms Tauri window appears, React app mounts, HMR edit loop works. GO before 07B.2.
+
+### Slice 07B.2 — Vitest Tauri mocks + v5.1 keyring (v2 restructured)
+
+**Commit:** `feat(phase-07b): ckpt 07B.2; add vitest Tauri mocks + implement v5.1 local keyring`
 **Agent:** refactor | Support: code-review
 
 Reference: `docs/superpowers/specs/2026-04-21-tauri-migration-v5.1-local-keyring-design.md`
 
+v2 additions (Gemini pre-flight Risk #2): baseline 643 passing tests will
+crash in jsdom the moment any service imports `@tauri-apps/api/core` or
+`@tauri-apps/plugin-*`. Protect tests FIRST, then introduce keyring code.
+
+**Step A — Vitest global mocks.** Append to `src/test/setup.ts`:
+
+```ts
+import { vi } from 'vitest';
+
+// Phase 07B: Tauri IPC bridge + plugins aren't available in jsdom.
+// Stub globally so component tests that import vendor services don't crash.
+vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
+vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }));
+vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn(), save: vi.fn() }));
+vi.mock('@tauri-apps/plugin-fs', () => ({
+  readFile: vi.fn(),
+  readTextFile: vi.fn(),
+}));
+```
+
+**Step B — Keyring implementation.**
+
 - Add `keyring` crate to `src-tauri/Cargo.toml`
-- Implement Tauri commands:
+- Implement Tauri commands (Rust side):
   - `keyring_get(service: String, key: String) -> Result<Option<String>, String>`
   - `keyring_set(service: String, key: String, value: String) -> Result<(), String>`
   - `keyring_delete(service: String, key: String) -> Result<(), String>`
   - `keyring_is_available() -> bool`
-- Expose via `@tauri-apps/api/tauri` `invoke()` in TS
-- Rewrite `src/store/apiKeyStorage.ts` to use keyring commands instead of `window.electronAPI?.getSecureStorage` etc. Behavior contract unchanged — consumer code in `AIContext` doesn't change.
-- **Migration path:** on first launch, if keyring has no values but `localStorage` has legacy API keys, migrate them to keyring then delete from localStorage. Log the migration. One-way; no fallback back to localStorage.
-- Add unit tests for the TS wrapper (mock the `invoke` calls).
+- **Service string MUST equal `tauri.conf.json` identifier** (`com.axon.noclense`) for OS keystore isolation. Gemini flagged this.
+- Expose via `@tauri-apps/api/core` `invoke()` in TS
+- Create `src/services/credentials.ts` — singleton wrapper over the keyring commands (aligned with v5.1 spec naming)
+- Rewrite `src/store/apiKeyStorage.ts` to use `credentials()` singleton instead of `window.electronAPI?.getSecureStorage` etc. Consumer code in `AIContext` unchanged.
+- **Migration path:** on first launch, if keyring has no values but `localStorage` has legacy API keys, migrate them then delete from localStorage. One-way. Log the migration.
+- **Windows keyring gotcha** (Gemini pre-flight): Windows Credential Manager does not support enumerating keys. The v5.1 `__index__` workaround stays — keep a comma-separated key list at key `__index__` so we can iterate. Document in commit.
+- Unit tests for the TS wrapper mock `invoke` calls (the global mock from Step A is used).
+- Extend `src/test/setup.ts` with a `credentials()` singleton mock so component tests that pull in `AIContext` don't crash:
 
-**Gate:** build green; tests baseline + new keyring tests pass; lint baseline.
+```ts
+vi.mock('@/services/credentials', () => ({
+  credentials: () => ({
+    get: vi.fn(), set: vi.fn(), list: vi.fn(),
+    delete: vi.fn(), onChange: vi.fn(),
+  }),
+  CredentialNotFoundError: class extends Error {},
+  CredentialInvalidError: class extends Error {},
+}));
+```
 
-**Manual user gate:** User verifies round-trip — add API key, reboot Tauri, key is retrieved from OS keyring (Windows Credential Manager / macOS Keychain).
+**Gate:** build green; test:run baseline + any net-new keyring tests pass; lint baseline.
 
-### Slice 07B.4 — HTTP proxy swap (5 vendors)
+**Manual user gate:** User verifies round-trip — add an API key via the app UI, reboot Tauri, key is retrieved from OS keyring (Windows Credential Manager / macOS Keychain entry visible).
+
+### Slice 07B.3 — Centralized API config + Vite proxy removal (v2 NEW)
+
+**Commit:** `feat(phase-07b): ckpt 07B.3; add apiConfig.ts + remove dev-mode Vite proxy blocks`
+**Agent:** refactor | Support: code-review
+
+v2 addition (Gemini pre-flight Risk #1 + Optional Improvement #2 + #3). Must
+land BEFORE 07B.4 so the vendor HTTP swap has clean absolute URLs to consume
+and no dev-server routes to accidentally use.
+
+**Step A — Create `src/services/apiConfig.ts`.**
+
+Export absolute base URLs for each vendor. No env-based branching. Examples:
+
+```ts
+// src/services/apiConfig.ts
+export const UNLEASH_BASE = 'https://unleash.axon.com/api';
+export const ZENDESK_BASE = (subdomain: string) => `https://${subdomain}.zendesk.com/api/v2`;
+export const DATADOG_BASE = 'https://api.datadoghq.com/api/v1';
+export const CONFLUENCE_BASE = 'https://axon.atlassian.net/wiki/api/v2';
+export const JIRA_BASE = 'https://axon.atlassian.net/rest/api/3';
+// …additional endpoints as needed per vendor
+```
+
+Exact URLs confirmed during dispatch by reading each vendor service's
+production URL path. The five files to mine: `unleashService.ts`,
+`zendeskService.ts`, `datadogService.ts`, `confluenceService.ts`,
+`jiraService.ts`. (Values are already present in those files — just lifted.)
+
+**Step B — Replace every `if (import.meta.env.DEV) return '/*-proxy'` branch.**
+
+Purge in these locations:
+- `src/services/confluenceService.ts:30`
+- `src/services/datadogService.ts:33`
+- `src/services/jiraService.ts:19, :119`
+- `src/services/providers/UnleashProvider.ts:214`
+- `src/services/unleashService.ts:48-49, :83`
+- `src/services/zendeskService.ts:40, :295`
+
+Each replaced with `import { VENDOR_BASE } from './apiConfig'` and a
+straightforward absolute URL. The Electron IPC path stays until 07B.4 — this
+slice keeps the `isElectron` branch intact and only drops the `DEV` branch.
+
+**Step C — Remove Vite dev-server proxy blocks.**
+
+`vite.config.ts` currently has `/ai-proxy`, `/jira-proxy`, `/confluence-proxy`,
+`/datadog-proxy`, `/zendesk-proxy` configured for dev-mode HTTPS CORS bypass.
+With absolute URLs in apiConfig and Tauri plugin-http handling CORS in
+production, these proxy blocks are dead. Delete them.
+
+After 07B.3: `npm run dev` + browser no longer works for vendor calls (CORS
+will block). That's acceptable — `npm run tauri:dev` is the supported dev
+runtime from this point forward. `npm run dev` + browser remains valid for
+non-vendor UI work.
+
+**Gate:** build green; test:run baseline + apiConfig smoke tests pass; lint baseline.
+
+### Slice 07B.4 — HTTP proxy swap (5 vendors) — v2 updated
 
 **Commit:** `feat(phase-07b): ckpt 07B.4; replace Electron IPC HTTP proxy with @tauri-apps/plugin-http in 5 vendors`
 **Agent:** refactor | Support: code-review
@@ -156,12 +298,14 @@ Vendors (in order of test coverage — easiest to verify first):
 3. `src/services/datadogService.ts`
 4. `src/services/confluenceService.ts`
 5. `src/services/jiraService.ts`
-6. `src/services/providers/UnleashProvider.ts` (isElectron guard)
+6. `src/services/providers/UnleashProvider.ts` (`isElectron` guard)
 
-**Pattern for each file:**
+**Pattern (v2 updated):**
 
-Before:
+Before (post-07B.3 state — still has electronAPI branch, already uses apiConfig):
 ```ts
+import { UNLEASH_BASE } from './apiConfig';
+const url = `${UNLEASH_BASE}/chats`;
 if (typeof window !== 'undefined' && (window as any).electronAPI) {
   const response = await window.electronAPI.proxyRequest({ url, method, headers, body });
 }
@@ -170,56 +314,82 @@ if (typeof window !== 'undefined' && (window as any).electronAPI) {
 After:
 ```ts
 import { fetch } from '@tauri-apps/plugin-http';
+import { UNLEASH_BASE } from './apiConfig';
+const url = `${UNLEASH_BASE}/chats`;
 const response = await fetch(url, { method, headers, body });
 ```
 
-Tauri's `plugin-http` bypasses CORS at the OS level (same mechanism Electron's
-main-process proxy used). No allowlist config needed for this phase; a later
-hardening phase can narrow origin policy if required.
+Drop `isElectron` guards entirely. No runtime branching.
 
-Remove the `isElectron` guards entirely. No runtime branching — Tauri is the
-only runtime.
+**Capability allowlist check (v2 addition):** before commit, verify every
+domain referenced in vendor services appears in `src-tauri/capabilities/default.json`
+`http:allow-fetch` list. If any vendor URL isn't covered, add it. Halt if
+audit isn't performed — silent OS-level blocks are the failure mode.
 
-**Gate:** build green; test:run baseline + any vendor-service tests still pass; lint baseline. **No new lint introduced from removing `(window as any).electronAPI` — deliberately typed removal.**
+**Gate:** build green; test:run baseline + any vendor-service tests still pass (vitest mocks from 07B.2 Step A intercept `fetch()`); lint baseline.
 
-### Slice 07B.5 — File dialog + FS access swap
+### Slice 07B.5 — File dialog + FS access + Rust streaming command (v2 updated)
 
-**Commit:** `feat(phase-07b): ckpt 07B.5; swap Electron dialog for @tauri-apps/plugin-dialog + plugin-fs`
+**Commit:** `feat(phase-07b): ckpt 07B.5; swap Electron dialog/fs for Tauri plugins + add Rust streaming read command`
 **Agent:** refactor | Support: code-review
 
-Affected paths (audit-driven — enumerate during dispatch):
+v2 explicit scope expansion (Gemini Risk #4): `@tauri-apps/plugin-fs`
+`readFile` loads the entire file into a JS `Uint8Array`. For 50MB–1GB log
+files this causes massive IPC bottleneck or OOM. `src/utils/parser.ts` uses a
+2MB chunked stream → IndexedDB path specifically to avoid this. We need a
+Rust streaming command.
+
+**Step A — Standard dialog swap.**
+
 - Any `window.electronAPI.openFileDialog` → `@tauri-apps/plugin-dialog` `open()`
 - Any `window.electronAPI.saveFileDialog` → `save()`
-- Any `window.electronAPI.readFile` → `@tauri-apps/plugin-fs` `readFile()` / `readTextFile()`
+- For files ≤ 50MB: `@tauri-apps/plugin-fs` `readFile()` or `readTextFile()`
 
-Streaming reads for large files (50MB+): `src/utils/parser.ts` uses a 2MB
-chunked read for the IndexedDB streaming path. Verify Tauri `plugin-fs` can
-stream — if not, use a Rust command that emits chunks as events. Document
-the chosen approach in the commit message.
+**Step B — Rust streaming command for large files.**
 
-**Gate:** build + tests + lint at baseline. **Manual user gate:** user opens a >50MB log file via the Import room; confirm streaming works and IndexedDB fills.
+Add a Rust command `stream_file_chunks(path: String, chunk_size_kb: u32)` that:
+- Opens the file with `BufReader`
+- Emits `file-chunk` events via Tauri's event system with `{ offset, bytes_base64, is_last }` payloads
+- Returns total file size up front so UI can show progress
 
-### Slice 07B.6 — Crash reporting decision
+TS side uses `listen('file-chunk', handler)` from `@tauri-apps/api/event`.
+Integrate into `src/utils/parser.ts`'s streaming path — replace the Electron
+`readFileChunk` IPC calls with the Tauri event-based stream.
 
-**Commit:** `feat(phase-07b): ckpt 07B.6; port or retire CrashReportsPanel`
+Document the chunk size (2 MB matches current Electron path). Backpressure:
+UI sends an ack event after each chunk; Rust waits for ack before emitting
+next chunk to prevent flooding.
+
+**Gate:** build + tests + lint at baseline. **Manual user gate:** user imports a >100MB log file via Import room; confirms streaming works and IndexedDB fills without memory spike in Task Manager.
+
+### Slice 07B.6 — Crash reporting + errorReporting.ts (v2 added coupling)
+
+**Commit:** `feat(phase-07b): ckpt 07B.6; retire CrashReportsPanel + rewire errorReporting.ts`
 **Agent:** refactor | Support: code-review
 
-Two options — decide in 07B.6 slice dispatch:
+Two call-sites to handle (v2 added errorReporting.ts):
 
-**A. Port to Tauri** — implement crash capture via `panic::set_hook` in Rust, write to `app_local_data_dir`, expose read/clear/open via Tauri commands. Keep `CrashReportsPanel.tsx` with swapped backend.
+**A. `src/components/CrashReportsPanel.tsx`** — delete. (Recommended per v1
+rationale — Tauri panic handler is adequate; panel was Electron-era debug tool.)
 
-**B. Retire** — delete `CrashReportsPanel.tsx`, the corresponding nav entry (if any), and the Electron-era crash log code. Restore later if Tauri's built-in crash reporting is insufficient.
+**B. `src/utils/errorReporting.ts:28-35`** — `window.electronAPI?.reportError` call from the global error handler. Two options:
 
-**Recommendation:** B. Tauri has reasonable panic handling built in; the panel was added as an Electron-era debugging utility. Delete unless user flags a specific need during 07B.6 dispatch.
+  - **B.i (recommended):** replace with a Tauri command `report_runtime_error` that writes to `app_local_data_dir/crash-reports/<timestamp>.json`. Minimal Rust; no UI needed.
+  - **B.ii:** strip the bridge entirely; let the global error boundary just `console.error` and log to the browser's IndexedDB. Zero Rust changes; loses cross-session crash trail.
+
+Default to B.i unless user flags otherwise during 07B.6 dispatch. Keeps crash reports available even without the deleted panel.
+
+Nav-menu entry or router reference for `CrashReportsPanel` — grep and remove if present.
 
 **Gate:** build + tests + lint at baseline.
 
-### Slice 07B.7 — Kill Electron
+### Slice 07B.7 — Kill Electron (v2 added type-declaration cleanup)
 
 **Commit:** `feat(phase-07b): ckpt 07B.7; remove Electron entirely`
 **Agent:** refactor | Support: code-review
 
 - `rm -rf electron/`
+- **`rm src/types/electron.d.ts`** (v2 addition — Gemini coupling find)
 - Remove from root `package.json`:
   - `"main": "electron/main.js"` entry
   - Scripts: `electron:dev`, `electron:build`, `electron:pack`, `electron:dist`
@@ -227,18 +397,18 @@ Two options — decide in 07B.6 slice dispatch:
   - `files` array entry: `"electron/**/*"`
 - Verify `concurrently`, `wait-on`, `cross-env` are either unused or needed by `tauri:dev` — keep if used, remove if orphaned
 - Run `npm uninstall electron electron-builder` to sync `package-lock.json`
-- Grep: zero remaining `window.electronAPI`, `electronAPI`, `safeStorage`, or `isElectron` references anywhere in `src/`. Halt if any remain.
-- Update `src/types.ts` or `src/electron.d.ts` if they declared `electronAPI` on `Window` — delete those declarations
+- Grep assertions — halt if any match:
 
-**Gate:** build green; test:run baseline (some Electron-specific tests may need retiring — list them in self-assessment); lint baseline. **Grep assertions** (commit checkpoint, not just gate):
 ```
 grep -rn "electronAPI" src/           # expect 0 matches
 grep -rn "safeStorage" src/           # expect 0 matches
 grep -rn "window\.electron" src/      # expect 0 matches
-grep -rn "@electron" package.json     # expect 0 matches (no @electron/* packages)
+grep -rn "@electron" package.json     # expect 0 matches
 ```
 
-### Slice 07B.8 — Kill Vercel
+**Gate:** build green; test:run baseline (Electron-specific tests retired — list in self-assessment); lint baseline.
+
+### Slice 07B.8 — Kill Vercel (v2 — Vite proxy already dropped in 07B.3)
 
 **Commit:** `feat(phase-07b): ckpt 07B.8; remove Vercel + web-hosting config`
 **Agent:** refactor | Support: code-review
@@ -249,9 +419,10 @@ Based on 07B.0 inventory:
 - `rm -rf .vercel/`
 - `rm -rf api/` (if audit confirms Vercel-only)
 - `rm wrangler.toml` (if audit confirms dead)
-- Remove `base: './'` from `vite.config.ts` if it was Vercel-specific (Tauri may have its own base requirements — confirm in 07B.2 learnings)
+- Remove `base: './'` from `vite.config.ts` if it was Vercel-specific (Tauri requirements confirmed in 07B.1)
 - Remove any Vercel-specific `.github/workflows/` entries (audit during this slice)
-- Grep: zero references to `vercel`, `VERCEL_`, `process.env.VERCEL*`, `wrangler` anywhere in `src/` + config files
+- Note: Vite dev-server proxy blocks were already deleted in 07B.3 — this slice does not touch them again.
+- Grep: zero references to `vercel`, `VERCEL_`, `process.env.VERCEL*`, `wrangler`, `CF_` anywhere in `src/` + config files.
 
 **Gate:** build + test:run baseline + lint baseline. **Grep assertions:**
 ```
@@ -324,12 +495,18 @@ Per user decision A1 — keep business-logic infrastructure untouched except for
 - Phase 07B merges to `april-redesign`.
 - Phase 07C (port Auth) begins.
 
-## 8. Open questions (surface during Gemini pre-flight)
+## 8. Open questions (most resolved by v2 Gemini pre-flight)
 
-- **07B.1 Tauri v2 version pin** — latest stable at 2026-04-23?
-- **Identifier naming** — `com.axon.noclense` for `tauri.conf.json`? Or different bundle ID?
-- **Keyring service name** — `com.axon.noclense` or `NocLense`? Affects where Windows Credential Manager shows the entries.
-- **CORS for plugin-http** — does Tauri v2 still require explicit `allowlist` entries in `tauri.conf.json` for HTTP origins? If so, enumerate required origins in 07B.4.
-- **Streaming file read** — does `@tauri-apps/plugin-fs` support streaming, or do we need a custom Rust command emitting chunks as events?
-- **Test environment** — vitest runs in jsdom. `@tauri-apps/api` calls fail in jsdom unless mocked. Need a test setup shim to stub `invoke()` for all Tauri commands.
-- **Windows + macOS bundle signing** — out of scope for 07B (no release required), but flag as future work.
+Resolved:
+- ~~CORS for plugin-http~~ → **capabilities/default.json required with explicit allow-fetch list** (07B.1 Step addresses)
+- ~~Streaming file read~~ → **custom Rust command with Tauri event channel** (07B.5 Step B)
+- ~~Vitest / jsdom~~ → **global mocks added to `src/test/setup.ts`** (07B.2 Step A)
+- ~~Keyring service name~~ → **must equal tauri.conf.json identifier `com.axon.noclense`** (07B.2)
+- ~~Identifier~~ → **`com.axon.noclense`** (confirm with user at 07B.1 dispatch)
+
+Still open (confirm during 07B.1 dispatch):
+- **Tauri v2 version pin** — latest stable (check `@tauri-apps/cli` on npm at dispatch time; pin exact version so downstream sub-phases don't drift).
+- **Exact vendor domain patterns** — v2 lists starting patterns in 07B.1 capabilities config; audit each vendor's production URL during 07B.4 and expand allowlist if needed.
+- **Windows + macOS bundle signing** — out of scope for 07B (no release required). Flag as future work; may be Phase 08.
+- **`api/` folder contents** — 07B.0 survey enumerates; if not Vercel-only (e.g., contains internal helpers), determine disposition during 07B.8.
+- **`wrangler.toml` purpose** — 07B.0 survey determines whether it's an active Cloudflare deploy config or residue.
