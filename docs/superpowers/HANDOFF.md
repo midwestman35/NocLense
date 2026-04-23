@@ -210,35 +210,40 @@ there is no in-flight implementation work.
 
 ---
 
-## Immediate next step — dispatch Phase 07A (tokens + reskin)
+## Immediate next step — dispatch Phase 07B (Tauri scaffold + Electron + Vercel kill)
 
-**Phase 07 planning landed 2026-04-22.** Master plan at
-`docs/superpowers/specs/2026-04-22-phase-07-tauri-migration-master-plan.md`.
-First slice plan at
-`docs/superpowers/specs/2026-04-22-phase-07a-tokens-reskin-design.md`.
+**Phase 07 re-planned 2026-04-23 after user correction.** New primary
+design source is the Claude Design handoff bundle at
+`reference/handoff-2026-04-23/`. Master plan at v3:
+`docs/superpowers/specs/2026-04-22-phase-07-tauri-migration-master-plan.md`
 
-**Phase 07 sub-phase map:**
+**Phase 07 sub-phase map (v3):**
 
 | Sub-phase | Scope | Status |
 |---|---|---|
-| pre-work | File-size split (CorrelationGraph, graphPresentation, NewWorkspaceLayout) | Ready to dispatch |
-| 07A | Tokens + Fonts + Global Reskin (obsidian + phosphor, dark only) | **Slice plan ready; next to dispatch** |
-| 07B | Auth + Dashboard (greenfield screens) | Slice plan pending 07A merge |
-| 07C | Import + Investigation Setup | Slice plan pending 07B merge |
-| 07D | Tauri scaffold + keyring + Unleashed refactor (v5.1 thin-MVP) | Slice plan pending 07C merge |
-| 07E | Port 4 remaining vendors + FirstRunWizard + Settings panel | Slice plan pending 07D merge |
-| 07F | Custom chrome + titlebar + kill Vercel | Slice plan pending 07E merge |
-| 07G | Electron archive (Gemini primary) | Slice plan pending 07F merge |
+| 07A | Tokens + fonts + `@theme` infra | SHIPPED (partial revert at `b0246d5`; kept `4631955`, `c09155e`, `8c0e17c`, `ab84d7e`) |
+| **07B** | **Tauri scaffold + Electron kill + Vercel kill + v5.1 keyring** | **Slice plan to draft next** |
+| 07C | Port Auth from `reference/handoff-2026-04-23/project/auth.jsx` | Pending 07B merge |
+| 07D | Port Dashboard from `dashboard.jsx` | Pending 07C merge |
+| 07E | Port Import Room from `room-import.jsx` | Pending 07D merge |
+| 07F | Port Setup Room from `room-setup.jsx` (NEW — 4th room) | Pending 07E merge |
+| 07G | Port Investigate Room from `room-investigate.jsx` (full feature parity) | Pending 07F merge |
+| 07H | Port Submit Room from `room-submit.jsx` (full feature parity, 3→4 PhaseDots) | Pending 07G merge |
+| 07I | Final native chrome + Electron archive + docs rewrite (Gemini primary) | Pending 07H merge |
 
-**Confirmed architecture decisions (2026-04-22 brainstorming with Enrique):**
+**Confirmed architecture decisions (user directive 2026-04-23):**
 
-- **v5.1 local keyring**, NOT v4 AWS proxy. Zero backend, $0 recurring.
-- **Scope:** Tauri shell + keyring + UI redesign. Rust log perf port and auto-updater are **out of scope** for Phase 07.
+- **Four rooms** — Import / Setup / Investigate / Submit. Setup is a room, not a modal.
+- **Full feature parity** port — all Phase 06 functionality carries forward. No MVP cut.
+- **v5.1 local keyring** confirmed (not v4 AWS).
+- **07B kills Electron + Vercel same phase, no rollback window** (user decision C6:i).
+- **Existing `src/services/**`, `src/contexts/**`, `src/utils/**`, `src/types.ts`, `src/hooks/**`, `src/styles/**` survive.** Only `src/components/**` is replaced wholesale across 07C–07H.
+- **Handoff JSX files live under `reference/handoff-2026-04-23/`** (in-repo, tracked, no build).
+- **Spec authority:** `2026-04-21-tauri-migration-v5.1-local-keyring-design.md` is latest. `2026-04-20-tauri-migration-design.md` is earlier context only.
 - **Platforms:** Windows + macOS.
-- **Branch:** continue on `april-redesign`; merge to `main` at end of 07G.
-- **Vercel:** killed entirely in 07F. No web preview after Phase 07.
+- **Branch:** continue on `april-redesign`; merge to `main` at end of 07I.
 - **Codex dispatch:** user-driven CLI per HANDOFF policy. Never use `codex:rescue`.
-- **Gemini:** runs after each sub-phase merge.
+- **Gemini:** runs pre-flight before and audit/docs after each sub-phase.
 
 **Phase 07 readiness contracts (from Phase 06C sign-off) — all addressed in master plan §4:**
 
