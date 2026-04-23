@@ -34,11 +34,11 @@ const BUCKET_SIZE_MS = 60_000; // 1-minute buckets (client-side aggregation)
 
 // Design token colors (hardcoded for SVG since CSS vars aren't supported in SVG fills)
 const COLORS = {
-  debug: '#737373',    // var(--muted-foreground) approximate
-  info: '#8e9789',     // neutral
-  warn: '#ca8a04',     // var(--warning)
-  error: '#dc2626',    // var(--destructive)
-  sip: '#22d3ee',      // cyan-400
+  debug: '#5b6373',    // ink-3
+  info: '#8a93a1',     // ink-2
+  warn: '#f7b955',     // amber
+  error: '#ff6b7a',    // red
+  sip: '#8be5ff',      // cyan
 };
 
 function bucketizeLogs(

@@ -55,7 +55,7 @@ export function TimelineTooltip({ bucket, x, y }: TimelineTooltipProps) {
         )}
         {bucket.sip > 0 && (
           <>
-            <span className="text-cyan-400">SIP</span>
+            <span className="text-cyan">SIP</span>
             <span className="font-mono font-medium text-right">{bucket.sip}</span>
           </>
         )}
