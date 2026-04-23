@@ -6,7 +6,7 @@ import { EvidenceProvider } from './contexts/EvidenceContext';
 import { CaseProvider } from './store/caseContext';
 import { initTheme } from './utils/theme';
 import { ToastProvider } from './components/ui';
-import { NewWorkspaceLayout } from './components/workspace/NewWorkspaceLayout';
+import { AppSurface } from './components/app/AppSurface';
 import './services/caseLibraryBootstrap';
 
 function AppShell() {
@@ -14,7 +14,7 @@ function AppShell() {
     initTheme();
   }, []);
 
-  return <NewWorkspaceLayout />;
+  return <AppSurface />;
 }
 
 const App = () => (

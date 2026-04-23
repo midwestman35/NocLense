@@ -27,8 +27,8 @@ vi.mock('../components/ui', () => ({
   ToastProvider: ({ children }: ProviderProps) => <>{children}</>,
 }));
 
-vi.mock('../components/workspace/NewWorkspaceLayout', () => ({
-  NewWorkspaceLayout: () => <div data-testid="workspace-layout" />,
+vi.mock('../components/app/AppSurface', () => ({
+  AppSurface: () => <div data-testid="app-surface" />,
 }));
 
 vi.mock('../utils/theme', () => ({
