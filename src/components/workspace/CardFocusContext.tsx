@@ -70,9 +70,9 @@ export function useCardFocus(): CardFocusContextValue | undefined {
  *   - role="menu" / role="menubar" (DOM-rendered menus and dropdowns
  *     from component libraries such as Radix UI ContextMenu)
  *
- * The §3 "Electron menu bar / context menu" row is covered
- * automatically by the OS; when a native Electron menu is open the
- * OS consumes keyboard input before it reaches the renderer
+ * Native OS menu bars and context menus are covered automatically by
+ * the OS; when one is open the platform consumes keyboard input before
+ * it reaches the renderer
  * `window.addEventListener`. No renderer-side code is needed.
  *
  * Exported so other shortcut handlers in later phases can reuse it.

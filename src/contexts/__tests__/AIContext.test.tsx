@@ -83,7 +83,7 @@ vi.mock('../../services/logContextBuilder', () => {
   };
 });
 
-// Mock apiKeyStorage - tests run in web/JSDOM (no Electron); reads from mocked localStorage
+// Mock apiKeyStorage - tests run in web/JSDOM and read from mocked localStorage
 vi.mock('../../store/apiKeyStorage', () => ({
   loadApiKey: vi.fn((provider: string) => {
     const scoped = typeof window !== 'undefined' && window.localStorage?.getItem(`noclense_ai_api_key_${provider}`);

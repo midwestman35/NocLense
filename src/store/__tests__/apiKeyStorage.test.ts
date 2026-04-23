@@ -43,7 +43,6 @@ describe('apiKeyStorage', () => {
     invokeMock.mockReset();
     resetCredentialsForTest();
     clearTestStorage();
-    Reflect.deleteProperty(window, 'electronAPI');
   });
 
   it('saves to localStorage when the keyring is unavailable', async () => {

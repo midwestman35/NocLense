@@ -17,10 +17,9 @@ import { isInSuppressedContext, useCardFocus } from './CardFocusContext';
  *     --card-expand-duration: grid-template-rows (the height collapse),
  *     opacity (fade), and transform (scale 0.97→1).
  *
- * Browser support: grid-template-rows interpolation requires Chromium 123+,
- * Firefox 119+. Electron 40 ships Chromium 134, so this is always fine in
- * the packaged desktop app. The jsdom test environment does not compute
- * transitions; tests assert on inline style properties and a
+ * Browser support: grid-template-rows interpolation requires Chromium 123+
+ * or Firefox 119+. The jsdom test environment does not compute transitions;
+ * tests assert on inline style properties and a
  * data-card-body-state attribute for a stable testing surface.
  *
  * Reduced motion: the transition is stripped via the CSS rule in

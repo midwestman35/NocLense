@@ -4,7 +4,7 @@
  * Web Worker for log file parsing.
  *
  * Offloads the CPU-intensive parseLogFileStreaming work so the main thread
- * stays responsive for 10-50 MB files opened in the browser (non-Electron) path.
+ * stays responsive for 10-50 MB files opened in the browser path.
  *
  * Communication protocol (postMessage):
  *   Main -> Worker:  { file: File, fileName: string, fileColor: string, startId: number }

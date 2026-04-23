@@ -1899,7 +1899,7 @@ function parseDatadogRow(row: Record<string, string>, fileColor: string, id: num
 
 /**
  * Parse a log file in a Web Worker to avoid blocking the main thread.
- * Used for non-CSV, non-Homer files in the 10-50 MB range in the browser (non-Electron) path.
+ * Used for non-CSV, non-Homer files in the 10-50 MB range in the browser path.
  * Falls back to main-thread streaming if Worker is unavailable.
  *
  * @param file - The File object to parse
@@ -1943,12 +1943,11 @@ function parseLogFileViaWorker(
     });
 }
 
-/** Returns true when running in a browser tab (not Electron, not already inside a worker). */
+/** Returns true when the main thread can offload parsing into a Web Worker. */
 function canUseWebWorker(): boolean {
     return (
         typeof window !== 'undefined' &&
-        typeof Worker !== 'undefined' &&
-        !(window as unknown as Record<string, unknown>).electronAPI
+        typeof Worker !== 'undefined'
     );
 }
 
@@ -1986,7 +1985,7 @@ export const parseLogFile = async (
     }
     
     // For non-CSV files > 10 MB in the browser, offload parsing to a Web Worker
-    // so the main thread stays responsive. Electron uses its own IPC worker path.
+    // so the main thread stays responsive.
     const WORKER_THRESHOLD = 10 * 1024 * 1024; // 10MB
     if (!isCSV && file.size > WORKER_THRESHOLD && canUseWebWorker() && isBrowserImportFile(file)) {
         return parseLogFileViaWorker(file, fileColor, startId, onProgress, timezone);
