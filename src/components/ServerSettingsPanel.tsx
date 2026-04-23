@@ -1,5 +1,5 @@
 /**
- * ServerSettingsPanel — UNAVAILABLE
+ * ServerSettingsPanel - UNAVAILABLE
  *
  * Server mode foundation is retained in the codebase but removed from the UI
  * until backend architecture plans are finalized. Do not wire this into any
@@ -27,11 +27,15 @@ export default function ServerSettingsPanel() {
       const health = await checkServerHealth();
       if (health.status === 'ok' || health.status === 'degraded') {
         setStatus('connected');
-        setStatusMessage(
-          health.status === 'ok'
-            ? `Connected. ${health.database.logCount.toLocaleString()} logs in database.`
-            : `Degraded: DB=${health.database.connected ? 'ok' : 'down'}, Blob=${health.blob.connected ? 'ok' : 'down'}`
-        );
+        if (health.status === 'degraded') {
+          setStatusMessage(
+            `Degraded: DB=${health.database?.connected ? 'ok' : 'unknown'}, Backend=${health.blob?.connected ? 'ok' : 'unknown'}`
+          );
+        } else if (health.database) {
+          setStatusMessage(`Connected. ${health.database.logCount.toLocaleString()} logs in database.`);
+        } else {
+          setStatusMessage('Connected.');
+        }
       } else {
         setStatus('error');
         setStatusMessage('Server returned unexpected status');
@@ -106,7 +110,7 @@ export default function ServerSettingsPanel() {
           type="url"
           value={config.baseUrl}
           onChange={handleUrlChange}
-          placeholder="https://noclense-server.vercel.app"
+          placeholder="http://localhost:3001"
           className="w-full rounded border border-[var(--border)] bg-[var(--input)] px-2.5 py-1.5 text-xs text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:border-[var(--ring)] focus:outline-none"
         />
       </div>
