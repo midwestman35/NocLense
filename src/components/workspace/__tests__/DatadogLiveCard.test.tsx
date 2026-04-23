@@ -2,7 +2,7 @@ import { act, render } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { RoomLiveStateProvider } from '../../../contexts/RoomLiveStateContext';
 import { RoomLiveStateStore } from '../../../contexts/roomLiveStateStore';
-import { DatadogLiveCard } from '../NewWorkspaceLayout';
+import { DatadogLiveCard } from '../../rooms/investigate/DatadogLiveCard';
 
 /**
  * Phase 05 Commit 5 — Datadog Live card tier integration.

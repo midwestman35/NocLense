@@ -5,41 +5,28 @@
  * Each room has a distinct layout with WorkspaceCard containers.
  */
 
-import { useState, useCallback, useMemo, useRef, type JSX } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import { useLogContext } from '../../contexts/LogContext';
 import { useAI } from '../../contexts/AIContext';
 import { RoomRouter } from './RoomRouter';
-import { WorkspaceCard } from './WorkspaceCard';
-import { CARD_GRID_CLASSES } from './WorkspaceGrid';
 import type { Phase } from './types';
-import { useBundleSizePulse } from '../../hooks/useBundleSizePulse';
-import type { EvidenceSet } from '../../types/canonical';
-import { useLiveSurface, useSurfaceTier } from '../../contexts/RoomLiveStateContext';
-import type { GlowTier } from '../../contexts/roomLiveStateStore';
 
 // Existing components — reused as card content
-import FilterBar from '../FilterBar';
-import LogViewer, { type LogViewerHandle } from '../LogViewer';
-import LogTimeline from '../timeline/LogTimeline';
-import { AISidebar } from '../AISidebar';
+import type { LogViewerHandle } from '../LogViewer';
 import { ImportRoom } from '../rooms/import/ImportRoom';
 import { SetupRoom } from '../rooms/setup/SetupRoom';
-import LogDetailsPanel from '../log/LogDetailsPanel';
-import { CaseHeader } from '../case/CaseHeader';
+import { InvestigateRoom } from '../rooms/investigate/InvestigateRoom';
 import { Dialog } from '../ui/Dialog';
-import { Button } from '../ui/Button';
+import { Button } from '../ui';
 // ServerSettingsPanel — kept in codebase but removed from UI until backend plans are decided
 // import ServerSettingsPanel from '../ServerSettingsPanel';
 import InvestigationSetupModal from '../InvestigationSetupModal';
 import { AIOnboardingWizard } from '../onboarding/AIOnboardingWizard';
 import ExportModal from '../export/ExportModal';
-import EvidencePanel from '../evidence/EvidencePanel';
 import { SubmitRoom } from './SubmitRoom';
-import { CorrelationGraph } from '../correlation-graph/CorrelationGraph';
-import { SimilarCasesSection } from './SimilarCasesSection';
 
 import { CaseStateBridge } from '../case/CaseStateBridge';
-import { Sparkles, FileText, Bookmark, Search, Database, AlertTriangle, FolderPlus, Download, Trash2, ExternalLink } from 'lucide-react';
+import { FolderPlus, Download, Trash2 } from 'lucide-react';
 import type { InvestigationSetup } from '../../types/investigation';
 import type { ZendeskTicket } from '../../services/zendeskService';
 import { loadAiSettings } from '../../store/aiSettings';
@@ -116,13 +103,12 @@ export function NewWorkspaceLayout() {
   const [pendingSetup, setPendingSetup] = useState<InvestigationSetup | null>(null);
   const [activeTicket, setActiveTicket] = useState<ZendeskTicket | null>(null);
   const [showImportDialog, setShowImportDialog] = useState(false);
-  const [similarCaseCount, setSimilarCaseCount] = useState(0);
   const [fileError] = useState<string | null>(null);
   const holdImportPhase = investigationModalTicketId !== null;
   const derivedPhase: Phase = explicitPhase ?? (holdImportPhase ? 'import' : logs.length === 0 ? 'import' : 'investigate');
 
   const selectedLog = selectedLogId
-    ? filteredLogs.find((e) => e.id === selectedLogId) || logs.find((e) => e.id === selectedLogId)
+    ? filteredLogs.find((e) => e.id === selectedLogId) ?? logs.find((e) => e.id === selectedLogId) ?? null
     : null;
   const parseProgress = parsingProgress > 0 && parsingProgress < 1 ? parsingProgress * 100 : null;
 
@@ -182,175 +168,30 @@ export function NewWorkspaceLayout() {
 
   // ── Investigate Room ───────────────────────────────────────────
   const investigateContent = useMemo(() => (
-    <>
-      {/* Log Stream card — spans 2 columns, 2 rows */}
-      <WorkspaceCard
-        id="log-stream"
-        title="Log Stream"
-        icon={<FileText size={14} />}
-        accentColor="#76ce40"
-        meta={<span>{filteredLogs.length.toLocaleString()} events</span>}
-        className={CARD_GRID_CLASSES['log-stream']}
-      >
-        <div className="flex flex-col h-full min-h-0 overflow-hidden">
-          {fileError && (
-            <div className="flex items-center gap-2 px-3 py-2 text-xs border-b border-[var(--destructive)]/20 text-[var(--destructive)] shrink-0">
-              <AlertTriangle size={14} />
-              {fileError}
-            </div>
-          )}
-          <CaseHeader />
-          <div className="shrink-0 px-2 py-1 border-b border-[var(--border)] bg-[var(--card)]">
-            <FilterBar />
-          </div>
-          <LogTimeline />
-          <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-            <LogViewer ref={logViewerRef} parseProgress={parseProgress} />
-          </div>
-          {selectedLog && (
-            <div className="shrink-0 border-t border-[var(--border)] bg-[var(--card)] overflow-hidden" style={{ height: 300 }}>
-              <LogDetailsPanel
-                log={selectedLog}
-                onClose={() => setSelectedLogId(null)}
-                onJumpToLog={() => {
-                  if (!selectedLog) return;
-                  setJumpState({ active: true, previousFilters: { activeCorrelations: [...activeCorrelations], filterText } });
-                  setActiveCorrelations(activeCorrelations.filter((c) => c.type === 'file'));
-                  setFilterText('');
-                  setScrollTargetTimestamp(selectedLog.timestamp);
-                }}
-              />
-            </div>
-          )}
-        </div>
-      </WorkspaceCard>
-
-      {/* AI Assistant card */}
-      <WorkspaceCard
-        id="ai-assistant"
-        title="AI Assistant"
-        icon={<Sparkles size={14} />}
-        accentColor="#76ce40"
-        badge={
-          <span className="px-2 py-0.5 rounded-full text-[9px] font-semibold bg-[var(--success)]/10 text-[var(--success)]">
-            Unleashed
-          </span>
-        }
-        className={CARD_GRID_CLASSES['ai-assistant']}
-      >
-        <div className="h-full min-h-0 overflow-hidden">
-          <AISidebar
-            onSetupAI={() => setShowOnboardingWizard(true)}
-            pendingSetup={pendingSetup}
-            onSetupConsumed={() => setPendingSetup(null)}
-            onCitationClick={handleCitationClick}
-          />
-        </div>
-      </WorkspaceCard>
-
-      {/* Evidence card */}
-      <WorkspaceCard
-        id="evidence"
-        title="Evidence"
-        icon={<Bookmark size={14} />}
-        accentColor="#f59e0b"
-        badge={<EvidenceBadge evidenceSet={evidenceSet} />}
-        className={CARD_GRID_CLASSES['evidence']}
-      >
-        <EvidencePanel />
-      </WorkspaceCard>
-
-      {/* Bottom row — compact cards */}
-      <WorkspaceCard
-        id="similar-tickets"
-        title="Similar"
-        icon={<Search size={14} />}
-        accentColor="#60a5fa"
-        defaultExpanded={similarPastTickets.length > 0}
-        meta={<span>{similarPastTickets.length} tickets {similarCaseCount} cases</span>}
-        className={CARD_GRID_CLASSES['similar-tickets']}
-      >
-        <div className="divide-y divide-[var(--border)]">
-          <section className="space-y-2 p-3" aria-labelledby="similar-past-tickets-heading">
-            <h3
-              id="similar-past-tickets-heading"
-              className="text-[10px] font-medium uppercase tracking-[0.16em] text-[var(--muted-foreground)]"
-            >
-              Past tickets
-            </h3>
-
-            {similarPastTickets.length === 0 ? (
-              <div className="text-xs text-[var(--muted-foreground)]">
-                <p>Past resolved tickets matching this investigation will surface here.</p>
-              </div>
-            ) : (
-              <div className="divide-y divide-[var(--border)] max-h-[200px] overflow-y-auto">
-                {similarPastTickets.map(t => {
-                  const subdomain = loadAiSettings().zendeskSubdomain;
-                  const zdUrl = subdomain
-                    ? `https://${subdomain}.zendesk.com/agent/tickets/${t.id}`
-                    : null;
-                  return (
-                    <div key={t.id} className="px-3 py-2 hover:bg-[var(--muted)]/50 transition-colors">
-                      <p className="text-[11px] font-medium text-[var(--foreground)] truncate">
-                        #{t.id}: {t.subject}
-                      </p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-[9px] text-[var(--muted-foreground)]">
-                          {t.createdAt ? new Date(t.createdAt).toLocaleDateString() : ''}
-                        </span>
-                        {t.tags.length > 0 && (
-                          <span className="text-[9px] text-[var(--muted-foreground)]">
-                            {t.tags.filter(tag => tag.startsWith('noc:')).slice(0, 2).join(', ') || t.tags.slice(0, 2).join(', ')}
-                          </span>
-                        )}
-                        {zdUrl && (
-                          <a
-                            href={zdUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-[9px] text-blue-400 hover:text-blue-300 flex items-center gap-0.5 ml-auto"
-                          >
-                            <ExternalLink size={8} />
-                            Open
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </section>
-
-          <section className="space-y-2 p-3" aria-labelledby="similar-past-cases-heading">
-            <h3
-              id="similar-past-cases-heading"
-              className="text-[10px] font-medium uppercase tracking-[0.16em] text-[var(--muted-foreground)]"
-            >
-              Past cases
-            </h3>
-            <SimilarCasesSection onCountChange={setSimilarCaseCount} />
-          </section>
-        </div>
-      </WorkspaceCard>
-
-      <WorkspaceCard
-        id="correlation-graph"
-        title="Correlation Graph"
-        icon={<Database size={14} />}
-        accentColor="var(--correlation-call-id)"
-        defaultExpanded={false}
-        className={CARD_GRID_CLASSES['correlation-graph']}
-      >
-        <CorrelationGraph />
-      </WorkspaceCard>
-
-      <DatadogLiveCard />
-    </>
+    <InvestigateRoom
+      filteredLogCount={filteredLogs.length}
+      fileError={fileError}
+      logViewerRef={logViewerRef}
+      parseProgress={parseProgress}
+      selectedLog={selectedLog}
+      pendingSetup={pendingSetup}
+      similarPastTickets={similarPastTickets}
+      evidenceSet={evidenceSet}
+      onCloseSelectedLog={() => setSelectedLogId(null)}
+      onJumpToSelectedLog={() => {
+        if (!selectedLog) return;
+        setJumpState({ active: true, previousFilters: { activeCorrelations: [...activeCorrelations], filterText } });
+        setActiveCorrelations(activeCorrelations.filter((correlation) => correlation.type === 'file'));
+        setFilterText('');
+        setScrollTargetTimestamp(selectedLog.timestamp);
+      }}
+      onSetupAI={() => setShowOnboardingWizard(true)}
+      onSetupConsumed={() => setPendingSetup(null)}
+      onCitationClick={handleCitationClick}
+    />
   ), [filteredLogs.length, selectedLog, fileError, activeCorrelations, filterText,
       pendingSetup, similarPastTickets, setSelectedLogId, setJumpState, setActiveCorrelations,
-      setFilterText, setScrollTargetTimestamp, parseProgress, handleCitationClick, evidenceSet, similarCaseCount]);
+      setFilterText, setScrollTargetTimestamp, parseProgress, handleCitationClick, evidenceSet]);
 
   // ── Submit Room ────────────────────────────────────────────────
   const submitContent = <SubmitRoom />;
@@ -421,78 +262,5 @@ export function NewWorkspaceLayout() {
 
       <ExportModal isOpen={isExportModalOpen} onClose={() => setIsExportModalOpen(false)} />
     </>
-  );
-}
-
-/**
- * EvidenceBadge — Evidence card header badge that pulses each time the
- * serialized evidence set size crosses a 100 KB boundary (spec §5.4).
- *
- * Phase 05 Commit 4. Uses useBundleSizePulse's monotonic pulseKey as the
- * React `key` prop, which remounts the span at each boundary and replays
- * the `bundle-pulse` keyframe. The animation is behind motion-safe:; under
- * prefers-reduced-motion the key change still occurs but no animation plays.
- */
-function EvidenceBadge({ evidenceSet }: { evidenceSet: EvidenceSet | null }): JSX.Element {
-  const { pulseKey } = useBundleSizePulse(evidenceSet);
-  return (
-    <span
-      key={pulseKey}
-      className="rounded-full bg-[var(--warning)]/10 px-2 py-0.5 text-[9px] font-semibold text-[var(--warning)] tabular-nums motion-safe:animate-[bundle-pulse_300ms_var(--ease-enter-out,ease-out)_both]"
-    >
-      {evidenceSet?.items.length ?? 0}
-    </span>
-  );
-}
-
-/**
- * DatadogLiveCard — Investigate-room card wired to the RoomLiveStateProvider
- * arbitration model (spec §3.3) via Phase 01a's useLiveSurface hook.
- *
- * Phase 05 Commit 5. The card registers as a datadog-stream surface on
- * mount, consumes useSurfaceTier to read its arbitrated tier, and stamps
- * `data-surface` + `data-tier` on the card root via the dataAttributes
- * prop added in Phase 04.5 Commit 5. Tier-driven CSS lives in
- * src/styles/live-state.css.
- *
- * No actual streaming in this commit — that is future feature work.
- * During development the tier can be exercised via store.notify() from
- * a console or a test harness.
- */
-function tierToAccent(tier: GlowTier): string {
-  switch (tier) {
-    case 'alert':
-      return 'var(--destructive)';
-    case 'live':
-    case 'ready':
-      return '#a855f7'; // original purple accent preserved for the live/ready path
-    case 'idle':
-    default:
-      return 'var(--muted-foreground)';
-  }
-}
-
-export function DatadogLiveCard(): JSX.Element {
-  useLiveSurface('datadog-live', 'datadog-stream');
-  const tier = useSurfaceTier('datadog-live');
-
-  return (
-    <WorkspaceCard
-      id="datadog-live"
-      title="Datadog Live"
-      icon={<Database size={14} />}
-      accentColor={tierToAccent(tier)}
-      defaultExpanded={false}
-      className={CARD_GRID_CLASSES['datadog-live']}
-      dataAttributes={{
-        'data-surface': 'datadog-live',
-        'data-tier': tier,
-      }}
-    >
-      <div className="p-3 text-xs text-[var(--muted-foreground)]">
-        <p>Streaming production errors from Datadog API.</p>
-        <p className="mt-2 text-[9px] uppercase tracking-wider">Tier: {tier}</p>
-      </div>
-    </WorkspaceCard>
   );
 }
