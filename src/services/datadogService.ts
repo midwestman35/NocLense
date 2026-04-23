@@ -6,6 +6,7 @@
  *
  * Auth: DD-API-KEY + DD-APPLICATION-KEY headers.
  */
+import { fetch } from '@tauri-apps/plugin-http';
 import type { AiSettings } from '../store/aiSettings';
 import { getDatadogBase } from './apiConfig';
 

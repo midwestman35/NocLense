@@ -6,6 +6,7 @@
  *
  * Dependencies: AiSettings (jiraSubdomain, jiraEmail, jiraToken, jiraProjectKey)
  */
+import { fetch } from '@tauri-apps/plugin-http';
 import type { AiSettings } from '../store/aiSettings';
 import type { JiraTicketDraft } from '../types/diagnosis';
 import { getAtlassianBase, getJiraApiBase } from './apiConfig';

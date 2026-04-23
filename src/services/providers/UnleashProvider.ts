@@ -23,6 +23,7 @@
  * @module services/providers/UnleashProvider
  */
 
+import { fetch } from '@tauri-apps/plugin-http';
 import type { AIUsageStats } from '../../types/ai';
 import type {
   LLMProvider,

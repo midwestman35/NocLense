@@ -7,6 +7,7 @@
  *
  * Auth: Same Atlassian Basic auth as Jira (email/token:apiToken).
  */
+import { fetch } from '@tauri-apps/plugin-http';
 import type { AiSettings } from '../store/aiSettings';
 import type { DiagnosisResult } from '../types/diagnosis';
 import type { ZendeskTicket } from './zendeskService';

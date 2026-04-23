@@ -1,3 +1,4 @@
+import { fetch } from '@tauri-apps/plugin-http';
 import type { AiSettings } from '../store/aiSettings';
 import { getZendeskApiBase, getZendeskSiteBase } from './apiConfig';
 

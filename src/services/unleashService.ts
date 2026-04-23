@@ -1,3 +1,4 @@
+import { fetch } from '@tauri-apps/plugin-http';
 import type { AiSettings } from '../store/aiSettings';
 import type { LogEntry } from '../types';
 import type { DiagnosisResult, AiCorrelatedLog, LogSuggestion } from '../types/diagnosis';
