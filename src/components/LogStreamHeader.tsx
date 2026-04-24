@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Filter } from 'lucide-react';
-import serviceMappings from '../../public/service-mappings.json';
 import { useLogContext } from '../contexts/LogContext';
 import { useAnimeStagger, useAnimeValue } from '../utils/anime';
 
@@ -21,14 +20,42 @@ export function LogHeader() {
   } = useLogContext();
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [showAllServices, setShowAllServices] = useState(false);
+  const [serviceMappingValues, setServiceMappingValues] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!showAllServices || serviceMappingValues.length > 0) return;
+
+    let cancelled = false;
+    const loadServiceMappings = async (): Promise<void> => {
+      try {
+        const response = await fetch('/service-mappings.json');
+        if (!response.ok) return;
+
+        const mappings = (await response.json()) as Record<string, string>;
+        if (!cancelled) {
+          setServiceMappingValues(Object.values(mappings));
+        }
+      } catch {
+        if (!cancelled) {
+          setServiceMappingValues([]);
+        }
+      }
+    };
+
+    void loadServiceMappings();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [serviceMappingValues.length, showAllServices]);
 
   const availableComponents = useMemo(() => {
     const components = new Set(logs.map((log) => log.displayComponent));
     if (showAllServices) {
-      Object.values(serviceMappings).forEach((value) => components.add(value));
+      serviceMappingValues.forEach((value) => components.add(value));
     }
     return Array.from(components).sort();
-  }, [logs, showAllServices]);
+  }, [logs, serviceMappingValues, showAllServices]);
 
   const toggleSort = (field: 'timestamp' | 'level'): void => {
     setSortConfig({
