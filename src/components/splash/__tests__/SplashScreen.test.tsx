@@ -7,6 +7,7 @@ describe('SplashScreen', () => {
     render(<SplashScreen onContinue={vi.fn()} />);
 
     expect(screen.getByRole('heading', { name: 'NocLense' })).toBeInTheDocument();
+    expect(screen.getByText('v2.0.0')).toBeInTheDocument();
     expect(screen.getByText('Standalone')).toBeInTheDocument();
     expect(screen.getByRole('status', { name: /loading noclense/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Continue' })).toBeInTheDocument();

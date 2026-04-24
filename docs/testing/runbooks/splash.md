@@ -27,7 +27,7 @@
 - Window title bar reads `NocLense`.
 - Header bar (top, full width) renders:
   - Left side: mint-colored dot (1.5×1.5 px) + text `NocLense`.
-  - Right side: `v4.2.0 · Standalone` *(note: version reconciliation to `2.0.0` is scheduled for 07I.a — §4.6 in inventory. Until then, `v4.2.0` is expected)*.
+  - Right side: current app version from `tauri.conf.json` / `package.json` (for example, `v2.0.0`) + `· Standalone`.
 - Center stack is vertically and horizontally centered in the main content area:
   1. Rounded square (80×80 px) with dark-green gradient background + mint border; contains an animated braille spinner.
   2. Heading `NocLense` rendered in the large display face (40–60px depending on viewport).
@@ -86,7 +86,7 @@
 
 **Pass criteria:**
 - Content stays centered at all sizes.
-- Header right-slot (`v4.2.0 · Standalone`) never wraps or overlaps with left-slot branding.
+- Header right-slot (`v2.0.0 · Standalone`, or the current app version) never wraps or overlaps with left-slot branding.
 - No horizontal scrollbar.
 
 ## Known failure modes
@@ -103,7 +103,7 @@
 
 | Step | Automatable? | Notes |
 |---|---|---|
-| 1. First paint | YES | Playwright: `page.getByRole('heading', { name: 'NocLense' })`, `page.getByText(/v4\.2\.0/)`, `page.getByRole('button', { name: 'Continue' })`. Capture screenshot for visual diff baseline |
+| 1. First paint | YES | Playwright: `page.getByRole('heading', { name: 'NocLense' })`, `page.getByText(/v2\.0\.0/)` or the current app version, `page.getByRole('button', { name: 'Continue' })`. Capture screenshot for visual diff baseline |
 | 2. Phrase cycling | YES | Wait 10 seconds, capture `LoadingLabel` text at 3 intervals, assert it's a member of `SPLASH_PHRASES` and changes between captures |
 | 3. Reduced-motion | YES but flaky | Playwright's `emulateMedia({ reducedMotion: 'reduce' })` doesn't always propagate to Tauri's webview — may need to set the OS preference directly. Acceptable to skip if flaky; human coverage remains in this runbook |
 | 4. Continue routes | YES | `page.getByRole('button', { name: 'Continue' }).click()`, then assert DashboardScreen markers appear |

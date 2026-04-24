@@ -3,6 +3,7 @@ import { Button } from '../ui';
 import { LoadingLabel } from '../loading/LoadingLabel';
 import { TuiSpinner } from '../loading/TuiSpinner';
 import { usePrefersReducedMotion } from '../../hooks/usePrefersReducedMotion';
+import { useAppVersion } from '../../utils/useAppVersion';
 
 const SPLASH_PHRASES = [
   'Reviewing…',
@@ -27,6 +28,7 @@ interface SplashScreenProps {
 
 export function SplashScreen({ onContinue }: SplashScreenProps): JSX.Element {
   const reducedMotion = usePrefersReducedMotion();
+  const appVersion = useAppVersion();
   const [phraseIndex, setPhraseIndex] = useState(0);
 
   useEffect(() => {
@@ -47,7 +49,7 @@ export function SplashScreen({ onContinue }: SplashScreenProps): JSX.Element {
           <span>NocLense</span>
         </div>
         <div className="flex items-center gap-3 text-[11px]">
-          <span className="mono">v4.2.0</span>
+          <span className="mono">v{appVersion}</span>
           <span aria-hidden="true" className="text-[var(--ink-3)]">·</span>
           <span className="mono text-[var(--ink-3)]">Standalone</span>
         </div>
