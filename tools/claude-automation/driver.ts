@@ -23,12 +23,12 @@ let activeBrowser: Browser | null = null;
 let activeReportDir = '';
 
 const roomMarkers: Record<RoomName, string[]> = {
-  splash: ['aria/heading[name="NocLense"]', 'aria/button[name="Continue"]'],
-  dashboard: ['aria/button[name="Open workspace"]', 'aria/button[name="New investigation"]'],
+  splash: ['h1=NocLense', 'button=Continue'],
+  dashboard: ['button=Open workspace', 'button=New investigation'],
   import: ['[data-testid="import-dropzone"]', '[data-testid="import-file-input"]'],
-  setup: ['aria/heading[name="Investigation Setup"]', 'aria/button[name="Continue"]'],
-  investigate: ['[data-testid="correlation-graph"]', 'aria/button[name="Investigate ticket"]'],
-  submit: ['aria/button[name="Export investigation as .noclense file"]', 'aria/heading[name="Submit"]'],
+  setup: ['h1=Investigation Setup', 'button=Continue'],
+  investigate: ['[data-testid="correlation-graph"]'],
+  submit: ['button=Export investigation as .noclense file', 'h1=Submit'],
 };
 
 export function getReportDir(): string {
@@ -138,17 +138,24 @@ export async function waitForRoom(name: RoomName): Promise<void> {
 export async function clickByRole(role: string, name: string): Promise<void> {
   assertBrowser();
   const escapedName = name.replace(/"/g, '\\"');
-  const ariaSelector = `aria/${role}[name="${escapedName}"]`;
-  const candidate = await activeBrowser!.$(ariaSelector);
 
-  if (await candidate.isExisting()) {
-    await candidate.click();
+  const aria = await activeBrowser!.$(`aria/${name}`);
+  if (await aria.isExisting()) {
+    await aria.click();
     return;
   }
 
-  const domCandidate = await activeBrowser!.$(`//*[self::button or self::a or @role="${role}"][normalize-space(.)="${name}" or @aria-label="${name}"]`);
-  await domCandidate.waitForDisplayed({ timeout: 5_000 });
-  await domCandidate.click();
+  const tags = role === 'heading' ? ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']
+    : role === 'button' ? ['button']
+    : role === 'link'   ? ['a']
+    : [role];
+  const xpath = tags.map(t =>
+    `//${t}[normalize-space(text())="${escapedName}" or @aria-label="${escapedName}"]`
+  ).join(' | ');
+
+  const fallback = await activeBrowser!.$(xpath);
+  await fallback.waitForDisplayed({ timeout: 5_000 });
+  await fallback.click();
 }
 
 export async function importFile(path: string): Promise<void> {
