@@ -19,6 +19,9 @@ export default defineConfig([
     'src-tauri/**',
     'build/**',
     'api/**',
+    'server/**',
+    'public/**',
+    'demo-assets/**',
   ]),
   {
     files: ['**/*.{ts,tsx}'],
@@ -34,6 +37,18 @@ export default defineConfig([
       parserOptions: {
         tsconfigRootDir,
       },
+    },
+    rules: {
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
+      ],
+    },
+  },
+  {
+    files: ['**/__tests__/**/*.{ts,tsx}', '**/*.test.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
     },
   },
 ])

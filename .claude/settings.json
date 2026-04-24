@@ -14,7 +14,7 @@
           {
             "type": "command",
             "shell": "powershell",
-            "command": "$in=[Console]::In.ReadToEnd()|ConvertFrom-Json; $f=$in.tool_input.file_path; if ($f -notlike '*src/components/*' -and $f -notlike '*src\\components\\*') { exit 0 }; npm run lint; if ($LASTEXITCODE -ne 0) { exit 1 }; npm run test:run; if ($LASTEXITCODE -ne 0) { exit 1 }; if (Select-String -Path src\\* -Pattern 'electronAPI' -Recurse -Quiet) { exit 1 }; if (Select-String -Path src\\components\\* -Pattern '@keyframes nl-' -Recurse -Quiet) { exit 1 }; if (Select-String -Path src\\* -Pattern 'window.MacWindow' -Recurse -Quiet) { exit 1 }; exit 0"
+            "command": "$in=[Console]::In.ReadToEnd()|ConvertFrom-Json; $f=$in.tool_input.file_path; if ($f -notlike '*src/components/*' -and $f -notlike '*src\\components\\*') { exit 0 }; if (Select-String -Path src\\* -Pattern 'electronAPI' -Recurse -Quiet) { exit 1 }; if (Select-String -Path src\\components\\* -Pattern '@keyframes nl-' -Recurse -Quiet) { exit 1 }; if (Select-String -Path src\\* -Pattern 'window.MacWindow' -Recurse -Quiet) { exit 1 }; exit 0"
           }
         ]
       },

@@ -75,7 +75,7 @@ function normalizeValue(v: unknown): string | number | boolean | null {
 /** Extract SIP header key-value pairs from payload. */
 function extractSipHeaders(payload: string): Array<{ key: string; value: string }> {
   const pairs: Array<{ key: string; value: string }> = [];
-  const headerRe = /^([A-Za-z][A-Za-z0-9\-]*):\s*(.+)$/gm;
+  const headerRe = /^([A-Za-z][A-Za-z0-9-]*):\s*(.+)$/gm;
   let m: RegExpExecArray | null;
   while ((m = headerRe.exec(payload)) !== null) {
     const key = m[1].trim();
@@ -117,7 +117,7 @@ export function getStructuredFields(log: LogEntry): FieldEntry[] {
   if (log.type === 'JSON' && log.json && typeof log.json === 'object') {
     const flat = flattenForFields(log.json as Record<string, unknown>);
     for (const { key, value } of flat) {
-      const base = key.split(/[.\[]/)[0]?.toLowerCase();
+      const base = key.split(/[.[]/)[0]?.toLowerCase();
       if (base && skipKeys.has(base)) continue;
       add(key, normalizeValue(value) as string | number | boolean | null, 'json');
     }

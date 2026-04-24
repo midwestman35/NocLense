@@ -2,7 +2,7 @@
 import type { RedactionPreset } from '../types/export';
 export function redactEvent(event: NormalizedEvent, preset: RedactionPreset): NormalizedEvent {
   if (preset === 'raw') return { ...event };
-  let redacted = { ...event };
+  const redacted = { ...event };
   if (redacted.message) redacted.message = redactString(redacted.message, preset);
   if (redacted.payload) redacted.payload = redactObject(redacted.payload, preset);
   return redacted;

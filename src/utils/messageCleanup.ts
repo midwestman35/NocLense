@@ -47,7 +47,7 @@ function extractServiceFromPath(componentPath: string): string | null {
     }
 
     // Try to match simpler patterns
-    const simpleMatch = componentPath.match(/\/([^\/\$]+)$/);
+    const simpleMatch = componentPath.match(/\/([^/$]+)$/);
     if (simpleMatch) {
         return simpleMatch[1];
     }
@@ -112,7 +112,7 @@ export function cleanMessage(originalMessage: string): string {
     cleaned = cleaned.replace(/\s+/g, ' ');
 
     // Remove leading/trailing commas or brackets artifacts
-    cleaned = cleaned.replace(/^[\s,\]]+|[\s,\[]+$/g, '');
+    cleaned = cleaned.replace(/^[\s,\]]+|[\s,[]+$/g, '');
 
     // Remove standalone timestamp markers like "[CallTakingTimestamp] 548893269616100:"
     cleaned = cleaned.replace(/\[CallTakingTimestamp\]\s+\d+:\s*/g, '');

@@ -1,10 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CodexProvider } from '../CodexProvider';
-import {
-  InsufficientPermissionsError,
-  InvalidApiKeyError,
-  NetworkError,
-} from '../../../types/ai';
+import { InvalidApiKeyError } from '../../../types/ai';
 
 const { mockFetch } = vi.hoisted(() => {
   return {
