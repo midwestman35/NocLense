@@ -9,7 +9,6 @@
     "core:default",
     "dialog:default",
     "dialog:allow-open",
-    "dialog:allow-save",
     "fs:default",
     "fs:allow-open",
     "fs:allow-read-file",
@@ -52,10 +51,10 @@
           "url": "https://**.datadoghq.com/**"
         },
         {
-          "url": "https://**.atlassian.net/**"
+          "url": "https://**.datadoghq.eu/**"
         },
         {
-          "url": "https://generativelanguage.googleapis.com/**"
+          "url": "https://**.atlassian.net/**"
         }
       ]
     }
