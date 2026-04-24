@@ -11,6 +11,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { useLogContext } from '../contexts/LogContext';
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
 import { useAnimeStagger } from '../utils/anime';
+import { markImport } from '../utils/perfMarks';
 import type { LogEntry } from '../types';
 import LogRow from './LogRow';
 import LogTabs from './LogTabs';
@@ -220,6 +221,14 @@ const LogViewer = forwardRef<LogViewerHandle, LogViewerProps>(function LogViewer
   useEffect(() => {
     rowVirtualizer.measure();
   }, [activeTab, expandedIds, rowVirtualizer, viewItems.length]);
+
+  const firstPaintMarkedRef = useRef(false);
+  useEffect(() => {
+    if (!firstPaintMarkedRef.current && viewItems.length > 0) {
+      firstPaintMarkedRef.current = true;
+      markImport('logviewer.first-paint', { viewItemCount: viewItems.length });
+    }
+  }, [viewItems.length]);
 
   useEffect(() => {
     if (!useIndexedDBMode || !visibleRange || (visibleRange.start === 0 && visibleRange.end === 1)) return;

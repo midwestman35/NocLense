@@ -10,6 +10,7 @@ import type { ImportFileSource } from '../services/importFileSource';
 import { cleanupLogEntry } from './messageCleanup';
 import { dbManager } from './indexedDB';
 import { formatLogTimestamp } from './logTimestamp';
+import { markImport, resetImportPerf } from './perfMarks';
 import Papa from 'papaparse';
 
 /**
@@ -1382,6 +1383,8 @@ const parseLogFileStreamingToIndexedDB = async (
     onProgress?: (progress: number) => void,
     timezone?: string,
 ): Promise<{ totalParsed: number; minTimestamp: number; maxTimestamp: number }> => {
+    resetImportPerf();
+    markImport('parser.idb.start', { name: file.name, size: file.size });
     const ocSniff = await readImportFileSliceText(file, 0, Math.min(OPERATOR_CLIENT_SNIFF_BYTES, file.size));
     if (isOperatorClientLogText(ocSniff)) {
         return parseOperatorClientLogStreamingToIndexedDB(file, fileColor, startId, onProgress, timezone);
@@ -1389,6 +1392,7 @@ const parseLogFileStreamingToIndexedDB = async (
 
     // Initialize IndexedDB
     await dbManager.init();
+    markImport('parser.idb.db-ready');
     
     const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB chunks
     const BATCH_SIZE = 500; // Write to IndexedDB in batches of 500
@@ -1593,6 +1597,7 @@ const parseLogFileStreamingToIndexedDB = async (
 
     // Write remaining batch
     await writeBatch();
+    markImport('parser.idb.batches-flushed', { totalParsed });
 
     if (onProgress) onProgress(0.95);
 
@@ -1602,7 +1607,7 @@ const parseLogFileStreamingToIndexedDB = async (
     if (!existingFileNames.includes(file.name)) {
         existingFileNames.push(file.name);
     }
-    
+
     await dbManager.updateMetadata({
         totalLogs: (existingMetadata?.totalLogs || 0) + totalParsed,
         fileNames: existingFileNames,
@@ -1613,6 +1618,7 @@ const parseLogFileStreamingToIndexedDB = async (
     });
 
     if (onProgress) onProgress(1.0);
+    markImport('parser.idb.complete', { totalParsed });
 
     return { totalParsed, minTimestamp, maxTimestamp };
 };

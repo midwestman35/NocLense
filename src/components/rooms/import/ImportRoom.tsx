@@ -7,6 +7,7 @@ import { dbManager } from '../../../utils/indexedDB';
 import { appendLogsToIndexedDB, importFiles, importPastedLogs } from '../../../services/importService';
 import type { ImportFileSource } from '../../../services/importFileSource';
 import { importNoclenseFile } from '../../../services/noclenseImporter';
+import { markImport } from '../../../utils/perfMarks';
 import { Badge, Button, Card, CardContent, CardHeader, Icon, Input, useToast } from '../../ui';
 import { ImportDropzone } from './ImportDropzone';
 import { ImportProgress } from './ImportProgress';
@@ -195,17 +196,20 @@ export function ImportRoom({
 
       const nextId = await getNextLogId();
       const shouldUseIndexedDB = useIndexedDBMode || logs.length === 0;
+      markImport('importroom.import-start', { fileCount: files.length, useIndexedDB: shouldUseIndexedDB });
       const result = await importFiles(files, {
         sourceType,
         startId: nextId,
         onProgress: setParsingProgress,
         useIndexedDB: shouldUseIndexedDB,
       });
+      markImport('importroom.import-return', { usedIndexedDB: result.usedIndexedDB, logCount: result.logs.length });
 
       let storageMode: 'memory' | 'indexeddb' = 'memory';
 
       if (result.usedIndexedDB) {
         await enableIndexedDBMode();
+        markImport('importroom.mode-flip');
         storageMode = 'indexeddb';
       } else if (useIndexedDBMode && result.logs.length > 0) {
         await appendLogsToIndexedDB(result.logs, result.datasets);

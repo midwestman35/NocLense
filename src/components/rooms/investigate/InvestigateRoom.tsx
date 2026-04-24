@@ -1,5 +1,6 @@
-import { type JSX, type Ref } from 'react';
+import { type JSX, type Ref, useEffect } from 'react';
 import { FileText } from 'lucide-react';
+import { markImport } from '../../../utils/perfMarks';
 import { WorkspaceCard } from '../../workspace/WorkspaceCard';
 import { CARD_GRID_CLASSES } from '../../workspace/WorkspaceGrid';
 import type { LogViewerHandle } from '../../LogViewer';
@@ -45,6 +46,10 @@ export function InvestigateRoom({
   onSetupConsumed,
   onCitationClick,
 }: InvestigateRoomProps): JSX.Element {
+  useEffect(() => {
+    markImport('investigate.mount');
+  }, []);
+
   return (
     <>
       <WorkspaceCard

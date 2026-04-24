@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { emit, listen } from '@tauri-apps/api/event';
+import { markImport } from '../utils/perfMarks';
 
 const FILE_CHUNK_EVENT = 'file-chunk';
 const FILE_CHUNK_ACK_EVENT = 'file-chunk-ack';
@@ -55,7 +56,12 @@ class FileStreamService {
     const queuedChunks: FileChunkPayload[] = [];
     const queuedErrors: FileChunkErrorPayload[] = [];
 
+    let firstChunkSeen = false;
     const processChunk = async (payload: FileChunkPayload) => {
+      if (!firstChunkSeen) {
+        firstChunkSeen = true;
+        markImport('stream.first-chunk', { offset: payload.offset, byteLength: payload.bytesBase64.length });
+      }
       const bytes = decodeBase64Bytes(payload.bytesBase64);
       const text = decoder.decode(bytes, { stream: !payload.isLast });
       await onChunk({
@@ -70,6 +76,7 @@ class FileStreamService {
       });
 
       if (payload.isLast) {
+        markImport('stream.last-chunk', { offset: payload.offset });
         resolveDone();
       }
     };
@@ -103,10 +110,12 @@ class FileStreamService {
     });
 
     try {
+      markImport('stream.invoke.start', { path, chunkSizeBytes });
       const handle = await invoke<FileStreamHandle>('stream_file_chunks', {
         path,
         chunkSizeKb: Math.max(1, Math.ceil(chunkSizeBytes / 1024)),
       });
+      markImport('stream.invoke.return', { streamId: handle.streamId, totalBytes: handle.totalBytes });
       streamId = handle.streamId;
 
       for (const payload of queuedErrors) {
