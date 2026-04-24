@@ -5,5 +5,29 @@
   "codeReview": {
     "requireTestsForBehaviorChanges": true,
     "focus": ["regressions", "performance", "security"]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "conditions": [{ "type": "path", "pattern": "src/components/**" }],
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npm run lint; npm run test:run; if (Select-String -Path src\\* -Pattern 'electronAPI' -Recurse -Quiet) { exit 1 }; if (Select-String -Path src\\components\\* -Pattern '@keyframes nl-' -Recurse -Quiet) { exit 1 }; if (Select-String -Path src\\* -Pattern 'window.MacWindow' -Recurse -Quiet) { exit 1 }"
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "conditions": [{ "type": "path", "pattern": "src-tauri/capabilities/default.json" }],
+        "hooks": [
+          {
+            "type": "command",
+            "command": "Write-Host 'Reminder: re-audit src-tauri/capabilities/default.json against every vendor service, HTTP host, dialog scope, and fs scope before committing.'"
+          }
+        ]
+      }
+    ]
   }
 }
