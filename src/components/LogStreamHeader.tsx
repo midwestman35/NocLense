@@ -38,7 +38,7 @@ export function LogHeader() {
   };
 
   return (
-    <div className="log-grid sticky top-0 z-10 h-8 items-center border-b border-[var(--border)] bg-[var(--card)] px-2 text-[11px] font-medium text-[var(--muted-foreground)]">
+    <div className="log-grid sticky top-0 z-10 h-8 items-center border-b border-[var(--border)] bg-transparent px-2 text-[11px] font-medium text-[var(--muted-foreground)]">
       <div className="text-center">#</div>
       <button type="button" className="flex items-center gap-1 hover:text-[var(--foreground)]" onClick={() => toggleSort('timestamp')}>
         Timestamp
@@ -157,7 +157,7 @@ export function TimeWindowStrip() {
   }, [filteredLogs]);
 
   return (
-    <div className="shrink-0 border-b border-[var(--border)] bg-[var(--card)]">
+    <div className="shrink-0 border-b border-[var(--border)] bg-transparent">
       <div className="flex h-9 items-center gap-3 px-3 text-xs">
         <button type="button" onClick={() => setIsOpen((current) => !current)} className="flex items-center gap-1 text-[var(--foreground)]">
           {isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}

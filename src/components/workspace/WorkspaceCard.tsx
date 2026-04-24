@@ -165,7 +165,8 @@ export function WorkspaceCard({
         onClick={() => focusCtx.toggleFocus(id)}
         className={clsx(
           'flex w-full items-center gap-2 px-3 text-left',
-          'rounded-[var(--card-radius)] border bg-[var(--card)]',
+          'rounded-[var(--card-radius)] border',
+          'bg-[linear-gradient(180deg,rgba(15,19,25,0.94),rgba(10,13,18,0.96))]',
           'border-[var(--card-border)] hover:border-[var(--card-border-hover)]',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--card-border-hover)]',
           'transition-[transform,border-color]',
@@ -197,7 +198,9 @@ export function WorkspaceCard({
       data-focus-target={isFocused ? 'true' : 'false'}
       className={clsx(
         'flex flex-col overflow-hidden',
-        'rounded-[var(--card-radius)] border bg-[var(--card)]',
+        'rounded-[var(--card-radius)] border',
+        'bg-[linear-gradient(180deg,rgba(15,19,25,0.94),rgba(10,13,18,0.96))]',
+        'shadow-[0_12px_70px_-60px_rgba(142,240,183,0.5)]',
         'border-[var(--card-border)]',
         'hover:border-[var(--card-border-hover)]',
         // Phase 04.5 Direction C — hover lift via spring curve.

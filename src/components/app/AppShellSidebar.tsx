@@ -1,37 +1,66 @@
 import type { JSX } from 'react';
 import { Button, Icon, Sidebar as UiSidebar, SidebarItem, SidebarProvider } from '../ui';
+import { TuiSpinner } from '../loading/TuiSpinner';
 
-interface DashboardSidebarProps {
+export type ShellRoom = 'home' | 'import' | 'investigate' | 'submit';
+
+interface AppShellSidebarProps {
+  activeRoom: ShellRoom;
+  onNavigate: (room: ShellRoom) => void;
   openCount: number;
   closedCount: number;
-  onOpenWorkspace: () => void;
-  onResetAuth: () => void;
+  /** Optional primary action rendered at the bottom of the sidebar */
+  primaryAction?: {
+    label: string;
+    onClick: () => void;
+  };
 }
 
-export function DashboardSidebar({
+export function AppShellSidebar({
+  activeRoom,
+  onNavigate,
   openCount,
   closedCount,
-  onOpenWorkspace,
-  onResetAuth,
-}: DashboardSidebarProps): JSX.Element {
+  primaryAction,
+}: AppShellSidebarProps): JSX.Element {
   return (
     <SidebarProvider>
       <UiSidebar className="w-[280px] shrink-0 px-4 py-5">
         <div className="flex items-center gap-3 border-b border-[var(--line)] pb-5">
-          <div className="flex h-10 w-10 items-center justify-center rounded-[10px] border border-[rgba(142,240,183,0.25)] bg-[linear-gradient(160deg,#1f5a3f,#0a1e15)]">
-            <Icon name="radar" size={18} className="text-[var(--mint)]" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-sm font-medium tracking-[-0.02em] text-[var(--ink-0)]">NocLense</p>
-            <p className="mono text-[10px] uppercase tracking-[0.16em] text-[var(--ink-3)]">Carbyne · NOC</p>
+          <div className="flex h-10 w-10 items-center justify-center rounded-[10px] border border-[rgba(142,240,183,0.25)] bg-[linear-gradient(160deg,#1f5a3f,#0a1e15)] text-[var(--mint)]">
+            <TuiSpinner
+              decorative
+              kind="braille"
+              className="text-[18px] leading-none"
+            />
           </div>
         </div>
 
         <div className="mt-5 space-y-2">
-          <SidebarItem active icon={<Icon name="activity" size={16} />} label="Home" />
-          <SidebarItem icon={<Icon name="import" size={16} />} label="Import room" onClick={onOpenWorkspace} />
-          <SidebarItem icon={<Icon name="radar" size={16} />} label="Investigate room" onClick={onOpenWorkspace} />
-          <SidebarItem icon={<Icon name="check" size={16} />} label="Submit room" onClick={onOpenWorkspace} />
+          <SidebarItem
+            active={activeRoom === 'home'}
+            icon={<Icon name="activity" size={16} />}
+            label="Home"
+            onClick={() => onNavigate('home')}
+          />
+          <SidebarItem
+            active={activeRoom === 'import'}
+            icon={<Icon name="import" size={16} />}
+            label="Import room"
+            onClick={() => onNavigate('import')}
+          />
+          <SidebarItem
+            active={activeRoom === 'investigate'}
+            icon={<Icon name="radar" size={16} />}
+            label="Investigate room"
+            onClick={() => onNavigate('investigate')}
+          />
+          <SidebarItem
+            active={activeRoom === 'submit'}
+            icon={<Icon name="check" size={16} />}
+            label="Submit room"
+            onClick={() => onNavigate('submit')}
+          />
         </div>
 
         <div className="mt-6 rounded-[var(--radius-panel)] border border-[var(--line)] bg-[rgba(255,255,255,0.02)] p-4">
@@ -52,16 +81,14 @@ export function DashboardSidebar({
           </div>
         </div>
 
-        <div className="mt-auto space-y-2 pt-6">
-          <Button type="button" variant="ghost" className="w-full justify-start" onClick={onOpenWorkspace}>
-            <Icon name="plus" size={14} />
-            Open workspace
-          </Button>
-          <Button type="button" variant="ghost" className="w-full justify-start text-[var(--ink-2)]" onClick={onResetAuth}>
-            <Icon name="lock" size={14} />
-            Sign out
-          </Button>
-        </div>
+        {primaryAction && (
+          <div className="mt-auto space-y-2 pt-6">
+            <Button type="button" variant="ghost" className="w-full justify-start" onClick={primaryAction.onClick}>
+              <Icon name="plus" size={14} />
+              {primaryAction.label}
+            </Button>
+          </div>
+        )}
       </UiSidebar>
     </SidebarProvider>
   );

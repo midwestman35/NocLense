@@ -8,6 +8,7 @@
 import { useState, useCallback, useMemo, useRef } from 'react';
 import { useLogContext } from '../../contexts/LogContext';
 import { useAI } from '../../contexts/AIContext';
+import { RoomLiveStateProvider } from '../../contexts/RoomLiveStateContext';
 import { RoomRouter } from './RoomRouter';
 import type { Phase } from './types';
 
@@ -31,6 +32,13 @@ import { FolderPlus, Download, Trash2 } from 'lucide-react';
 import type { InvestigationSetup } from '../../types/investigation';
 import type { ZendeskTicket } from '../../services/zendeskService';
 import { useEvidence } from '../../contexts/EvidenceContext';
+import { AppShellSidebar, type ShellRoom } from '../app/AppShellSidebar';
+
+function phaseToRoom(phase: Phase): ShellRoom {
+  if (phase === 'import' || phase === 'setup') return 'import';
+  if (phase === 'investigate') return 'investigate';
+  return 'submit';
+}
 
 function formatTicketLabel(value: string | null | undefined): string | undefined {
   if (!value) return undefined;
@@ -42,7 +50,11 @@ function formatTicketLabel(value: string | null | undefined): string | undefined
     .join(' ');
 }
 
-export function NewWorkspaceLayout() {
+interface NewWorkspaceLayoutProps {
+  onBackToDashboard?: () => void;
+}
+
+export function NewWorkspaceLayout({ onBackToDashboard }: NewWorkspaceLayoutProps = {}) {
   const {
     logs,
     selectedLogId,
@@ -147,13 +159,28 @@ export function NewWorkspaceLayout() {
   // ── Submit Room ────────────────────────────────────────────────
   const submitContent = <SubmitRoom />;
 
+  const handleShellNavigate = useCallback((room: ShellRoom) => {
+    if (room === 'home') {
+      onBackToDashboard?.();
+      return;
+    }
+    setExplicitPhase(room);
+  }, [onBackToDashboard]);
+
   return (
-    <>
+    <RoomLiveStateProvider>
       <CaseStateBridge />
-      <RoomRouter
-        phase={derivedPhase}
-        onPhaseChange={handlePhaseChange}
-        ticketId={activeTicket ? String(activeTicket.id) : undefined}
+      <div className="flex h-screen w-full bg-[var(--bg-0)]">
+        <AppShellSidebar
+          activeRoom={phaseToRoom(derivedPhase)}
+          onNavigate={handleShellNavigate}
+          openCount={logs.length > 0 ? 1 : 0}
+          closedCount={0}
+        />
+        <RoomRouter
+          phase={derivedPhase}
+          onPhaseChange={handlePhaseChange}
+          ticketId={activeTicket ? String(activeTicket.id) : undefined}
         priorityLabel={formatTicketLabel(activeTicket?.priority)}
         statusLabel={formatTicketLabel(activeTicket?.status)}
         headerActions={logs.length > 0 ? (
@@ -177,11 +204,12 @@ export function NewWorkspaceLayout() {
             </Button>
           </>
         ) : undefined}
-        importContent={importContent}
-        setupContent={setupContent}
-        investigateContent={investigateContent}
-        submitContent={submitContent}
-      />
+          importContent={importContent}
+          setupContent={setupContent}
+          investigateContent={investigateContent}
+          submitContent={submitContent}
+        />
+      </div>
 
       {/* Modals */}
       {investigationModalTicketId && (
@@ -212,6 +240,6 @@ export function NewWorkspaceLayout() {
       />
 
       <ExportModal isOpen={isExportModalOpen} onClose={() => setIsExportModalOpen(false)} />
-    </>
+    </RoomLiveStateProvider>
   );
 }

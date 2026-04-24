@@ -5,8 +5,6 @@ import { Button } from '../ui/Button';
 import { PhaseDots } from './PhaseDots';
 import type { Phase } from './types';
 
-const APP_ICON_SRC = `${import.meta.env.BASE_URL}app-icons/noclense-icon-lens-trace.svg`;
-
 interface PhaseHeaderProps {
   phase: Phase;
   onPhaseChange: (phase: Phase) => void;
@@ -33,41 +31,19 @@ export function PhaseHeader({
   }, []);
 
   return (
-    <header
-      className="relative h-[var(--header-height)] shrink-0 border-b border-[var(--border)]"
-      style={{ backgroundImage: 'var(--header-surface)' }}
-    >
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{ backgroundImage: 'var(--header-highlight)' }}
-      />
+    <header className="relative h-[var(--header-height)] shrink-0 border-b border-[var(--line)] bg-[linear-gradient(180deg,rgba(15,19,25,0.94),rgba(10,13,18,0.96))] text-[var(--ink-1)] shadow-[0_12px_70px_-60px_rgba(142,240,183,0.5)]">
       <div className="relative flex h-full items-center px-4">
-        {/* Left: Logo */}
-        <div className="flex items-center gap-2.5 text-sm font-semibold tracking-tight text-[var(--foreground)]">
-          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-[var(--button-subtle-border)] bg-[var(--button-subtle-surface)] shadow-[var(--shadow-flat)]">
-            <img
-              src={APP_ICON_SRC}
-              alt="NocLense icon"
-              className="h-[18px] w-[18px] shrink-0 rounded-[var(--radius-xs)]"
-            />
-          </div>
-          <span className="leading-none">NocLense</span>
-        </div>
-
         {/* Center-left: Ticket context (investigate + submit only) */}
         {ticketId && phase !== 'import' && (
-          <div className="ml-6 flex items-center gap-2">
-            <span className="text-xs font-mono tabular-nums text-[var(--muted-foreground)]">#{ticketId}</span>
+          <div className="flex items-center gap-2">
+            <span className="mono text-xs tabular-nums text-[var(--ink-2)]">#{ticketId}</span>
             {priorityLabel && (
-              <span className="px-2 py-0.5 rounded-full text-[9px] font-semibold bg-[var(--destructive)]/12 text-[var(--destructive)] border border-[var(--destructive)]/20">
+              <span className="rounded-full border border-[rgba(255,107,122,0.2)] bg-[rgba(255,107,122,0.1)] px-2 py-0.5 text-[9px] font-semibold text-[var(--red)]">
                 {priorityLabel}
               </span>
             )}
             {statusLabel && (
-              <span
-                className="text-[10px] text-[var(--muted-foreground)]"
-                style={{ textWrap: 'pretty' }}
-              >
+              <span className="text-[10px] text-[var(--ink-3)]" style={{ textWrap: 'pretty' }}>
                 {statusLabel}
               </span>
             )}
@@ -76,7 +52,7 @@ export function PhaseHeader({
 
         {/* Center: Action buttons (optional) */}
         {actions && (
-          <div className="ml-auto flex items-center gap-1 shrink-0">
+          <div className="ml-auto flex shrink-0 items-center gap-1">
             {actions}
           </div>
         )}
@@ -85,18 +61,17 @@ export function PhaseHeader({
         <div className={`${actions ? 'ml-4' : 'ml-auto'} flex items-center gap-3`}>
           <PhaseDots current={phase} onNavigate={onPhaseChange} />
 
-          <div className="w-px h-5 bg-[var(--border)]" />
+          <div className="h-5 w-px bg-[var(--line)]" />
 
           <Button
             variant="icon"
             size="sm"
             onClick={handleThemeToggle}
             aria-label="Toggle theme"
-            className="border border-[var(--button-subtle-border)] bg-[var(--button-subtle-surface)] text-[var(--foreground)] hover:bg-[var(--button-subtle-hover)]"
+            className="border border-[var(--line)] bg-[rgba(255,255,255,0.02)] text-[var(--ink-1)] hover:bg-[rgba(255,255,255,0.05)] hover:text-[var(--ink-0)]"
           >
             {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
           </Button>
-
         </div>
       </div>
     </header>

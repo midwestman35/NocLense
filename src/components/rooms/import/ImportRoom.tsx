@@ -285,7 +285,9 @@ export function ImportRoom({
     <Card
       variant={embedded ? 'default' : 'elevated'}
       className={[
-        embedded ? 'w-full border-[var(--line)] bg-[var(--bg-2)]' : 'w-full max-w-5xl',
+        embedded
+          ? 'w-full border-[var(--line)] bg-[var(--bg-2)]'
+          : 'w-full max-w-5xl bg-[linear-gradient(180deg,rgba(15,19,25,0.94),rgba(10,13,18,0.96))] shadow-[0_12px_70px_-60px_rgba(142,240,183,0.5)]',
         'overflow-hidden',
       ].join(' ')}
     >

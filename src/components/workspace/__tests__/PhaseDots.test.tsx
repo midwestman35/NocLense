@@ -31,12 +31,15 @@ describe('PhaseDots', () => {
     expect(onNavigate).toHaveBeenCalledWith('import');
   });
 
-  it('does not call onNavigate when clicking future phase', () => {
+  it('calls onNavigate when clicking a future phase', () => {
+    // Post-07C.2 polish: forward navigation is now allowed. Only the
+    // active phase is click-inert; completed and future phases both
+    // dispatch onNavigate so operators can jump the flow.
     const onNavigate = vi.fn();
     render(<PhaseDots current="import" onNavigate={onNavigate} />);
     const buttons = screen.getAllByRole('button');
     fireEvent.click(buttons[3]);
-    expect(onNavigate).not.toHaveBeenCalled();
+    expect(onNavigate).toHaveBeenCalledWith('submit');
   });
 
   it('does not call onNavigate when clicking current phase', () => {

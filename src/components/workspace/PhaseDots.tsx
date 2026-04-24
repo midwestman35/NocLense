@@ -31,15 +31,15 @@ export function PhaseDots({ current, onNavigate, className }: PhaseDotsProps) {
               aria-current={isActive ? 'step' : undefined}
               data-completed={isCompleted ? 'true' : undefined}
               onClick={() => {
-                if (isCompleted) onNavigate(phase);
+                if (!isActive) onNavigate(phase);
               }}
               className={clsx(
                 'flex items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-medium transition-[background-color,color,transform] duration-300 motion-reduce:transition-none',
-                isActive && 'text-[var(--phase-dot-active)]',
-                isCompleted && 'text-[var(--phase-dot-complete)] cursor-pointer hover:text-[var(--phase-dot-active)]',
-                isFuture && 'text-[var(--phase-dot-inactive)] cursor-default',
+                'cursor-pointer hover:text-[var(--phase-dot-active)]',
+                isActive && 'text-[var(--phase-dot-active)] cursor-default',
+                isCompleted && 'text-[var(--phase-dot-complete)]',
+                isFuture && 'text-[var(--phase-dot-inactive)]',
               )}
-              disabled={isFuture}
             >
               <span
                 className={clsx(

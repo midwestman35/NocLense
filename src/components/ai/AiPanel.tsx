@@ -149,13 +149,14 @@ export default function AiPanel({
         position: 'fixed', top: 0, right: 0, bottom: 0, zIndex: 200,
         width: 'min(55vw, 960px)',
         display: 'flex', flexDirection: 'column',
-        backgroundColor: 'var(--card)', color: 'var(--card-foreground)',
+        background: 'linear-gradient(180deg,rgba(15,19,25,0.94),rgba(10,13,18,0.96))',
+        color: 'var(--card-foreground)',
         boxShadow: '-8px 0 32px rgba(0,0,0,0.35)',
         borderLeft: '1px solid var(--border)',
       }
     : {
         width: '100%', height: '100%', display: 'flex', flexDirection: 'column',
-        backgroundColor: 'var(--card)', color: 'var(--card-foreground)',
+        background: 'transparent', color: 'var(--card-foreground)',
       };
 
   return (

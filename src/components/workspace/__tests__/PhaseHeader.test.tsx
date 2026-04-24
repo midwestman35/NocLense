@@ -8,9 +8,10 @@ vi.mock('../../../utils/theme', () => ({
 }));
 
 describe('PhaseHeader', () => {
-  it('renders logo and phase dots', () => {
+  it('renders phase dots', () => {
+    // Logo moved to AppShellSidebar in the post-07C.2 polish pass; header
+    // is now chrome-only (ticket context + phase dots + theme toggle).
     render(<PhaseHeader phase="import" onPhaseChange={() => {}} />);
-    expect(screen.getByText('NocLense')).toBeInTheDocument();
     expect(screen.getByLabelText('Import')).toBeInTheDocument();
     expect(screen.getByLabelText('Investigate')).toBeInTheDocument();
     expect(screen.getByLabelText('Submit')).toBeInTheDocument();
@@ -67,15 +68,14 @@ describe('PhaseHeader', () => {
     expect(ticketEl.className).toContain('tabular-nums');
   });
 
-  it('consumes header background + highlight tokens (no hardcoded colors)', () => {
+  it('applies a gradient header background (guards against plain hardcoded colors)', () => {
     const { container } = render(
       <PhaseHeader phase="import" onPhaseChange={() => {}} />
     );
     const header = container.querySelector('header')!;
-    // The header applies background via inline style using --header-surface.
-    // We assert the token reference is present in inline style so any
-    // future refactor that hardcodes a color surfaces as a test failure.
-    const style = header.getAttribute('style') ?? '';
-    expect(style).toContain('var(--header-surface)');
+    // Post-07C.2 polish: header migrated from inline var(--header-surface)
+    // to an arbitrary-value Tailwind gradient class. A naked bg-red-500 /
+    // bg-white / similar regression would fail this matcher.
+    expect(header.className).toMatch(/bg-\[linear-gradient/);
   });
 });

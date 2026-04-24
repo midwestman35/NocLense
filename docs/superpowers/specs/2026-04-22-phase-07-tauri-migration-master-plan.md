@@ -11,7 +11,9 @@
 |---|---|---|
 | v1 | 2026-04-22 | Initial: 07A tokens → 07G Electron archive. Built against `NocLense Standalone.zip` deck (15-slide pre-Tauri lock-in). |
 | v2 | 2026-04-22 | Phase loop locked (Gemini pre-flight → Claude finalize → Codex build → Claude review → Gemini audit + docs). |
-| **v3** | **2026-04-23** | **Full re-sequence after user correction.** New primary design source is the Claude Design handoff bundle at `reference/handoff-2026-04-23/` (JSX component files, not a deck). Four rooms (Import / Setup / Investigate / Submit) + Auth + Dashboard top-level screens, all greenfield. Tauri scaffold + Electron kill + Vercel kill compressed into 07B (same phase, no rollback window per user direction C6:i). 07A.4–07A.7 reverted (reskin on doomed components); 07A pre-work split reverted (file is deleted during port). 07A now stops at 07A.3. |
+| v3 | 2026-04-23 | Full re-sequence after user correction. New primary design source is the Claude Design handoff bundle at `reference/handoff-2026-04-23/` (JSX component files, not a deck). Four rooms (Import / Setup / Investigate / Submit) + Auth + Dashboard top-level screens, all greenfield. Tauri scaffold + Electron kill + Vercel kill compressed into 07B (same phase, no rollback window per user direction C6:i). 07A.4–07A.7 reverted (reskin on doomed components); 07A pre-work split reverted (file is deleted during port). 07A now stops at 07A.3. |
+| **v4** | **2026-04-23** | **Insert 07J — UI Review + Testing Runbooks + Claude Code Automation.** Sequenced between 07H and 07I at user direction. Triggered by focus-shift: once the full surface (Auth + Dashboard + 4 rooms) is ported at end of 07H, build a reusable QA + automation layer before final chrome/docs. 07J deliverables: (a) standalone-ship inventory, (b) manual runbooks per screen, (c) broad Claude Code automation — Playwright-Tauri harness, slash commands, settings.json hooks, agent workflows, MCP surface, and asset-driven navigation so Claude can drive the entire app without human babysitting. 07I scope unchanged; batch map re-cut accordingly (see omnibus dispatch doc). |
+| **v5** | **2026-04-23** | **Design pivot: auth descoped.** SSO not approved; distribution is closed (package hand-delivered to selected users). No credentials, no identity provider, no session tokens. 07C.1 Auth screen gets reworked into a minimalist premium splash (logo + tagline + single Continue CTA) under new slice **07C.2 Splash rework**, inserted between Batch C close and Batch D (07J) kickoff. §8 and §9 updated to reflect the descope. 07J.1 inventory row for real auth identity provider integration is removed from carry-forward (nothing to defer). |
 
 ## 1. Context
 
@@ -42,12 +44,13 @@ AWS proxy. Zero backend, $0 recurring.
 |---|---|---|
 | **07A** | Tokens + fonts + Tailwind v4 `@theme` infra (obsidian + phosphor, dark-only) | SHIPPED. 4 commits kept (`4631955`, `c09155e`, `8c0e17c`, `ab84d7e`). `07A.4–07A.7` + pre-work split reverted at `b0246d5`. |
 | **07B** | **Tauri scaffold + Electron kill + Vercel kill + v5.1 keyring** | Next. No rollback — delete Electron + Vercel files Day 1 of 07B, fix Tauri incrementally. |
-| **07C** | Port **Auth screen** from `reference/handoff-2026-04-23/project/auth.jsx` | Greenfield. Real flow per user decision (see Open Questions §9). |
+| **07C** | Port **Auth screen** from `reference/handoff-2026-04-23/project/auth.jsx`, then rework to premium splash | 07C.0 primitives rebuild SHIPPED (`7d3b379`). 07C.1 Auth port SHIPPED (`42f3718`). **07C.2 Splash rework NEXT** — auth descoped per v5 revision; screen becomes logo + tagline + Continue CTA (closed distribution, no credentials). |
 | **07D** | Port **Dashboard** from `dashboard.jsx` | Greenfield. Reads existing Case Library + recent investigations. |
 | **07E** | Port **Import Room** from `room-import.jsx` | Replaces existing Import Room; rewires to existing `parser.ts` + `indexedDB.ts`. |
 | **07F** | Port **Setup Room** from `room-setup.jsx` | NEW 4th room — Investigation Setup is promoted from modal to room. Rewires to Zendesk/Datadog/attachment services. |
 | **07G** | Port **Investigate Room** from `room-investigate.jsx` | Full feature parity: virtualized log stream, correlation graph (G6), AI assistant, evidence panel, similar-tickets, citation jump, filter chips. Replaces `NewWorkspaceLayout` investigate bucket. |
 | **07H** | Port **Submit Room** from `room-submit.jsx` | Full feature parity: closure note + evidence summary + handoff. Replaces existing Submit. Phase dots restructured 3→4. |
+| **07J** | **UI Review + Testing Runbooks + Claude Code Automation** (v4 insert) | Focus-shift sub-phase. Inventory standalone-ship remainder; author manual runbooks per screen; build a broad, asset-driven Claude Code automation harness so Claude can drive the entire app. Slice plan: `docs/superpowers/specs/2026-04-23-phase-07j-review-and-test-infra-design.md`. |
 | **07I** | Final native chrome + Electron archive + README/docs rewrite (Gemini primary) | End of phase. Merge to `main`. |
 
 ## 3. Agent responsibilities (per HANDOFF.md role framing, locked 2026-04-22)
@@ -125,11 +128,13 @@ Handoff constraint: *"Match visual output; don't copy internal structure unless 
 - Tauri auto-updater (defer to Phase 08 or later)
 - Mobile / Linux builds (Windows + macOS only)
 - Telemetry / analytics wiring (separate phase)
-- Real auth identity provider integration (decide during 07C dispatch — stub acceptable)
+- **Auth / identity provider integration — DESCOPED ENTIRELY (v5, 2026-04-23).** Distribution is closed: the Tauri bundle is hand-delivered to selected users. No login, no credentials, no session tokens, no SSO. The auth screen from 07C.1 is reworked in 07C.2 into a minimalist premium splash (logo + tagline + Continue CTA). Nothing to carry forward to Phase 08.
+
+The remaining four items are catalogued + prioritized in **07J.1 Standalone inventory** so they carry forward with a known disposition (deferred / next-phase / post-merge). 07J.1 also captures YELLOWs accumulated during 07B–07H and any ports/features deliberately descoped mid-stream.
 
 ## 9. Open questions (resolve during sub-phase dispatches)
 
-- **07C Auth flow:** real identity provider (OIDC? local credentials hashed + stored via keyring?) or UI stub that always succeeds? Settle at 07C slice-plan draft.
+- ~~**07C Auth flow:** real identity provider (OIDC? local credentials hashed + stored via keyring?) or UI stub that always succeeds?~~ **Resolved v5 (2026-04-23): descoped entirely.** Closed distribution → no auth layer. 07C.2 reworks the screen into a premium splash.
 - **07D Dashboard data:** does it surface existing Case Library cases, recent investigations, neither, or something new? Read `dashboard.jsx` during 07D dispatch.
 - **Keep or replace `ui/*` primitives:** the handoff has its own `primitives.jsx` (Button, Input, Card, Chip, Tag, Kbd, Field). Decision: discard our current `src/components/ui/*` wholesale and rebuild from handoff — OR keep the API, re-skin the internals. Settle at 07C dispatch when we first need primitives.
 - **Phase 06C Case Library format:** does it carry forward unchanged? Check IndexedDB schema against Dashboard's data expectations at 07D.
@@ -167,3 +172,4 @@ For each of 07B–07I:
 - `npm run lint` at ≤ current error budget
 - README + USAGE_GUIDE + DEVELOPER_HANDOFF rewritten by Gemini and reflect the shipped state
 - No live references to Electron APIs, `electronAPI`, or Vercel anywhere in `src/`
+- **07J deliverables landed (v4):** standalone-ship inventory exists at `docs/testing/standalone-inventory.md`; runbooks exist at `docs/testing/runbooks/` for Auth, Dashboard, Import, Setup, Investigate, Submit, and cross-cutting (keyring, theme, resize, HMR); Claude Code automation harness exists at `docs/testing/automation/` + `tools/claude-automation/` and can drive the full app end-to-end from asset input without human intervention; `/smoke-tauri` slash command green against current HEAD.

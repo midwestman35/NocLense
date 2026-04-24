@@ -72,7 +72,7 @@ function InvestigateGridInner({
         style={{
           gridTemplateColumns: '1fr 80px',
           gridTemplateRows: '1fr',
-          background: 'var(--room-investigate-bg)',
+          background: 'linear-gradient(180deg,rgba(15,19,25,0.94),rgba(10,13,18,0.96))',
           transitionDuration: 'var(--room-transition-duration)',
           transitionTimingFunction: 'var(--room-transition-ease)',
         }}
@@ -112,7 +112,7 @@ function InvestigateGridInner({
       style={{
         gridTemplateColumns: '1fr 1fr 340px',
         gridTemplateRows: 'auto 1fr auto',
-        background: 'var(--room-investigate-bg)',
+        background: 'linear-gradient(180deg,rgba(15,19,25,0.94),rgba(10,13,18,0.96))',
         transitionDuration: 'var(--room-transition-duration)',
         transitionTimingFunction: 'var(--room-transition-ease)',
       }}
@@ -161,7 +161,7 @@ export function WorkspaceGrid({ layout, children, className }: WorkspaceGridProp
         className,
       )}
       style={{
-        background: 'var(--room-submit-glow)',
+        background: 'linear-gradient(180deg,rgba(15,19,25,0.94),rgba(10,13,18,0.96))',
         transitionTimingFunction: 'var(--room-transition-ease)',
       }}
     >

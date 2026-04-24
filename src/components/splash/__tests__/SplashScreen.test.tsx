@@ -8,7 +8,7 @@ describe('SplashScreen', () => {
 
     expect(screen.getByRole('heading', { name: 'NocLense' })).toBeInTheDocument();
     expect(screen.getByText('Standalone')).toBeInTheDocument();
-    expect(screen.getByText(/make the/i)).toHaveTextContent('Make the signal louder than the noise.');
+    expect(screen.getByRole('status', { name: /loading noclense/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Continue' })).toBeInTheDocument();
     expect(screen.queryByLabelText(/email/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/password/i)).not.toBeInTheDocument();

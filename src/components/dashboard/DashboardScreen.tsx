@@ -2,22 +2,21 @@ import { useEffect, useMemo, useState, type JSX } from 'react';
 import { caseLibraryService, type SimilarCaseMatch } from '../../services/caseLibraryService';
 import { caseRepository } from '../../services/caseRepository';
 import type { Case } from '../../types/case';
-import { Ambient, Button, Card, CardContent, Icon, MacWindow } from '../ui';
+import { Button, Card, CardContent, Icon } from '../ui';
+import { AppShellSidebar } from '../app/AppShellSidebar';
+import { LoadingLabel } from '../loading/LoadingLabel';
 import { ClosedRow } from './ClosedRow';
 import { ContinueCard } from './ContinueCard';
 import { InvestigationRow } from './InvestigationRow';
 import { LiveLogPeek } from './LiveLogPeek';
 import { MetricsStrip } from './MetricsStrip';
-import { DashboardSidebar } from './Sidebar';
 
 interface DashboardScreenProps {
   onOpenWorkspace: () => void;
-  onResetAuth: () => void;
 }
 
 export function DashboardScreen({
   onOpenWorkspace,
-  onResetAuth,
 }: DashboardScreenProps): JSX.Element {
   const [cases, setCases] = useState<Case[]>([]);
   const [similarMatches, setSimilarMatches] = useState<SimilarCaseMatch[]>([]);
@@ -86,7 +85,6 @@ export function DashboardScreen({
     [cases],
   );
   const leadCase = openCases[0] ?? cases[0] ?? null;
-  const greeting = getGreeting(new Date());
   const greetingDate = new Intl.DateTimeFormat('en-US', {
     weekday: 'long',
     month: 'short',
@@ -98,34 +96,30 @@ export function DashboardScreen({
   }).format(new Date());
 
   return (
-    <MacWindow
-      title="NocLense"
-      right={
-        <>
-          <span className="mono">⌘K</span>
-          <span aria-hidden="true">·</span>
-          <span className="mono text-[var(--mint)]">connected</span>
-        </>
-      }
-    >
-      <Ambient>
-        <div className="grid h-full grid-cols-1 xl:grid-cols-[280px_minmax(0,1fr)]">
-          <DashboardSidebar
-            openCount={openCases.length}
-            closedCount={closedCases.length}
-            onOpenWorkspace={onOpenWorkspace}
-            onResetAuth={onResetAuth}
-          />
+    <div className="flex h-screen w-full bg-[var(--bg-0)] text-[var(--ink-0)]">
+      <AppShellSidebar
+        activeRoom="home"
+        onNavigate={(room) => {
+          if (room === 'home') return;
+          onOpenWorkspace();
+        }}
+        openCount={openCases.length}
+        closedCount={closedCases.length}
+        primaryAction={{ label: 'Open workspace', onClick: onOpenWorkspace }}
+      />
 
-          <div className="relative min-w-0 overflow-hidden bg-[linear-gradient(180deg,var(--bg-0)_0%,var(--bg-1)_62%)]">
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_45%_at_80%_0%,rgba(142,240,183,0.08),transparent_72%)]" />
-            <div className="relative h-full overflow-y-auto px-6 py-8 sm:px-8 xl:px-12 xl:py-10">
+      <div className="relative flex-1 min-w-0 overflow-hidden">
+        <div className="relative h-full overflow-y-auto px-6 py-8 sm:px-8 xl:px-12 xl:py-10">
               <header className="mb-8 flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
                 <div className="space-y-3">
                   <p className="mono text-[11px] uppercase tracking-[0.16em] text-[var(--ink-3)]">{greetingDate}</p>
                   <div className="space-y-2">
                     <h1 className="text-4xl font-normal leading-none tracking-[-0.03em] text-[var(--ink-0)]">
-                      {greeting}, <span className="font-serif italic text-[var(--mint)]">operator</span>.
+                      <LoadingLabel
+                        text="Let's begin"
+                        ariaStatus="Let's begin"
+                        style={{ fontSize: 'inherit', letterSpacing: 'inherit', fontFamily: 'inherit' }}
+                      />
                     </h1>
                     <p className="max-w-[48rem] text-sm leading-6 text-[var(--ink-2)]">
                       {openCases.length > 0
@@ -203,12 +197,10 @@ export function DashboardScreen({
                     </section>
                   </>
                 )}
-              </div>
             </div>
-          </div>
         </div>
-      </Ambient>
-    </MacWindow>
+      </div>
+    </div>
   );
 }
 
@@ -243,9 +235,3 @@ function SectionHeader({ label, hint }: { label: string; hint: string }): JSX.El
   );
 }
 
-function getGreeting(date: Date): string {
-  const hour = date.getHours();
-  if (hour < 12) return 'Good morning';
-  if (hour < 18) return 'Good afternoon';
-  return 'Good evening';
-}

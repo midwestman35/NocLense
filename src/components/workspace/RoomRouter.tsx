@@ -62,7 +62,7 @@ export function RoomRouter({
   };
 
   return (
-    <div className="flex h-screen flex-col bg-[var(--background)] text-[var(--foreground)]">
+    <div className="flex h-full min-w-0 flex-1 flex-col bg-[var(--background)] text-[var(--foreground)]">
       <PhaseHeader
         phase={displayPhase}
         onPhaseChange={handlePhaseChange}
