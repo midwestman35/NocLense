@@ -103,6 +103,7 @@ Items surfaced during 07J.1 that don't belong to Phase 07 but shouldn't be lost.
 | 5.5 | Revisit MongoDB / backend architecture question from archived `docs/archive/2026-q1-architecture/LARGE_FILE_REVIEW.md` — decision has held (no backend, local-only), but worth a fresh look once user count grows | Archive reference | Phase 08 watch |
 | 5.6 | CI integration of `/smoke-tauri` runbook runner — GitHub Actions job that runs the harness on every PR | 07J slice plan §6 | Phase 08 |
 | 5.7 | Phase 06 leftover untracked files (`src/contexts/logContextObject.ts`, `useLogContext.ts`, etc.) — per-file audit to determine which are dead and which are in-progress work | §1.4 | 07I.a (if trivial) or Phase 08 |
+| 5.8 | Optional 07J.3.e MCP automation surface deferred. WebdriverIO driver + `/smoke-tauri` + `noclense-qa-runner` provide the repeatable primitive for Phase 07; MCP tools (`resource://app-state`, `navigate-to-room`, `import-log`, `query-dom`, `capture-state`) should be reconsidered in Phase 08 after the first runbook smokes are stable | 07J.3.e scope decision | Phase 08 |
 
 ---
 
