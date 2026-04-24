@@ -67,7 +67,7 @@ describe('DashboardScreen', () => {
     mockListCases.mockResolvedValue(cases);
     mockFindSimilar.mockResolvedValue(similarMatches);
 
-    render(<DashboardScreen onOpenWorkspace={vi.fn()} onResetAuth={vi.fn()} />);
+    render(<DashboardScreen onOpenWorkspace={vi.fn()} />);
 
     expect((await screen.findAllByText(/dispatch 4 cannot hear caller audio/i)).length).toBeGreaterThan(0);
     expect(screen.getByText(/open · 1/i)).toBeInTheDocument();
