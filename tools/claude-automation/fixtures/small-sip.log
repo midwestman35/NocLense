@@ -1,0 +1,7 @@
+2026-04-23T14:05:01.001Z INFO sip.call callId=a-1001 method=INVITE from=+13125550100 to=+13125550101 status=100 Trying
+2026-04-23T14:05:01.222Z INFO sip.call callId=a-1001 method=INVITE from=+13125550100 to=+13125550101 status=180 Ringing
+2026-04-23T14:05:04.812Z INFO sip.call callId=a-1001 method=INVITE from=+13125550100 to=+13125550101 status=200 OK
+2026-04-23T14:05:05.020Z INFO sip.call callId=a-1001 method=ACK from=+13125550100 to=+13125550101 status=sent
+2026-04-23T14:08:42.771Z WARN sip.call callId=a-1002 method=INVITE from=+13125550102 to=+13125550103 status=503 Service Unavailable trunk=primary
+2026-04-23T14:08:43.114Z INFO sip.call callId=a-1002 method=INVITE from=+13125550102 to=+13125550103 status=100 Trying trunk=secondary
+2026-04-23T14:08:46.901Z INFO sip.call callId=a-1002 method=BYE from=+13125550102 to=+13125550103 status=200 OK duration=3s

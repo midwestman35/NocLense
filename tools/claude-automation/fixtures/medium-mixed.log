@@ -1,0 +1,7 @@
+2026-04-23T15:10:00.000Z INFO datadog service=edge-gateway trace=tr-001 latency_ms=42 status=ok
+2026-04-23T15:10:01.000Z INFO sip.call callId=m-2001 method=INVITE src=10.10.1.15 dst=10.20.1.8 status=100 Trying
+2026-04-23T15:10:02.000Z WARN jira ticket=NOC-419 priority=high summary="Intermittent SIP trunk failures"
+2026-04-23T15:10:03.000Z ERROR zendesk ticket=45892 requester=ops@example.com message="Caller hears fast busy"
+2026-04-23T15:10:04.000Z INFO confluence page=runbook-ng911 section=failover action=referenced
+2026-04-23T15:10:05.000Z INFO sip.call callId=m-2001 method=INVITE src=10.10.1.15 dst=10.20.1.8 status=503 Service Unavailable
+2026-04-23T15:10:06.000Z INFO datadog service=edge-gateway trace=tr-001 latency_ms=910 status=degraded
