@@ -1,10 +1,13 @@
 import { createWriteStream, existsSync, mkdirSync } from 'node:fs';
 import { basename, dirname, isAbsolute, resolve } from 'node:path';
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { spawn, type ChildProcessByStdio } from 'node:child_process';
 import { once } from 'node:events';
-import net from 'node:net';
+import * as net from 'node:net';
+import type { Readable } from 'node:stream';
 import { remote, type Browser } from 'webdriverio';
 import { resolveTauriBinary } from './wdio.conf.ts';
+
+type TauriDriverProcess = ChildProcessByStdio<null, Readable, Readable>;
 
 export type RoomName = 'splash' | 'dashboard' | 'import' | 'setup' | 'investigate' | 'submit';
 
@@ -18,7 +21,7 @@ export interface StartAppOptions {
   reportRoot?: string;
 }
 
-let tauriDriver: ChildProcessWithoutNullStreams | null = null;
+let tauriDriver: TauriDriverProcess | null = null;
 let activeBrowser: Browser | null = null;
 let activeReportDir = '';
 
@@ -58,16 +61,17 @@ export async function startApp(options: StartAppOptions = {}): Promise<StartedAp
     ? ['--native-driver', process.env.TAURI_NATIVE_DRIVER_PATH]
     : [];
 
-  tauriDriver = spawn('tauri-driver', driverArgs, {
+  const driverProcess: TauriDriverProcess = spawn('tauri-driver', driverArgs, {
     cwd: process.cwd(),
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
   });
+  tauriDriver = driverProcess;
 
-  captureProcessLog(tauriDriver, resolve(activeReportDir, 'tauri-driver.log'));
+  captureProcessLog(driverProcess, resolve(activeReportDir, 'tauri-driver.log'));
   await Promise.race([
     waitForPort(4444, '127.0.0.1', 15_000),
-    once(tauriDriver, 'exit').then(([code]) => {
+    once(driverProcess, 'exit').then(([code]) => {
       throw new Error(`tauri-driver exited before accepting connections (code ${code ?? 'unknown'})`);
     }),
   ]);
@@ -191,7 +195,7 @@ function assertBrowser(): void {
   if (!activeBrowser) throw new Error('NocLense automation browser is not running. Call startApp() first.');
 }
 
-function captureProcessLog(proc: ChildProcessWithoutNullStreams, path: string): void {
+function captureProcessLog(proc: TauriDriverProcess, path: string): void {
   mkdirSync(dirname(path), { recursive: true });
   const stream = createWriteStream(path, { flags: 'a' });
   proc.stdout.pipe(stream);

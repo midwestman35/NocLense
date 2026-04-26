@@ -1,5 +1,4 @@
 import { resolve } from 'node:path';
-import type { Options } from '@wdio/types';
 
 export function resolveTauriBinary(): string {
   const exeName = process.platform === 'win32' ? 'noclense.exe' : 'noclense';
@@ -7,7 +6,7 @@ export function resolveTauriBinary(): string {
   return binary;
 }
 
-export const config: Options.Testrunner = {
+export const config: WebdriverIO.Config = {
   runner: 'local',
   specs: [resolve(process.cwd(), 'tools', 'claude-automation', 'smoke-runner.ts')],
   hostname: 'localhost',
